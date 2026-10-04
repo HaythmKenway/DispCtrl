@@ -12,6 +12,7 @@ using DispCtrl, not for people reading the diff.
 - LG UltraGear (GSM-5B71): response time and 1ms Motion Blur Reduction can be set from DispCtrl ([#33](https://github.com/jesvijonathan/DispCtrl/issues/33)).
 - LG UltraWide (GSM-5BF7): colour temperature can be set as Warm, Medium, Cool or Custom, as the monitor's menu names them ([#31](https://github.com/jesvijonathan/DispCtrl/issues/31)).
 - **DispCtrl for Linux** (early, X11): a command line (`dispctrl-linux`) and a window for each display's brightness - external monitors over DDC/CI, a laptop's own panel through its backlight with no root or setup - plus software dimming and a night light with a schedule, kept by a small engine that runs with your session. A `.deb` for Debian and Ubuntu, and a tarball with a per-user installer. See [DispCtrl for Linux](LINUX.md).
+- **Snap layouts and Snap Assist on Linux** (X11): drag a window to the top centre of a display, or press Super+Z, and choose where it goes - halves, thirds, quarters and more, picked for each display's shape; then fill the spaces left from pictures of your other windows. On GNOME the shortcut appears among its custom keyboard shortcuts.
 
 ### Fixed
 - LG UltraWide (GSM-5BF7): DispCtrl no longer calls FE "Gamma"; the monitor ignores writes to it ([#31](https://github.com/jesvijonathan/DispCtrl/issues/31)).
