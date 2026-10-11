@@ -75,6 +75,46 @@ jobs:
           ./build.cmd build
           ./build.cmd test
 
+  linux-distros:
+    # The Linux tarballs installed on clean Debian, Ubuntu 20.04 and 24.04,
+    # Fedora, Rocky 8, openSUSE, Arch, Alpine (musl) and Void, in containers:
+    # install.sh, doctor's package names, a display read through libXrandr,
+    # the window opening, uninstall (build/packaging/linux/distro-check.sh).
+    # Only when the Linux client or its packaging changed: it takes minutes.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Did the Linux client change?
+        id: changed
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ "$EVENT" = workflow_dispatch ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$BASE" HEAD | grep -qE '^(src/DispCtrl\.Linux|src/DispCtrl\.Core/Arrangement/|build/packaging/linux/|tests/DispCtrl\.Linux|Directory\.Packages\.props)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        if: steps.changed.outputs.run == 'true'
+        with:
+          dotnet-version: 10.0.x
+      - name: Package and install on every distribution
+        if: steps.changed.outputs.run == 'true'
+        env:
+          DISPCTRL_LINUX_TARGETS: linux-x64 linux-musl-x64
+        run: |
+          ./build.cmd linux-package
+          build/packaging/linux/distro-check.sh artifacts/linux-*/
+
   windows:
     runs-on: windows-latest
     timeout-minutes: 45

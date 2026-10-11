@@ -1,69 +1,205 @@
-# Snap packaging for DispCtrl on Linux - NOT YET BUILT. The .deb and the
-# tarball (build/packaging/linux/package.sh) are what ships; this is the
-# starting point for the Snap Store, kept consistent with them.
+# The Snap Store package of DispCtrl for Linux. Built with pack.sh beside it,
+# which hands snapcraft a clean copy of the repository with this file as its
+# snap/snapcraft.yaml: snapcraft only looks for one at a project's root, and
+# the root is kept lean.
 #
-# What still stands in the way of a strict snap:
-#   - DDC/CI: ddcutil needs read/write on /dev/i2c-*. The `i2c` interface is
-#     slot-provided by gadget snaps (Ubuntu Core), not on a desktop, so no
-#     stock interface grants it here. Options: ask the Store for classic
-#     confinement, or ship without DDC/CI (night light, dimming and the
-#     backlight through logind still work).
-#   - The engine must run per user, inside the graphical session, to reach X:
-#     a user daemon (daemon-scope: user, snapd 2.61 and later), never a
-#     system one, which has no $DISPLAY and would run as root.
-#   - Backlight: logind's SetBrightness over D-Bus needs the `login-session-control`
-#     plug, which is reviewed by the Store.
+# Strict confinement, without DDC/CI. What that costs, and why classic is not
+# on offer, is in docs/design/LINUX-PORT.md ("Snap packaging"); in short:
+#   - /dev/i2c-* is out of reach. The `i2c` interface is slotted by a gadget
+#     snap on Ubuntu Core and has no slot on a desktop; `custom-device` needs
+#     a Store grant and still cannot load i2c-dev. So no ddcutil is staged:
+#     one that could only fail would read as a broken install.
+#   - The Store grants classic only to compilers, IDEs, shells and the like
+#     ("Reviewing classic confinement snaps"); a display utility is not one.
+#   - Everything X11 works strictly, because the x11 interface is the whole X
+#     protocol: gamma ramps, key grabs, XInput2, overlays, moving other
+#     windows through EWMH, Composite, and display arrangement.
+#   - The laptop backlight goes through logind's Session.SetBrightness, which
+#     login-session-control allows. It is not auto-connected: until the Store
+#     grants that, `snap connect dispctrl-linux:login-session-control`.
+#
+# The engine is started at sign-in through snapd's autostart, not as a user
+# daemon: `daemon-scope: user` is still behind experimental.user-daemons in
+# snapd 2.77, so a snap that used it would not install by default, and a
+# user unit would start before the session's DISPLAY is known.
 name: dispctrl-linux
 title: DispCtrl
-summary: Per-monitor brightness, dimming and night light
+summary: Per-display brightness, dimming, night light and snap layouts
 description: |
-  Sets each display's brightness - external monitors over DDC/CI and a
-  laptop's own panel through its backlight - and warms or dims any display
-  through its gamma ramp, with a night light schedule kept by a small user
-  service. Night light and dimming need an X11 session.
-  https://github.com/jesvijonathan/DispCtrl/blob/master/docs/LINUX.md
+  DispCtrl for Linux warms or dims any display through its gamma ramp, keeps
+  a night light schedule, arranges displays, sets a laptop panel's
+  backlight, and brings Windows 11's snap layouts and Snap Assist to X11
+  desktops. A small engine started at sign-in keeps it all applied; the
+  window and the dispctrl-linux command both talk to it.
+
+  It needs an X11 session: on Wayland the compositor keeps gamma and window
+  placement to itself.
+
+  Not in the snap: an external monitor's own brightness over DDC/CI. Strict
+  confinement cannot reach the I2C buses; the .deb and the tarball from the
+  project's releases can.
+
+  The laptop backlight needs one permission the Store does not connect by
+  itself yet:
+
+    sudo snap connect dispctrl-linux:login-session-control
+
+  https://github.com/HaythmKenway/DispCtrl/blob/master/docs/LINUX.md
+website: https://github.com/HaythmKenway/DispCtrl
+source-code: https://github.com/HaythmKenway/DispCtrl
+issues: https://github.com/HaythmKenway/DispCtrl/issues
+license: MIT
+icon: src/DispCtrl.Linux.Gui/Assets/dispctrl.png
 base: core24
 confinement: strict
-grade: devel
-version: git
-icon: src/DispCtrl.Linux.Gui/Assets/dispctrl.png
+grade: stable
+adopt-info: dispctrl-linux
+
+platforms:
+  amd64:
+  arm64:
+
+environment:
+  # Staged libraries are not on the loader's path by default under core24,
+  # and the client loads libX11 and friends by soname (DllImport and
+  # NativeLibrary.TryLoad), so they must be found here, not on the host.
+  LD_LIBRARY_PATH: $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR:$SNAP/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
+  # gsettings: the schemas DispCtrl reads and writes (theme, GNOME's custom
+  # shortcuts, its night light and extensions) are staged and compiled
+  # below; without the dconf module GIO falls back to a memory backend and
+  # a shortcut "set" would vanish silently.
+  GSETTINGS_SCHEMA_DIR: $SNAP/usr/share/glib-2.0/schemas
+  GIO_MODULE_DIR: $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/gio/modules
+  FONTCONFIG_FILE: $SNAP/etc/fonts/fonts.conf
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
 
 apps:
   dispctrl-linux:
     command: lib/dispctrl-linux
-    plugs: [x11, hardware-observe, i2c, login-session-control]
-  dispctrl-linux-gui:
+    command-chain: [bin/launch]
+    plugs: &plugs
+      - x11
+      - desktop
+      - gsettings
+      - hardware-observe
+      - login-session-control
+  gui:
     command: lib/dispctrl-linux-gui
-    desktop: share/applications/dispctrl-linux.desktop
-    plugs: [x11, desktop, desktop-legacy, hardware-observe, i2c, login-session-control]
+    command-chain: [bin/launch]
+    desktop: usr/share/applications/dispctrl-linux.desktop
+    plugs:
+      - x11
+      - desktop
+      - desktop-legacy
+      - gsettings
+      - hardware-observe
+      - login-session-control
   engine:
     command: lib/dispctrl-linux engine
-    daemon: simple
-    daemon-scope: user
-    restart-condition: on-failure
-    plugs: [x11, hardware-observe, i2c, login-session-control]
+    command-chain: [bin/launch]
+    # snapd runs it at sign-in when ~/snap/dispctrl-linux/current/.config/
+    # autostart/ holds this file; bin/launch puts it there on first use.
+    autostart: dispctrl-linux-engine.desktop
+    plugs: *plugs
 
 parts:
   dispctrl-linux:
     plugin: nil
     source: .
-    build-snaps: [dotnet-sdk-100]
+    build-packages:
+      - curl
+      - ca-certificates
+      - libglib2.0-bin
+    build-environment:
+      # The SDK's own globalization would need ICU in the build; the client
+      # is built invariant anyway.
+      - DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "1"
+      - DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      - DOTNET_NOLOGO: "1"
+      - DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+    override-pull: |
+      craftctl default
+      version="${DISPCTRL_VERSION:-$(sed -n 's:.*<DispCtrlVersion>\(.*\)</DispCtrlVersion>.*:\1:p' Directory.Build.props)}"
+      craftctl set version="$version"
     override-build: |
-      # Both into one folder, sharing one runtime, as package.sh does.
-      dotnet publish src/DispCtrl.Linux/DispCtrl.Linux.csproj -c Release -r linux-x64 --self-contained true -p:PublishReadyToRun=true -o "$CRAFT_PART_INSTALL/lib"
-      dotnet publish src/DispCtrl.Linux.Gui/DispCtrl.Linux.Gui.csproj -c Release -r linux-x64 --self-contained true -o "$CRAFT_PART_INSTALL/lib"
-      rm -f "$CRAFT_PART_INSTALL"/lib/*.pdb
-      install -D -m 0644 build/packaging/linux/desktop/dispctrl-linux.desktop "$CRAFT_PART_INSTALL/share/applications/dispctrl-linux.desktop"
+      case "$CRAFT_ARCH_BUILD_FOR" in
+        amd64) rid=linux-x64 ;;
+        arm64) rid=linux-arm64 ;;
+        *) echo "no .NET runtime for $CRAFT_ARCH_BUILD_FOR" >&2; exit 1 ;;
+      esac
+      version="$(craftctl get version)"
+
+      # Microsoft's SDK at the version global.json pins, as the release
+      # workflow uses; the dotnet-sdk-100 snap is a source build that can lag
+      # a feature band. Kept in the part's build folder, never staged.
+      sdk="$CRAFT_PART_BUILD/.dotnet"
+      if [ ! -x "$sdk/dotnet" ]; then
+        curl -fsSL --retry 3 https://dot.net/v1/dotnet-install.sh -o "$CRAFT_PART_BUILD/dotnet-install.sh"
+        bash "$CRAFT_PART_BUILD/dotnet-install.sh" --jsonfile global.json --install-dir "$sdk" --no-path
+      fi
+      export DOTNET_ROOT="$sdk" PATH="$sdk:$PATH" NUGET_PACKAGES="$CRAFT_PART_BUILD/.nuget"
+
+      # Both into one folder, sharing one runtime, as package.sh does;
+      # ReadyToRun for the command line, which starts on every command.
+      lib="$CRAFT_PART_INSTALL/lib"
+      dotnet publish src/DispCtrl.Linux/DispCtrl.Linux.csproj -c Release -r "$rid" \
+        --self-contained true -p:PublishReadyToRun=true -p:Version="$version" -o "$lib" -v q --nologo
+      dotnet publish src/DispCtrl.Linux.Gui/DispCtrl.Linux.Gui.csproj -c Release -r "$rid" \
+        --self-contained true -p:Version="$version" -o "$lib" -v q --nologo
+      # The tracing provider links liblttng-ust, which nothing here uses.
+      rm -f "$lib"/*.pdb "$lib/libcoreclrtraceptprovider.so"
+      find "$lib" -type f -exec chmod 0644 {} +
+      chmod 0755 "$lib/dispctrl-linux" "$lib/dispctrl-linux-gui"
+      [ -f "$lib/createdump" ] && chmod 0755 "$lib/createdump"
+      "$lib/dispctrl-linux" version | grep -qx "dispctrl-linux $version" \
+        || { echo "the published command line does not report $version" >&2; exit 1; }
+
+      # The window's entry, with the icon by path: a snap cannot add to the
+      # host's icon theme, so a theme name would show the generic icon.
+      apps="$CRAFT_PART_INSTALL/usr/share/applications"
+      install -D -m 0644 src/DispCtrl.Linux.Gui/Assets/dispctrl.png "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/256x256/apps/dispctrl-linux.png"
+      install -D -m 0644 build/packaging/linux/desktop/dispctrl-linux.desktop "$apps/dispctrl-linux.desktop"
+      sed -i 's|^Icon=.*|Icon=${SNAP}/usr/share/icons/hicolor/256x256/apps/dispctrl-linux.png|' "$apps/dispctrl-linux.desktop"
     stage-packages:
-      - ddcutil
-      - x11-xserver-utils
+      # What the client loads by soname (Distro.Libraries), and gsettings.
       - libx11-6
       - libxrandr2
       - libxi6
       - libxfixes3
       - libxcomposite1
       - libcairo2
+      - libpango-1.0-0
       - libpangocairo-1.0-0
       - libfontconfig1
+      - fontconfig-config
       - libice6
       - libsm6
+      - libglib2.0-bin
+      - dconf-gsettings-backend
+      - gsettings-desktop-schemas
+      - gnome-settings-daemon-common
+      - gnome-shell-common
+    prime:
+      - -usr/share/doc
+      - -usr/share/man
+      - -usr/share/lintian
+      - -usr/share/bug
+      - -usr/share/locale
+      - -usr/share/gnome-shell
+      - -usr/share/gnome-control-center
+      - -usr/share/sounds
+      - -usr/share/icons/hicolor/scalable
+      - -usr/share/icons/hicolor/symbolic
+    override-prime: |
+      craftctl default
+      glib-compile-schemas usr/share/glib-2.0/schemas
+
+  launcher:
+    plugin: dump
+    source: build/packaging/linux/snap
+    organize:
+      launch: bin/launch
+      dispctrl-linux-engine.desktop: share/dispctrl-linux/dispctrl-linux-engine.desktop
+    stage:
+      - bin/launch
+      - share/dispctrl-linux/dispctrl-linux-engine.desktop

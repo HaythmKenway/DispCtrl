@@ -13,7 +13,7 @@
 
 [Unit]
 Description=DispCtrl engine (night light schedule, gamma ramps, command broker)
-Documentation=https://github.com/jesvijonathan/DispCtrl/blob/master/docs/LINUX.md
+Documentation=https://github.com/HaythmKenway/DispCtrl/blob/master/docs/LINUX.md
 PartOf=graphical-session.target
 After=graphical-session.target
 

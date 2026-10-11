@@ -1,0 +1,13 @@
+[Desktop Entry]
+# The engine at sign-in, for the snap. snapd matches this file by name to the
+# engine app's `autostart:` and runs that app; Exec names it for anything
+# else that reads the entry.
+Type=Application
+Name=DispCtrl engine
+Comment=Keeps the night light schedule, snap layouts and each display's ramp
+Exec=dispctrl-linux.engine
+Icon=dispctrl-linux
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+X-KDE-autostart-phase=2

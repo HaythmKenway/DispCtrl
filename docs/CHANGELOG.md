@@ -12,9 +12,15 @@ using DispCtrl, not for people reading the diff.
 - LG UltraGear (GSM-5B71): response time and 1ms Motion Blur Reduction can be set from DispCtrl ([#33](https://github.com/jesvijonathan/DispCtrl/issues/33)).
 - LG UltraWide (GSM-5BF7): colour temperature can be set as Warm, Medium, Cool or Custom, as the monitor's menu names them ([#31](https://github.com/jesvijonathan/DispCtrl/issues/31)).
 - **DispCtrl for Linux** (early, X11): a command line (`dispctrl-linux`) and a window for each display's brightness - external monitors over DDC/CI, a laptop's own panel through its backlight with no root or setup - plus software dimming and a night light with a schedule, kept by a small engine that runs with your session. A `.deb` for Debian and Ubuntu, and a tarball with a per-user installer. See [DispCtrl for Linux](LINUX.md).
+- **Arrange displays on Linux** (X11): drag each display to where it sits, drawn at its real size, then apply; Identify, Reset and the main display as on Windows. The same from the command line: `dispctrl-linux display set --output DP-1 --x 0 --y 0`, `display arrange`, `display set --primary true`.
+- **The Linux window looks and reads like the Windows app**: a navigation pane with the same pages - Displays, Brightness, Windows and Settings - and each display's card with its brightness, dimming, mode, size and position.
+- **DispCtrl for Linux on every distribution**: an .rpm for Fedora, RHEL and openSUSE beside the .deb, both also for 64-bit ARM; tarballs for x86-64, ARM and Alpine (musl); and a snap. `install.sh` needs no bash and says what is missing before it copies anything, the engine starts without systemd through the desktop's own autostart, and `dispctrl-linux doctor` names any missing library with your distribution's install command.
 - **Snap layouts and Snap Assist on Linux** (X11): drag a window to the top centre of a display, or press Super+Z, and choose where it goes - halves, thirds, quarters and more, picked for each display's shape; then fill the spaces left from pictures of your other windows. On GNOME the shortcut appears among its custom keyboard shortcuts.
 
 ### Fixed
+- Linux: the window showed the generic application icon in GNOME's dock and KDE's task manager instead of DispCtrl's.
+- Linux: the window would not open on desktops without GNOME's `gsettings` (KDE or XFCE without GLib's tools, Alpine, Void), or with no system font installed.
+- Linux: arranging displays and reading the layout no longer need the `xrandr` program, and the laptop backlight works on distributions without systemd (through `dbus-send` or `gdbus`).
 - LG UltraWide (GSM-5BF7): DispCtrl no longer calls FE "Gamma"; the monitor ignores writes to it ([#31](https://github.com/jesvijonathan/DispCtrl/issues/31)).
 - In Duplicate, the app said only one display was connected and offered no way back to Extend or one screen.
 - With two external monitors, "PC screen only" lit "Second screen only" on the Displays page and in the quick panel. The lit choice is now the one Windows' own Project flyout shows, and presets record it the same way.

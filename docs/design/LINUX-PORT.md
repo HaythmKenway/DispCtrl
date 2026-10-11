@@ -120,20 +120,34 @@ unifying the two wire formats is future work, not done here.
 
 ## Snap packaging
 
-Once there is a Linux build at all, packaging it is the easy part:
-- `snapcraft.yaml` with a `core22`/`core24` base, `dotnet` extension or a
-  self-contained publish (matches how `DispCtrl.Engine`'s AOT ambitions
-  already point).
-- `libddcutil`, `libxrandr`, `libx11` as stage-packages.
-- **`hardware-observe`** and a custom interface (or `raw-usb`/`i2c` slot) for
-  `/dev/i2c-*` access — DDC/CI needs a plug users must connect explicitly
-  (`snap connect`), the same trust boundary Windows solves with "never
-  elevated" but Snap solves with confinement instead.
-- `desktop`, `desktop-legacy` (or `wayland`) interfaces for the UI.
-- A `daemon: simple` app entry for the engine service instead of the
-  scheduled-task dance in `StartupIntegration`.
-- Store listing, screenshots and confinement level (strict vs. classic) are
-  the last step, not a blocker for anything above.
+`build/packaging/linux/snap/snapcraft.yaml`, built by `pack.sh` beside it (in
+LXD, Multipass, or `--docker` in Canonical's snapcraft image). What was
+decided, and why:
+
+- **Strict, without DDC/CI.** The `i2c` interface is slotted by gadget snaps
+  on Ubuntu Core and has no slot on a desktop; `custom-device` needs a Store
+  grant and still cannot load i2c-dev. The Store grants classic confinement
+  to compilers, IDEs and shells, not display utilities. So no ddcutil is
+  staged, and `doctor` and the window say DDC/CI is not in the snap rather
+  than asking for an install that could only fail (`Distro.InSnap`).
+- **Everything X11 works strictly**, because the `x11` plug is the whole X
+  protocol: ramps, key grabs, XInput2, overlays, EWMH window moves,
+  Composite and RandR layout changes.
+- **The backlight** goes through logind with `login-session-control`, which
+  is not auto-connected; the docs give the `snap connect` line.
+- **The engine starts through snapd's autostart**, not `daemon-scope: user`,
+  which is still behind an experimental flag and would start before the
+  session's `DISPLAY`.
+- **A self-contained publish** in an override-build, with Microsoft's SDK at
+  global.json's version, rather than the `dotnet` plugin; the X libraries,
+  cairo, pango and fontconfig are staged, GLib and FreeType come from core24.
+- **gsettings** reads the host's dconf database through a link `launch`
+  makes, or a GNOME shortcut DispCtrl set would read back as missing.
+
+The release workflow's snap job builds amd64 and arm64 and attaches them to
+the release; it uploads to the Store only for a published release once the
+`SNAPCRAFT_STORE_CREDENTIALS` secret exists (`snapcraft export-login`). The
+name has to be registered first (`snapcraft register dispctrl-linux`).
 
 ## Status
 
@@ -155,27 +169,36 @@ that do not need a store:
   unifying them is future work.
 - Packages: a `.deb` and a self-contained tarball with a per-user
   `install.sh`, built by `./build.cmd linux-package` and attached to each
-  release by the Linux job in `release.yml`. The snap is a corrected sketch,
-  not yet built.
+  release by the Linux job in `release.yml`, with the .rpm and, from the snap
+  job, the snaps.
 
-It still shares no code with `DispCtrl.Core`, which targets Windows. Splitting
-Core's platform-neutral parts (settings schema, presets, arrangement geometry,
-the warmth maths now copied into `Warmth`) into a `net10.0` library is the
-step that lets presets and the arrangement reach Linux without a second copy.
+The arrangement geometry is the first code shared with `DispCtrl.Core`:
+`Core/Arrangement` is pure geometry, so its three files are compiled into
+`DispCtrl.Linux.Core` as they are, and a drag on Linux lands where it would on
+Windows. The rest of Core targets Windows. Splitting its other platform-neutral
+parts (settings schema, presets, the warmth maths now copied into `Warmth`)
+into a `net10.0` library is the step that lets presets reach Linux without a
+second copy.
 
 ## Recommended order
 
 1. ~~DDC/CI~~ - done, through the `ddcutil` command; binding `libddcutil`
    instead would save a process per call.
 2. ~~XRandR layout and gamma ramps~~ - done; ramps through libXrandr.
-3. ~~An Avalonia window~~ - done: night light and a slider per target. Not yet
-   a redesign of the WinUI app's pages.
+3. ~~An Avalonia window~~ - done, in the WinUI app's frame: a navigation pane
+   and its page names (Displays, Brightness, Windows, Settings), showing only
+   what Linux does.
 4. ~~The engine as a systemd user service with a Unix-socket broker~~ - done,
    with the schedule and ramp reconciliation.
-5. Split DispCtrl.Core's platform-neutral parts into a `net10.0` library, then
-   presets and the arrangement.
-6. Packaging: ~~.deb and tarball~~ done; the snap needs a decision on DDC/CI
-   under confinement (classic, or without DDC/CI) before it can be built.
+5. ~~The arrangement~~ - done on X11, on Core's own geometry. Then split
+   DispCtrl.Core's other platform-neutral parts into a `net10.0` library, and
+   presets. Changing a display's mode or rotation needs a "keep these
+   changes?" countdown first, since a mode the monitor cannot show leaves it
+   black.
+6. ~~Packaging~~ - done: .deb and .rpm for amd64 and arm64, tarballs for
+   x64, arm64 and musl, and a strict snap without DDC/CI (the `i2c`
+   interface has no slot on a desktop, and classic is not granted to display
+   utilities), checked on nine distributions by `distro-check.sh`.
 7. ~~Snap layouts and Snap Assist (Linux only)~~ - done on X11: XInput2 raw
    events for drags, EWMH to place windows, cairo overlays, Composite for
    Assist's pictures, the shortcut through GNOME's custom shortcuts.

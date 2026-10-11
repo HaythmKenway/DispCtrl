@@ -992,5 +992,33 @@ unrecallable.
 - **A drag is two samples with the same size and different positions.**
   Dragging a maximized window restores it (a size change) and then moves it;
   resizing from a left or top edge changes position and size together.
+- **FluentAvalonia's `PreferSystemTheme` starts `gsettings` unguarded.**
+  Without it - KDE or XFCE without GLib's tools, Alpine, Void - the window
+  aborted before it opened. `App.Initialize` sets it only where `gsettings`
+  exists; elsewhere Avalonia follows the portal's light or dark itself.
+- **Avalonia asks fontconfig for a default font and aborts if it names
+  none**, as on a minimal Arch or openSUSE. The bundled Inter is the default
+  (`FontManagerOptions.DefaultFamilyName`), so no system font is needed.
+- **The window's X class is Avalonia's entry assembly name** by default
+  (`dispctrl-linux-gui`), which matched no desktop entry: docks showed the
+  generic icon. It is set to `dispctrl-linux`, and the entry says
+  `StartupWMClass=dispctrl-linux`.
+- **The `xrandr` program is its own package on every distribution**
+  (x11-xserver-utils, xorg-xrandr, xrandr) and missing from minimal
+  installs; `XRandR` uses libXrandr, which the ramps need anyway. Moving
+  outputs grows the screen to hold both layouts, moves every CRTC, then
+  shrinks it: a CRTC outside the screen is refused, so moving or shrinking
+  first fails.
+- **busctl ships with systemd only.** On elogind systems logind's
+  `SetBrightness` is reached with `dbus-send` or `gdbus`.
+- **An .rpm with `BuildArch` will not package arm64 files on an x86 machine**,
+  though nothing is compiled; `--target` alone sets the architecture. Its
+  requirements are sonames (`libX11.so.6()(64bit)`), which Fedora and
+  openSUSE both resolve though their package names differ, and the automatic
+  scan is off: it read the bundled runtime's tracing library and required
+  liblttng-ust. That library is dropped from every package.
+- **Canonical's snapcraft image hands its arguments to snapcraft**, and exits
+  0 when snapcraft fails: `pack.sh --docker` checks a .snap was made.
+- **BusyBox's `timeout` exits 143, not 124**, when it stops a command.
 - **Subscribe to raw motion only while button 1 is down.** Every pointer
   movement on the desk would otherwise wake the engine.

@@ -65,6 +65,7 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
       tag: ${{ steps.v.outputs.tag }}
+      channel: ${{ steps.v.outputs.channel }}
     env:
       HAS_SIGNING_CERT: ${{ secrets.SIGNING_CERT_BASE64 != '' }}
       DISPCTRL_SIGN_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
@@ -265,8 +266,9 @@ jobs:
           $lines -join "`n" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
   linux:
-    # The Linux packages (.deb and the tarball with install.sh), attached to
-    # the release the job above created. After it, from the tag it made, so
+    # The Linux packages - tarballs for x64, arm64 and musl (Alpine) with
+    # install.sh, .deb and .rpm for x64 and arm64 - attached to the release
+    # the job above created. After it, from the tag it made, so
     # both are built from the same commit and carry the same version. A
     # release published immediately is briefly without them.
     needs: release
@@ -287,6 +289,8 @@ jobs:
         env:
           DISPCTRL_VERSION: ${{ needs.release.outputs.version }}
         run: |
+          # rpmbuild for the .rpm; fakeroot and dpkg-deb are on the image.
+          sudo apt-get install -y --no-install-recommends rpm
           ./build.cmd linux-build
           dotnet run --project tests/DispCtrl.Linux.Checks -c Release --no-build
           ./build.cmd linux-package
@@ -297,11 +301,62 @@ jobs:
           VERSION: ${{ needs.release.outputs.version }}
         run: |
           dir="artifacts/linux-$VERSION"
-          gh release upload "$TAG" "$dir"/*.deb "$dir"/*.tar.gz "$dir"/*SHA256SUMS.txt --clobber --repo "$GITHUB_REPOSITORY"
+          gh release upload "$TAG" "$dir"/*.deb "$dir"/*.rpm "$dir"/*.tar.gz "$dir"/*SHA256SUMS.txt --clobber --repo "$GITHUB_REPOSITORY"
           {
             echo "## Linux packages for $TAG"
             echo
             echo "| File | Size |"
             echo "|---|---|"
-            for f in "$dir"/*.deb "$dir"/*.tar.gz; do echo "| $(basename "$f") | $(du -h "$f" | cut -f1) |"; done
+            for f in "$dir"/*.deb "$dir"/*.rpm "$dir"/*.tar.gz; do echo "| $(basename "$f") | $(du -h "$f" | cut -f1) |"; done
           } >> "$GITHUB_STEP_SUMMARY"
+
+  snap:
+    # The snap, for each processor, built in Canonical's snapcraft image and
+    # attached to the release. It reaches the Snap Store only when the release
+    # is published rather than left a draft, and only once the
+    # SNAPCRAFT_STORE_CREDENTIALS secret holds `snapcraft export-login`'s
+    # output: stable to stable, beta to beta, test to edge.
+    needs: release
+    if: (inputs.packages || 'everything') == 'everything'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    permissions:
+      contents: write   # to upload to the release
+    env:
+      TAG: ${{ needs.release.outputs.tag }}
+      VERSION: ${{ needs.release.outputs.version }}
+      CHANNEL: ${{ needs.release.outputs.channel }}
+      HAS_STORE_LOGIN: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS != '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+          persist-credentials: false
+      - name: Build
+        env:
+          DISPCTRL_VERSION: ${{ needs.release.outputs.version }}
+        run: build/packaging/linux/snap/pack.sh --docker
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$TAG" artifacts/snap/*.snap --clobber --repo "$GITHUB_REPOSITORY"
+          echo "| $(basename artifacts/snap/*.snap) | $(du -h artifacts/snap/*.snap | cut -f1) |" >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish to the Snap Store
+        if: inputs.publish && env.HAS_STORE_LOGIN == 'true'
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        run: |
+          case "$CHANNEL" in stable) to=stable ;; beta) to=beta ;; *) to=edge ;; esac
+          # The image's entry point is snapcraft; its arguments go straight to it.
+          snap=$(basename artifacts/snap/*.snap)
+          docker run --rm -e SNAPCRAFT_STORE_CREDENTIALS -v "$PWD/artifacts/snap":/snaps -w /snaps \
+            ghcr.io/canonical/snapcraft:8_core24 upload --release="$to" "/snaps/$snap"

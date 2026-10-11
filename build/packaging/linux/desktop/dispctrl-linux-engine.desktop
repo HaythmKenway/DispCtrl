@@ -1,0 +1,14 @@
+[Desktop Entry]
+# The engine at login where there is no systemd user manager (elogind,
+# OpenRC, runit, s6): every desktop runs ~/.config/autostart and
+# /etc/xdg/autostart. Where the systemd service is enabled it does nothing,
+# so the service stays the one engine; a second would refuse to start anyway.
+Type=Application
+Name=DispCtrl engine
+Comment=Keeps the night light schedule, snap layouts and each display's ramp
+Exec=sh -c "systemctl --user is-enabled --quiet dispctrl-linux-engine 2>/dev/null || exec dispctrl-linux engine"
+Icon=dispctrl-linux
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+X-KDE-autostart-phase=2

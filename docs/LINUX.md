@@ -5,7 +5,8 @@ schedule, from a command line (`dispctrl-linux`) and a window
 (`dispctrl-linux-gui`), kept by a small engine that runs with your session.
 
 It is early, and smaller than DispCtrl for Windows: no taskbar, hotkeys,
-presets, OLED care or quick panel yet. Night light and dimming need an X11
+presets, OLED care or quick panel yet, and a display's resolution and
+rotation are shown but not changed. Night light and dimming need an X11
 session (see [Wayland](#wayland)). What follows is everything it does today.
 
 | | How | Needs |
@@ -15,36 +16,72 @@ session (see [Wayland](#wayland)). What follows is everything it does today.
 | Software dimming, per display | the output's gamma ramp | an X11 session |
 | Night light, with a schedule | the output's gamma ramp, 6500 K to 1900 K | an X11 session; the engine for the schedule |
 | Snap layouts and Snap Assist | moving windows through the window manager | an X11 session and the engine |
+| Arranging displays, and the main display | XRandR positions, in one change | an X11 session and `xrandr` |
 
 ## Install
 
-**Debian, Ubuntu and derivatives** - download `dispctrl-linux_<version>_amd64.deb`
-from the [releases](https://github.com/jesvijonathan/DispCtrl/releases):
+Every package is self-contained: .NET comes with it, and it runs on any
+distribution with glibc 2.27 or later (Ubuntu 18.04, Debian 10, RHEL 8 and
+later), or musl (Alpine), on x86-64 or 64-bit ARM. Download from the
+[releases](https://github.com/HaythmKenway/DispCtrl/releases):
+
+| Your system | Download | Install |
+|---|---|---|
+| Debian, Ubuntu, Mint, Pop!_OS | `dispctrl-linux_<version>_amd64.deb` (or `_arm64`) | `sudo apt install ./dispctrl-linux_*.deb` |
+| Fedora, RHEL, Rocky, Alma, openSUSE | `dispctrl-linux-<version>-1.x86_64.rpm` (or `.aarch64`) | `sudo dnf install ./dispctrl-linux-*.rpm` or `sudo zypper install ./dispctrl-linux-*.rpm` |
+| Anything else: Arch, Manjaro, Void, Gentoo, NixOS... | `dispctrl-linux-<version>-linux-x64.tar.gz` (or `-linux-arm64`) | `./install.sh`, below |
+| Alpine and other musl systems | `dispctrl-linux-<version>-linux-musl-x64.tar.gz` | `./install.sh`, below |
+| Any, as a snap | `dispctrl-linux_<version>_amd64.snap` (or `_arm64`) | `sudo snap install --dangerous ./dispctrl-linux_*.snap` (see [The snap](#the-snap)); not in the Snap Store yet |
+
+The .deb and .rpm pull in what they need. Start the engine once after
+installing them; it starts by itself at every login after:
 
 ```bash
-sudo apt install ./dispctrl-linux_*_amd64.deb
-systemctl --user start dispctrl-linux-engine    # now; it starts by itself at every login after
+systemctl --user start dispctrl-linux-engine
 ```
 
-**Anything else (x86-64)** - the tarball installs for your account only,
-without root:
+The tarball installs for your account only, without root, and needs no bash:
 
 ```bash
-tar xzf dispctrl-linux-*-linux-x64.tar.gz
-cd dispctrl-linux-*-linux-x64
+tar xzf dispctrl-linux-*.tar.gz
+cd dispctrl-linux-*/
 ./install.sh                 # to ~/.local, and starts the engine
 ./install.sh --uninstall     # removes it; settings stay
 ```
 
-Both are self-contained: no .NET needed. Then check what it can reach:
+Before copying anything, `install.sh` checks the program can start here, and
+names the package when the C++ runtime is missing (only on minimal systems:
+`apk add libstdc++ libgcc` on Alpine, `xbps-install libstdc++ libgcc` on Void)
+or when the download is for another processor. Without a systemd user manager
+(OpenRC, runit, s6, elogind) the engine starts through the desktop's own
+autostart instead of a service. Then check what it can reach:
 
 ```bash
 dispctrl-linux doctor
 ```
 
-For external monitors, install `ddcutil` (`sudo apt install ddcutil`); its
-package lets the logged-in user use the I2C buses. Laptop panels have no DDC/CI
-channel - that is correct, not a fault; their backlight is used instead.
+`doctor` names anything missing with your distribution's own install command:
+the X libraries a desktop already has (libX11, libXrandr, libXi, libXfixes,
+libXcomposite, cairo, pango, fontconfig, libICE, libSM), and ddcutil for
+external monitors (`sudo apt install ddcutil`, `dnf`, `zypper`, `pacman -S`,
+`apk add`, `xbps-install`), whose package lets the logged-in user use the I2C
+buses. Laptop panels have no DDC/CI channel - that is correct, not a fault;
+their backlight is used instead. Nothing needs the `xrandr` program: the layout
+is read and moved through libXrandr directly.
+
+### The snap
+
+The snap runs under strict confinement, which keeps it from `/dev/i2c-*`: an
+external monitor's own brightness over DDC/CI is not available in it, and the
+window and `doctor` say so. Everything else is: night light, dimming,
+arranging, the main display, snap layouts and the laptop's backlight. The
+backlight needs one permission the Store does not connect by itself:
+
+```bash
+sudo snap connect dispctrl-linux:login-session-control
+```
+
+For DDC/CI, use the .deb, .rpm or tarball instead.
 
 ## Use
 
@@ -63,12 +100,42 @@ dispctrl-linux restore                       night light off, no dimming, every 
 dispctrl-linux status                        what is on, and what every ramp holds
 ```
 
+The window has the Windows app's pages: **Displays** (the arrangement, and
+each display's card), **Brightness** (hardware brightness, dimming and night
+light), **Windows** (snap layouts) and **Settings** (the engine).
+
 `dispctrl-linux help` lists everything. Exit codes are those of `dispctrl.exe`
 on Windows: 0 done, 1 refused, 2 asked wrongly.
 
 **If a screen is too dark or too orange**, `dispctrl-linux restore` puts
 everything back, as does the window's **Restore** button. Dimming never goes
 below 10%, so the controls stay readable.
+
+## Arranging displays
+
+The Displays page draws the desk at each display's real size (or by
+resolution, with **By resolution**). Drag a display to where it sits: it only
+ever lands flush against another, at an end or centred, and a gap it leaves is
+closed when you let go, as on Windows. Nothing changes until **Apply**, which
+moves every display in one XRandR change and reads it back. **Identify** shows
+each display's number on it; **Reset** puts them side by side, tops aligned.
+Each display's card makes it the main one.
+
+```
+dispctrl-linux display                                each lit output: main, mode, position, size, model
+dispctrl-linux display set --output eDP --x 333 --y 1440
+dispctrl-linux display set --output DP-1 --primary true
+dispctrl-linux display arrange DP-1=0,0 eDP=2560,0    the whole layout at once
+dispctrl-linux display arrange reset
+```
+
+Positions may be negative, as `dispctrl.exe display set` takes them relative to
+the main display; X's desktop starts at 0,0, so the layout is shifted as a
+whole. A gap or an overlap is refused, as Windows refuses it.
+
+GNOME and KDE keep a saved layout of their own (GNOME's in
+`~/.config/monitors.xml`) and may put it back at the next login or when a
+display is plugged in; DispCtrl does not write theirs.
 
 ## Snap layouts and Snap Assist
 
@@ -166,7 +233,9 @@ the rest. Per-compositor support is planned
 ./build.cmd linux-run cli doctor
 ./build.cmd linux-run gui
 ./build.cmd test               # includes DispCtrl.Linux.Checks on Linux
-./build.cmd linux-package      # the .deb and the tarball, in artifacts/linux-<version>/
+./build.cmd linux-package      # tarballs, .deb and .rpm (with rpmbuild), in artifacts/linux-<version>/
+build/packaging/linux/snap/pack.sh --docker      # the snap, in artifacts/snap/
+build/packaging/linux/distro-check.sh artifacts/linux-<version>   # install on nine distributions (Docker)
 ```
 
 `src/DispCtrl.Linux.Core` holds the hardware (ddcutil, the backlight, XRandR
@@ -175,7 +244,9 @@ ramps through libXrandr), settings, every command and the engine's protocol;
 the Avalonia window; `build/packaging/linux` the packages, the systemd unit and
 the udev rule. `tests/DispCtrl.Linux.Checks` needs no monitors and no X server:
 it points X at a display that cannot answer, so it never changes a ramp. The
-release workflow builds and attaches the Linux packages after the Windows ones.
+release workflow builds and attaches the Linux packages, and the snaps, after
+the Windows ones; CI installs the tarballs on nine distributions whenever the
+Linux client or its packaging changes.
 The traps already paid for are in [TRAPS.md](developer/TRAPS.md#linux-client).
 
 ## Verified on
@@ -205,3 +276,11 @@ DDC/CI on `/dev/i2c-5`), on 2026-10-04:
   GTK windows with client-side shadows both landed pixel-exact. Assist's cards
   show each window's live picture, cropped to what is visible. GNOME's custom
   shortcut list was back exactly as before once the engine stopped.
+
+On 2026-10-11, in containers, with `build/packaging/linux/distro-check.sh`:
+the tarball on Debian 12, Ubuntu 20.04 and 24.04, Fedora 42, Rocky 8, openSUSE
+Tumbleweed, Arch, Alpine 3.20 (musl) and Void - install.sh, doctor's install
+command for each, a display read through libXrandr from Xvfb, the window
+running, uninstall - and the .rpm installed with its dependencies resolved on
+Fedora 42, Rocky 8 and openSUSE. The snap was built, unpacked and run against
+Xvfb, but not installed: that needs `snap install --dangerous` on a desk.

@@ -9,6 +9,11 @@
 | `DispCtrl-<v>-<channel>-win-x64-cli.zip` | `build/Publish.ps1` | `dispctrl.exe` and the engine, no window |
 | `DispCtrl-<v>.0-x64.msix` | `build/Package.ps1` (MakeAppx) | the Microsoft Store |
 | `SHA256SUMS.txt` | each script adds its packages (`build/Checksums.ps1`) | checking any download: one file for all of them, sorted by name |
+| `dispctrl-linux_<v>_amd64.deb`, `_arm64.deb` | `build/packaging/linux/package.sh` | Debian, Ubuntu and derivatives |
+| `dispctrl-linux-<v>-1.x86_64.rpm`, `.aarch64.rpm` | the same, with rpmbuild (`rpm/build-rpm.sh`) | Fedora, RHEL and rebuilds, openSUSE |
+| `dispctrl-linux-<v>-linux-x64.tar.gz`, `-linux-arm64`, `-linux-musl-x64` | the same | any other distribution, Alpine (musl); `install.sh` inside |
+| `dispctrl-linux_<v>_amd64.snap`, `_arm64.snap` | `build/packaging/linux/snap/pack.sh --docker` | the Snap Store (strict, no DDC/CI) |
+| `dispctrl-linux-<v>-SHA256SUMS.txt` | `package.sh` | the Linux packages |
 
 Every one of them lands in a single folder, `artifacts/<channel>-<version>/`,
 beside the `cli` and `desktop` folders they were made from. Publish replaces
@@ -213,6 +218,7 @@ no secrets, and the Device library workflow's token cannot change files under
 | variable | `WINGET_PACKAGE_ID` | `JesviJonathan.DispCtrl`; enables the winget job |
 | secret | `WINGET_TOKEN` | a classic token with `public_repo`, for the winget-pkgs fork and pull request |
 | environment | `microsoft-store` | add required reviewers |
+| secret | `SNAPCRAFT_STORE_CREDENTIALS` | `snapcraft export-login --snaps=dispctrl-linux --acls package_access,package_push,package_update,package_release -`, after `snapcraft register dispctrl-linux` once; enables uploading a published release's snaps (stable to stable, beta to beta, test to edge) |
 
 Before the first Store submission:
 - Reserve the name in Partner Center.

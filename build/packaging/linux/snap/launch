@@ -1,0 +1,36 @@
+#!/bin/sh
+# Runs before every app in the snap (command-chain), then execs it.
+
+# dconf: gsettings writes go through the dconf service, which keeps the real
+# ~/.config/dconf/user, but reads come from $HOME/.config/dconf/user, and in a
+# snap $HOME is ~/snap/dispctrl-linux/<revision>. Without this link a GNOME
+# shortcut DispCtrl had just set read back as missing, and the light or dark
+# theme was always the default. Readable only while the gsettings plug is
+# connected; otherwise the snap keeps its own empty database.
+real="$SNAP_REAL_HOME/.config/dconf/user"
+if [ -r "$real" ]; then
+    mkdir -p "$HOME/.config/dconf"
+    ln -sfn "$real" "$HOME/.config/dconf/user"
+fi
+
+# The engine at sign-in, offered once, as the .deb enables its user service
+# on install. snapd starts ~/snap/<snap>/current/.config/autostart entries
+# that an app names in `autostart:`; the marker sits in the unversioned
+# folder so that removing the entry turns it off for good, refreshes
+# included. On that first run the window also starts the engine, so nothing
+# waits for the next sign-in.
+marker="$SNAP_USER_COMMON/engine-autostart-offered"
+if [ ! -e "$marker" ]; then
+    mkdir -p "$HOME/.config/autostart" "$SNAP_USER_COMMON"
+    cp "$SNAP/share/dispctrl-linux/dispctrl-linux-engine.desktop" "$HOME/.config/autostart/" 2>/dev/null
+    : > "$marker"
+    case "$1" in
+        */dispctrl-linux-gui)
+            if [ ! -S "$XDG_RUNTIME_DIR/dispctrl-linux.sock" ]; then
+                setsid "$SNAP/lib/dispctrl-linux" engine >/dev/null 2>&1 </dev/null &
+            fi
+            ;;
+    esac
+fi
+
+exec "$@"
