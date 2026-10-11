@@ -1,4 +1,3 @@
-using DispCtrl.Core.Displays;
 namespace DispCtrl.Core.Arrangement;
 
 /// <summary>

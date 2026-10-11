@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Text.Json;
+using DispCtrl.Linux.Arrangement;
 using DispCtrl.Linux.Commands;
+using DispCtrl.Linux.Distribution;
 using DispCtrl.Linux.Engine;
 using DispCtrl.Linux.Hardware;
 using DispCtrl.Linux.Ramps;
@@ -30,6 +32,8 @@ void Check(bool condition, string name)
 try
 {
     Parsing();
+    ArrangementChecks();
+    DistributionChecks();
     SnapGeometryChecks();
     WarmthAndSchedule();
     Targets();
@@ -69,19 +73,6 @@ void Parsing()
     Check(Ddcutil.ParseVcp("VCP code 0x10 (Brightness ): current value = 70, max value = 100") is null,
         "ddcutil: the prose form is not mistaken for a reading");
 
-    var outputs = XRandR.ParseQuery("""
-        Screen 0: minimum 320 x 200, current 2560 x 2520, maximum 16384 x 16384
-        eDP connected primary 1920x1080+333+1440 (normal left inverted right x axis y axis) 344mm x 193mm
-           1920x1080     60.02*+
-        HDMI-A-0 disconnected (normal left inverted right x axis y axis)
-        DP-1-0 connected 2560x1440+0+0 (normal left inverted right x axis y axis) 597mm x 336mm
-        DP-1-1 disconnected (normal left inverted right x axis y axis)
-        """);
-    Check(outputs.Count == 4 && outputs.Count(o => o.Connected) == 2, "xrandr: connected and disconnected outputs");
-    Check(outputs[0] is { Name: "eDP", Primary: true, WidthPx: 1920, PosX: 333, PosY: 1440, WidthMm: 344 },
-        "xrandr: primary, geometry and size");
-    Check(outputs[2] is { Name: "DP-1-0", Primary: false, WidthPx: 2560, HeightMm: 336 }, "xrandr: a secondary output");
-
     var echo = Shell.Run("printf", ["%s|", "DP-1 --off", "x"]);
     Check(echo.Ok && echo.Stdout == "DP-1 --off|x|", "shell: an argument with spaces stays one argument");
     Check(Shell.Run("dispctrl-no-such-tool", []).ExitCode == -1, "shell: a missing tool is reported, not thrown");
@@ -89,6 +80,77 @@ void Parsing()
 
     Check(!Backlight.TrySet("../../../tmp", 1, out var error) && error!.Contains("no backlight device", StringComparison.Ordinal),
         "backlight: a name that is not a device never reaches a path");
+}
+
+void ArrangementChecks()
+{
+    // This desk: the Dell above, the laptop panel below it and a little right;
+    // then a portrait monitor, and one connected but switched off.
+    List<XRandROutput> outputs =
+    [
+        new("eDP", true, true, 1920, 1080, 333, 1440, 344, 193, 0, 144),
+        new("DP-1-0", true, false, 2560, 1440, 0, 0, 597, 336, 0, 59.95),
+        new("HDMI-A-0", true, false, 1080, 1920, 2560, 0, 527, 296, 90, 60),
+        new("DP-1-1", true, false, 0, 0, 0, 0, 0, 0),
+    ];
+    Check(outputs[3] is { Connected: true, Active: false }, "xrandr: connected but switched off is not lit");
+    var portrait = DesktopLayout.Physical(outputs[2], 0, 0, physical: true);
+    Check(Math.Abs(portrait.WidthMm - 296) < 0.01 && Math.Abs(portrait.HeightMm - 527) < 0.01,
+        "arrangement: a portrait monitor is drawn tall at its real size");
+
+    var desk = outputs.Take(2).ToList();
+    Check(DesktopLayout.Plan(desk, new Dictionary<string, (int, int)> { ["eDP"] = (0, 0) }, out _) is { } overlap
+        && overlap.Contains("overlap", StringComparison.Ordinal), "arrangement: an overlap is refused");
+    Check(DesktopLayout.Plan(desk, new Dictionary<string, (int, int)> { ["eDP"] = (5000, 0) }, out _) is { } gap
+        && gap.Contains("touch", StringComparison.Ordinal), "arrangement: a gap is refused");
+    Check(DesktopLayout.Plan(desk, new Dictionary<string, (int, int)> { ["eDP"] = (-1920, 0) }, out var left) is null
+        && left["eDP"] == (0, 0) && left["DP-1-0"] == (1920, 0),
+        "arrangement: a position left of 0 shifts the whole desktop, as X has no negative coordinates");
+    Check(DesktopLayout.Plan(outputs, new Dictionary<string, (int, int)> { ["DP-1-1"] = (0, 0) }, out _) is { } off
+        && off.Contains("switched off", StringComparison.Ordinal), "arrangement: an output that is off cannot be placed");
+    var side = DesktopLayout.SideBySide(desk);
+    Check(side["DP-1-0"] == (0, 0) && side["eDP"] == (2560, 0), "arrangement: reset is left to right, tops aligned");
+
+    Check(XRandR.ScreenFor([(0, 0, 2560, 1440), (333, 1440, 1920, 1080)]) == (2560, 2520),
+        "xrandr: the screen reaches the furthest right and bottom edges, from 0,0");
+    Check(XRandR.ScreenFor([(2560, 0, 1920, 1080), (0, 0, 2560, 1440)]) == (4480, 1440),
+        "xrandr: side by side, the screen is both widths");
+
+    // The monitor name descriptor, as the Dell's EDID carries it.
+    var edid = new byte[128];
+    byte[] descriptor = [0, 0, 0, 0xFC, 0, .. "DELL P2723DE\n"u8];
+    descriptor.CopyTo(edid, 72);
+    Check(XRandR.EdidName(edid) == "DELL P2723DE", "edid: the monitor name descriptor");
+    Check(XRandR.EdidName(new byte[128]) is null, "edid: a panel that names nothing has no name");
+}
+
+void DistributionChecks()
+{
+    // ID and ID_LIKE as these distributions write them.
+    Check(Distro.Detect("NAME=\"Linux Mint\"\nID=linuxmint\nID_LIKE=\"ubuntu debian\"\n") == DistroFamily.Debian, "distro: Mint is Debian's family");
+    Check(Distro.Detect("ID=\"rocky\"\nID_LIKE=\"rhel centos fedora\"\n") == DistroFamily.Fedora, "distro: Rocky is Fedora's family");
+    Check(Distro.Detect("ID=\"opensuse-tumbleweed\"\nID_LIKE=\"opensuse suse\"\n") == DistroFamily.Suse, "distro: Tumbleweed is SUSE");
+    Check(Distro.Detect("ID=endeavouros\nID_LIKE=arch\n") == DistroFamily.Arch, "distro: EndeavourOS is Arch's family");
+    Check(Distro.Detect("ID=alpine\n") == DistroFamily.Alpine && Distro.Detect("ID=void\n") == DistroFamily.Void,
+        "distro: Alpine and Void");
+    Check(Distro.Detect("") == DistroFamily.Unknown, "distro: no os-release is unknown, not a guess");
+
+    var xrandr = Distro.Libraries.First(l => l.Soname == "libXrandr.so.2");
+    Check(Distro.PackageOf(xrandr, DistroFamily.Debian) == "libxrandr2" && Distro.PackageOf(xrandr, DistroFamily.Fedora) == "libXrandr"
+        && Distro.PackageOf(xrandr, DistroFamily.Suse) == "libXrandr2" && Distro.PackageOf(xrandr, DistroFamily.Arch) == "libxrandr",
+        "distro: each family's own name for libXrandr");
+    Check(Distro.Libraries.All(l => l.Packages.Length == 7), "distro: every library names a package for all seven families");
+
+    var calls = Backlight.LogindCalls("amdgpu_bl2", "50").ToList();
+    Check(calls.Select(c => c.Tool).SequenceEqual(["busctl", "dbus-send", "gdbus"]),
+        "backlight: logind through busctl, then dbus-send, then gdbus (systemd-less distributions)");
+    Check(calls[1].Args.Contains("uint32:50") && calls[2].Args.Contains("'amdgpu_bl2'") && calls[2].Args.Contains("uint32 50"),
+        "backlight: dbus-send and gdbus spell the arguments their own way");
+
+    Environment.SetEnvironmentVariable("SNAP_NAME", "dispctrl-linux");
+    Check(Distro.InSnap && Distro.DdcutilAdvice.Contains("snap cannot reach", StringComparison.Ordinal),
+        "snap: DDC/CI is said to be unavailable, not to need installing");
+    Environment.SetEnvironmentVariable("SNAP_NAME", null);
 }
 
 void WarmthAndSchedule()
@@ -227,6 +289,12 @@ void Commands()
     Check(schedule.Code == CommandRunner.Done && stored is { Scheduled: true, From: "21:30", To: "06:15", Enabled: false },
         "commands: a schedule is stored without switching night light on");
     Check(Run("nightlight").Out.Contains("21:30 to 06:15", StringComparison.Ordinal), "commands: nightlight reports its schedule");
+    Check(Run("display", "set", "--output", "DP-1").Code == CommandRunner.AskedWrongly,
+        "commands: display set with nothing to set is asked wrongly");
+    Check(Run("display", "arrange", "DP-1").Code == CommandRunner.AskedWrongly,
+        "commands: a place without a position is asked wrongly");
+    Check(Run("display", "arrange", "DP-1=0,0").Code == CommandRunner.Refused,
+        "commands: arranging without an X display is refused, never sent to the desk");
     Check(Run("version").Out.StartsWith("dispctrl-linux ", StringComparison.Ordinal), "commands: version");
     File.Delete(SettingsStore.FilePath);
 }

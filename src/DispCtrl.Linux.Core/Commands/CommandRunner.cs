@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Reflection;
+using DispCtrl.Linux.Distribution;
 using DispCtrl.Linux.Engine;
 using DispCtrl.Linux.Hardware;
 using DispCtrl.Linux.Ramps;
@@ -63,6 +64,7 @@ public static partial class CommandRunner
             {
                 "doctor" => Doctor(context),
                 "displays" => Displays(context),
+                "display" => DisplayCommand(args[1..], context),
                 "status" => Status(context),
                 "brightness" => Brightness(args[1..], context),
                 "dim" => Dim(args[1..], context),
@@ -88,7 +90,7 @@ public static partial class CommandRunner
     }
 
     public const string UsageText = """
-        dispctrl-linux - per-monitor brightness, dimming and night light on Linux (X11)
+        dispctrl-linux - per-monitor brightness, dimming, night light and arrangement on Linux (X11)
 
           displays                                 outputs, DDC/CI monitors and backlight devices
           status                                   the engine, night light, dimming and every ramp
@@ -106,6 +108,13 @@ public static partial class CommandRunner
           nightlight --schedule off                warm whenever it is on
 
           restore                                  night light off, no dimming, every ramp back to normal
+
+          display [list]                           each lit output: main, mode, position, size
+          display set --output <name> --x <n> --y <n>   move one output (others stay; the desktop is
+                                                   shifted so it starts at 0,0)
+          display set --output <name> --primary true    make it the main display
+          display arrange <output>=<x>,<y> ...     the whole layout in one change
+          display arrange reset                    side by side, top edges aligned
 
           windows                                  the open windows, front first, with their ids
           snap                                     Snap layouts and Snap Assist: state and settings
@@ -142,8 +151,15 @@ public static partial class CommandRunner
         bool x = GammaRamp.IsAvailable(out var xReason);
         Line(x, "X display", x ? $"{GammaRamp.Outputs().Count} output(s) with a gamma ramp" : xReason!, "Night light and dimming need it; brightness does not.");
 
-        Line(XRandR.IsAvailable, "xrandr", XRandR.IsAvailable ? Shell.Which("xrandr")! : "not found", "sudo apt install x11-xserver-utils");
-        Line(Ddcutil.IsAvailable, "ddcutil", Ddcutil.IsAvailable ? Shell.Which("ddcutil")! : "not found", "sudo apt install ddcutil");
+        Line(Ddcutil.IsAvailable, "ddcutil", Ddcutil.IsAvailable ? Shell.Which("ddcutil")! : Distro.InSnap ? "not in the snap" : "not found",
+            Distro.InSnap ? $"External monitors' own brightness: {Distro.DdcutilAdvice}."
+                : $"{Distro.InstallCommand([Distro.Ddcutil])}   (only for external monitors' own brightness)");
+
+        var missing = Distro.Missing();
+        Line(missing.Count == 0, "libraries",
+            missing.Count == 0 ? $"every one DispCtrl loads ({Distro.Libraries.Count})"
+                : string.Join("; ", missing.Select(l => $"{l.Soname} missing ({l.NeededFor})")),
+            Distro.InstallCommand(missing));
 
         var buses = System.IO.Directory.Exists("/dev") ? System.IO.Directory.GetFiles("/dev", "i2c-*") : [];
         if (buses.Length == 0)
@@ -154,7 +170,7 @@ public static partial class CommandRunner
         {
             int writable = buses.Count(b => CanReadWrite(b));
             Line(writable > 0, "/dev/i2c-*", $"{buses.Length} bus(es), {writable} this account may use",
-                "sudo usermod -aG i2c $USER, then log in again (ddcutil installs the group and its udev rule)");
+                "Log in again after installing ddcutil: its udev rule gives the logged-in user the buses. Where it has none, add one, or: sudo groupadd -f i2c; sudo usermod -aG i2c $USER");
         }
 
         var backlights = Backlight.Enumerate();
@@ -167,7 +183,7 @@ public static partial class CommandRunner
             foreach (var b in backlights)
             {
                 bool w = CanReadWrite($"/sys/class/backlight/{b.Name}/brightness");
-                bool logind = !w && Shell.TryWhich("busctl");
+                bool logind = !w && new[] { "busctl", "dbus-send", "gdbus" }.Any(Shell.TryWhich);
                 Line(w || logind, "backlight", $"{b.Name} {(w ? "writable" : logind ? "through systemd-logind (active local session)" : "read-only for this account")}",
                     "Install the backlight udev rule and join the video group (docs/LINUX.md, \"Backlight\").");
             }
@@ -199,7 +215,7 @@ public static partial class CommandRunner
         {
             c.Out.WriteLine("Outputs (XRandR)");
             var outputs = XRandR.Query();
-            if (outputs.Count == 0) c.Out.WriteLine("  none - xrandr found no X display");
+            if (outputs.Count == 0) c.Out.WriteLine("  none - RandR reported no outputs");
             foreach (var output in outputs)
             {
                 c.Out.WriteLine(output.Connected
@@ -209,7 +225,7 @@ public static partial class CommandRunner
         }
         else
         {
-            c.Out.WriteLine("Outputs: xrandr not found");
+            c.Out.WriteLine("Outputs: no X display");
         }
 
         c.Out.WriteLine();
@@ -278,7 +294,7 @@ public static partial class CommandRunner
         {
             if (!int.TryParse(ddc, NumberStyles.Integer, CultureInfo.InvariantCulture, out var displayNum) || displayNum < 1)
                 return Wrong(c, "--ddc needs ddcutil's display number (dispctrl-linux displays lists them)");
-            if (!Ddcutil.IsAvailable) return Refuse(c, "ddcutil is not installed (sudo apt install ddcutil)");
+            if (!Ddcutil.IsAvailable) return Refuse(c, Distro.DdcutilAdvice);
             if (!Ddcutil.SetVcp(displayNum, Ddcutil.VcpBrightness, pct, out var error))
                 return Refuse(c, $"display {displayNum} refused brightness: {error}");
             c.Out.WriteLine($"display {displayNum}: brightness {pct}");

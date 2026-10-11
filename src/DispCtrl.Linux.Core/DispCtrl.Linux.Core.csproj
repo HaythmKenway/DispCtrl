@@ -10,9 +10,11 @@
     <AssemblyName>DispCtrl.Linux.Core</AssemblyName>
     <RootNamespace>DispCtrl.Linux</RootNamespace>
 
+    <!-- A library with no native code of its own: any CPU, no runtime of its
+         own, so the arm64 and musl packages load the same assembly. -->
     <Platforms>x64</Platforms>
-    <PlatformTarget>x64</PlatformTarget>
-    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <RuntimeIdentifier />
     <SelfContained>false</SelfContained>
 
     <LangVersion>latest</LangVersion>
@@ -24,6 +26,14 @@
 
     <Description>XRandR, ddcutil and backlight backends shared by dispctrl-linux and the GUI.</Description>
   </PropertyGroup>
+
+  <!-- The arrangement geometry is DispCtrl.Core's own, compiled in rather
+       than copied: those files are pure geometry with no Windows type, and one
+       source keeps a drag on Linux landing where it would on Windows. The
+       rest of DispCtrl.Core targets Windows. -->
+  <ItemGroup>
+    <Compile Include="..\DispCtrl.Core\Arrangement\*.cs" Link="Arrangement\Shared\%(Filename)%(Extension)" />
+  </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="DispCtrl.Linux.Checks" />

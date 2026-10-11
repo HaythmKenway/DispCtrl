@@ -68,23 +68,38 @@ public static class Backlight
         }
     }
 
-    /// <summary>systemd-logind's <c>Session.SetBrightness</c> (systemd 243 and
-    /// later), through busctl so no D-Bus library is needed.</summary>
+    /// <summary>logind's <c>Session.SetBrightness</c> (systemd 243 and later,
+    /// and elogind on distributions without systemd), through whichever D-Bus
+    /// command is installed, so no D-Bus library is needed.</summary>
+    /// <remarks>
+    /// busctl ships with systemd only; Void, Gentoo with OpenRC and Artix run
+    /// elogind, which serves the same call, with dbus-send (from dbus itself)
+    /// or gdbus (from GLib) beside it. The first tool found is used.
+    /// </remarks>
     private static bool TrySetThroughLogind(string deviceName, int value, out string? error)
     {
-        if (!Shell.TryWhich("busctl"))
+        string level = value.ToString(CultureInfo.InvariantCulture);
+        foreach (var (tool, args) in LogindCalls(deviceName, level))
         {
-            error = "busctl not found";
-            return false;
+            if (!Shell.TryWhich(tool)) continue;
+            var result = Shell.Run(tool, args, timeoutMs: 5000);
+            error = result.Ok ? null : result.Stderr.Trim();
+            return result.Ok;
         }
-        var result = Shell.Run("busctl",
-        [
-            "call", "org.freedesktop.login1", "/org/freedesktop/login1/session/auto",
-            "org.freedesktop.login1.Session", "SetBrightness", "ssu",
-            "backlight", deviceName, value.ToString(CultureInfo.InvariantCulture),
-        ], timeoutMs: 5000);
-        error = result.Ok ? null : result.Stderr.Trim();
-        return result.Ok;
+        error = "no D-Bus command found (busctl, dbus-send or gdbus)";
+        return false;
+    }
+
+    internal static IEnumerable<(string Tool, string[] Args)> LogindCalls(string deviceName, string level)
+    {
+        const string Dest = "org.freedesktop.login1", Session = "/org/freedesktop/login1/session/auto";
+        yield return ("busctl", ["call", Dest, Session, "org.freedesktop.login1.Session", "SetBrightness", "ssu",
+            "backlight", deviceName, level]);
+        yield return ("dbus-send", ["--system", "--print-reply", $"--dest={Dest}", Session,
+            "org.freedesktop.login1.Session.SetBrightness", "string:backlight", $"string:{deviceName}", $"uint32:{level}"]);
+        // GVariant text: strings quoted, the number typed.
+        yield return ("gdbus", ["call", "--system", "--dest", Dest, "--object-path", Session,
+            "--method", "org.freedesktop.login1.Session.SetBrightness", "'backlight'", $"'{deviceName}'", $"uint32 {level}"]);
     }
 
     private static bool TryReadInt(string path, out int value)

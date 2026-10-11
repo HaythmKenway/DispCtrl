@@ -182,6 +182,21 @@ public static unsafe class GammaRamp
         return results;
     }
 
+    /// <summary>Runs <paramref name="work"/> on a fresh connection to the
+    /// display the ramps use, under the same lock; does nothing when there is
+    /// no X server or no libX11.</summary>
+    internal static void WithDisplay(Action<nint> work)
+    {
+        if (OnWayland) return;
+        lock (Gate)
+        {
+            var display = SafeOpen();
+            if (display == 0) return;
+            try { work(display); }
+            finally { XCloseDisplay(display); }
+        }
+    }
+
     private static nint SafeOpen()
     {
         try { return Open(); }
