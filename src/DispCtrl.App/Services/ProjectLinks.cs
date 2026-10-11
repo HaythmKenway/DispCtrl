@@ -4,7 +4,7 @@ namespace DispCtrl.App.Services;
 
 internal static class ProjectLinks
 {
-    public const string Repository = "https://github.com/jesvijonathan/DispCtrl";
+    public const string Repository = "https://github.com/HaythmKenway/DispCtrl";
     public const string Issues = Repository + "/issues/new/choose";
     public const string Releases = Repository + "/releases/latest";
     public const string Email = "mailto:jesvi22j@gmail.com";

@@ -47,7 +47,7 @@ public readonly record struct Contribution(
 public static partial class DeviceContribution
 {
     /// <summary>Where device records are collected.</summary>
-    public const string Repository = "jesvijonathan/DispCtrl";
+    public const string Repository = "HaythmKenway/DispCtrl";
 
     /// <summary>
     /// How long a prefilled issue body may be.
