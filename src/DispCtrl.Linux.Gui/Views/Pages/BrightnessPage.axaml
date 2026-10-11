@@ -1,0 +1,133 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:FluentAvalonia.UI.Controls"
+             xmlns:vm="using:DispCtrl.Linux.Gui.ViewModels"
+             x:Class="DispCtrl.Linux.Gui.Views.Pages.BrightnessPage">
+
+    <UserControl.Resources>
+        <!-- One card per slider, whether it ends at a DDC/CI monitor, a
+             backlight or an output's ramp. -->
+        <DataTemplate x:Key="SliderCard" DataType="vm:MonitorRowViewModel">
+            <Border Classes="card">
+                <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                    <ui:FASymbolIcon Classes="cardicon" Symbol="{Binding Icon}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Classes="title" Text="{Binding Title}" />
+                        <TextBlock Classes="caption" Text="{Binding Subtitle}" />
+                        <TextBlock Classes="status" Text="{Binding Status}" IsVisible="{Binding HasStatus}" />
+                    </StackPanel>
+                    <Grid Classes="slider control" ColumnDefinitions="*,56" IsVisible="{Binding IsInteractive}">
+                        <Slider Minimum="{Binding Minimum}" Maximum="{Binding Maximum}"
+                                Value="{Binding Value, Mode=TwoWay}" VerticalAlignment="Center"
+                                AutomationProperties.Name="{Binding Title}" />
+                        <TextBlock Text="{Binding ValueText}" />
+                    </Grid>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Panel Name="Root">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Classes="page">
+
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel>
+                        <TextBlock Classes="pagetitle" Text="Brightness" />
+                        <TextBlock Classes="pagesubtitle"
+                                   Text="Each display's own brightness, dimming in software, and night light." />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Bottom" Margin="12,0,0,0">
+                        <Button Name="RestoreButton" Click="OnRestoreClick" Height="36"
+                                AutomationProperties.Name="Restore"
+                                ToolTip.Tip="Night light off, no dimming, every gamma ramp back to normal">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <ui:FASymbolIcon Symbol="Undo" FontSize="16" />
+                                <TextBlock Name="RestoreLabel" Text="Restore" />
+                            </StackPanel>
+                        </Button>
+                        <Button Name="RescanButton" Click="OnRescan" Width="40" Height="36" Padding="0"
+                                ToolTip.Tip="Look for displays again: a few seconds of DDC/CI traffic per monitor"
+                                AutomationProperties.Name="Rescan displays">
+                            <ui:FASymbolIcon Symbol="Refresh" FontSize="16" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Classes="section" Text="Each display" />
+                <TextBlock Name="ScanStatus" Classes="caption" Margin="2,0,0,8" IsVisible="False" />
+                <ItemsControl Name="BrightnessRows" ItemTemplate="{StaticResource SliderCard}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Spacing="4" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+
+                <TextBlock Classes="section" Text="Dim in software" />
+                <TextBlock Name="DimStatus" Classes="caption" Margin="2,0,0,8" IsVisible="False" />
+                <ItemsControl Name="DimRows" ItemTemplate="{StaticResource SliderCard}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Spacing="4" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+
+                <TextBlock Classes="section" Text="Night light" />
+                <StackPanel Spacing="4">
+                    <Border Classes="card">
+                        <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                            <ui:FASymbolIcon Classes="cardicon" Symbol="WeatherMoon" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Classes="title" Text="Night light" />
+                                <TextBlock Classes="caption" Text="Warmer colours on every display at once, through its gamma ramp." />
+                                <TextBlock Name="NightLightStatus" Classes="status" IsVisible="False" />
+                            </StackPanel>
+                            <ToggleSwitch Name="NightLightSwitch" Classes="toggle" OnContent="On" OffContent="Off"
+                                          AutomationProperties.Name="Night light" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="card">
+                        <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                            <ui:FASymbolIcon Classes="cardicon" Symbol="DarkTheme" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Classes="title" Text="Strength" />
+                                <TextBlock Classes="caption" Text="From 6500 K, neutral, to 1900 K." />
+                            </StackPanel>
+                            <Grid Classes="slider control" ColumnDefinitions="*,56">
+                                <Slider Name="StrengthSlider" Minimum="0" Maximum="100" VerticalAlignment="Center"
+                                        AutomationProperties.Name="Night light strength" />
+                                <TextBlock Name="StrengthText" />
+                            </Grid>
+                        </Grid>
+                    </Border>
+                    <Border Classes="card">
+                        <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                            <ui:FASymbolIcon Classes="cardicon" Symbol="Clock" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Classes="title" Text="Schedule" />
+                                <TextBlock Classes="caption" Text="Warm only between these times. Off: warm whenever night light is on." />
+                            </StackPanel>
+                            <ToggleSwitch Name="ScheduleSwitch" Classes="toggle" OnContent="On" OffContent="Off"
+                                          AutomationProperties.Name="Follow the schedule" />
+                            <WrapPanel Name="ScheduleTimes" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
+                                       Orientation="Horizontal" Margin="0,12,0,0">
+                                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,16,4">
+                                    <TextBlock Text="From" Width="36" VerticalAlignment="Center" />
+                                    <TimePicker Name="FromPicker" ClockIdentifier="24HourClock" MinuteIncrement="5"
+                                                Width="150" AutomationProperties.Name="Night light from" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,4">
+                                    <TextBlock Text="To" Width="36" VerticalAlignment="Center" />
+                                    <TimePicker Name="ToPicker" ClockIdentifier="24HourClock" MinuteIncrement="5"
+                                                Width="150" AutomationProperties.Name="Night light to" />
+                                </StackPanel>
+                            </WrapPanel>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Panel>
+</UserControl>

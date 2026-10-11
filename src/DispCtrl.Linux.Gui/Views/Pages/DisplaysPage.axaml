@@ -1,0 +1,159 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:FluentAvalonia.UI.Controls"
+             xmlns:vm="using:DispCtrl.Linux.Gui.ViewModels"
+             xmlns:controls="using:DispCtrl.Linux.Gui.Views.Controls"
+             x:Class="DispCtrl.Linux.Gui.Views.Pages.DisplaysPage">
+
+    <UserControl.Styles>
+        <!-- The expander's own header and content, drawn as one card. -->
+        <Style Selector="Expander.display">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+    </UserControl.Styles>
+
+    <Panel Name="Root">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Classes="page">
+
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel>
+                        <TextBlock Classes="pagetitle" Text="Displays" />
+                        <TextBlock Name="Topology" Classes="pagesubtitle" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Name="RescanButton" Click="OnRescan" VerticalAlignment="Bottom"
+                            Width="40" Height="36" Padding="0" Margin="12,0,0,0"
+                            ToolTip.Tip="Look for displays again: a few seconds of DDC/CI traffic per monitor"
+                            AutomationProperties.Name="Rescan displays">
+                        <ui:FASymbolIcon Symbol="Refresh" FontSize="16" />
+                    </Button>
+                </Grid>
+
+                <Border Name="WaylandNotice" Classes="notice info" Margin="0,20,0,0" IsVisible="False">
+                    <TextBlock TextWrapping="Wrap"
+                               Text="A Wayland session arranges its displays itself, and only its own settings may move them. Brightness still works: see the Brightness page." />
+                </Border>
+
+                <!-- The arrangement leads the page, as on Windows: it is the picture
+                     of the desk, and everything below belongs to one of its panels. -->
+                <StackPanel Name="ArrangeSection" Spacing="8" Margin="0,24,0,0">
+                    <Grid ColumnDefinitions="40,*">
+                        <ui:FASymbolIcon Classes="cardicon" Symbol="ViewAll" />
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Classes="title" Text="Arrange displays" />
+                            <TextBlock Classes="caption"
+                                       Text="Drag a display to match where it sits on your desk. Nothing changes until you apply." />
+                        </StackPanel>
+                    </Grid>
+                    <controls:ArrangeCanvas Name="ArrangeSurface" />
+                    <TextBlock Classes="caption" Margin="2,0,0,0"
+                               Text="GNOME and KDE keep a saved layout of their own, and may put it back at the next login or when a display is plugged in." />
+                </StackPanel>
+
+                <TextBlock Classes="section" Text="Each display" />
+                <ItemsControl Name="Outputs">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Spacing="4" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:OutputViewModel">
+                            <Expander Classes="display" AutomationProperties.Name="{Binding Label}">
+                                <Expander.Header>
+                                    <Grid ColumnDefinitions="40,*" Margin="0,10">
+                                        <PathIcon Classes="cardicon" Data="{StaticResource MonitorGlyph}" />
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Classes="title" Text="{Binding Title}" />
+                                            <TextBlock Classes="caption" Text="{Binding Details}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Expander.Header>
+
+                                <StackPanel>
+                                    <Border Classes="subcard">
+                                        <Grid Classes="cardgrid bare" ColumnDefinitions="0,*,Auto" RowDefinitions="Auto,Auto">
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Classes="title" Text="Main display" />
+                                                <TextBlock Classes="caption"
+                                                           Text="Where new windows open, and where most desktops put their panel and notifications." />
+                                            </StackPanel>
+                                            <Panel Classes="control">
+                                                <Button Content="Make this my main display" Click="OnMakeMain"
+                                                        Tag="{Binding Output.Name}" IsVisible="{Binding IsSecondary}"
+                                                        AutomationProperties.Name="Make this my main display" />
+                                                <TextBlock Classes="value" Text="This is your main display"
+                                                           VerticalAlignment="Center" IsVisible="{Binding IsPrimary}" />
+                                            </Panel>
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Classes="subcard" IsVisible="{Binding HasBrightness}">
+                                        <Grid Classes="cardgrid bare" ColumnDefinitions="0,*,Auto" RowDefinitions="Auto,Auto">
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Classes="title" Text="Brightness" />
+                                                <TextBlock Classes="caption" Text="{Binding Brightness.Subtitle}" />
+                                                <TextBlock Classes="status" Text="{Binding Brightness.Status}"
+                                                           IsVisible="{Binding Brightness.HasStatus}" />
+                                            </StackPanel>
+                                            <Grid Classes="slider control" ColumnDefinitions="*,56">
+                                                <Slider Minimum="{Binding Brightness.Minimum}" Maximum="{Binding Brightness.Maximum}"
+                                                        Value="{Binding Brightness.Value, Mode=TwoWay}" VerticalAlignment="Center"
+                                                        AutomationProperties.Name="Brightness" />
+                                                <TextBlock Text="{Binding Brightness.ValueText}" />
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Classes="subcard" IsVisible="{Binding HasDim}">
+                                        <Grid Classes="cardgrid bare" ColumnDefinitions="0,*,Auto" RowDefinitions="Auto,Auto">
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Classes="title" Text="Dim in software" />
+                                                <TextBlock Classes="caption" Text="Below what the panel itself can do, through the gamma ramp." />
+                                                <TextBlock Classes="status" Text="{Binding Dim.Status}" IsVisible="{Binding Dim.HasStatus}" />
+                                            </StackPanel>
+                                            <Grid Classes="slider control" ColumnDefinitions="*,56">
+                                                <Slider Minimum="{Binding Dim.Minimum}" Maximum="{Binding Dim.Maximum}"
+                                                        Value="{Binding Dim.Value, Mode=TwoWay}" VerticalAlignment="Center"
+                                                        AutomationProperties.Name="Dim in software" />
+                                                <TextBlock Text="{Binding Dim.ValueText}" />
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Classes="subcard">
+                                        <Grid Classes="cardgrid bare" ColumnDefinitions="0,*,Auto" RowDefinitions="Auto,Auto">
+                                            <TextBlock Grid.Column="1" Classes="title" Text="Resolution and refresh rate" VerticalAlignment="Center" />
+                                            <TextBlock Classes="value control" Text="{Binding ModeText}" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Classes="subcard">
+                                        <Grid Classes="cardgrid bare" ColumnDefinitions="0,*,Auto" RowDefinitions="Auto,Auto">
+                                            <TextBlock Grid.Column="1" Classes="title" Text="Orientation" VerticalAlignment="Center" />
+                                            <TextBlock Classes="value control" Text="{Binding OrientationText}" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Classes="subcard">
+                                        <Grid Classes="cardgrid bare" ColumnDefinitions="0,*,Auto" RowDefinitions="Auto,Auto">
+                                            <TextBlock Grid.Column="1" Classes="title" Text="Size" VerticalAlignment="Center" />
+                                            <TextBlock Classes="value control" Text="{Binding SizeText}" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Classes="subcard">
+                                        <Grid Classes="cardgrid bare" ColumnDefinitions="0,*,Auto" RowDefinitions="Auto,Auto">
+                                            <TextBlock Grid.Column="1" Classes="title" Text="Position on the desktop" VerticalAlignment="Center" />
+                                            <TextBlock Classes="value control" Text="{Binding PositionText}" />
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </Expander>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Name="MainStatus" Classes="status" IsVisible="False" Margin="2,8,0,0" />
+            </StackPanel>
+        </ScrollViewer>
+    </Panel>
+</UserControl>

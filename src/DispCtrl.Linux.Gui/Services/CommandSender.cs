@@ -2,7 +2,7 @@ using Avalonia.Threading;
 using DispCtrl.Linux.Commands;
 using DispCtrl.Linux.Engine;
 
-namespace DispCtrl.Linux.Gui;
+namespace DispCtrl.Linux.Gui.Services;
 
 /// <summary>Runs commands for the window: through the engine when it is
 /// running, here otherwise - exactly what <c>dispctrl-linux</c> does.</summary>
@@ -66,6 +66,10 @@ public sealed class CommandSender
         int code = CommandRunner.Run(args, CommandContext.Local(output, error));
         return new EngineReply(code, output.ToString(), error.ToString());
     }
+
+    /// <summary>Why a command was refused, in one line, for the status under a control.</summary>
+    public static string Reason(EngineReply reply) =>
+        FirstLine(reply.Stderr) ?? $"refused ({reply.ExitCode})";
 
     private static string? FirstLine(string text) =>
         text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)

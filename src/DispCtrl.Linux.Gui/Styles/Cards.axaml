@@ -1,0 +1,152 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="using:FluentAvalonia.UI.Controls">
+
+    <Styles.Resources>
+        <!-- A monitor, as Windows' TV-monitor glyph draws it: the bundled
+             symbol font has none (Remote is a pair of chevrons). -->
+        <StreamGeometry x:Key="MonitorGlyph">F0 M2,4 H22 V17 H2 Z M3.5,5.5 V15.5 H20.5 V5.5 Z M11.25,17 H12.75 V19 H11.25 Z M8,19 H16 V20.5 H8 Z</StreamGeometry>
+    </Styles.Resources>
+
+    <!-- Every page's cards, laid out here rather than with FASettingsExpanderItem:
+         its footer takes the width it wants and squeezes the text, which crushed
+         the schedule's description into a one-letter column. Each card is a
+         three-column grid (icon, text, control); below a page's narrow width its
+         root gets the "narrow" class and the control moves under the text. -->
+
+    <!-- The page frame, as the Windows app draws it: a 28 px title, a line
+         under it, and cards that fill the width up to a readable maximum. -->
+    <Style Selector="TextBlock.pagetitle">
+        <Setter Property="FontSize" Value="28" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.pagesubtitle">
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="Margin" Value="0,4,0,0" />
+    </Style>
+    <Style Selector="StackPanel.page">
+        <Setter Property="Margin" Value="36,20,36,36" />
+        <Setter Property="MaxWidth" Value="1000" />
+    </Style>
+    <Style Selector="Panel.narrow StackPanel.page">
+        <Setter Property="Margin" Value="16,16,16,24" />
+    </Style>
+
+    <Style Selector="Border.card">
+        <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="16,14" />
+    </Style>
+    <!-- A card inside an expanded display: flat, so the expander reads as one block. -->
+    <Style Selector="Border.subcard">
+        <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="0,1,0,0" />
+        <Setter Property="Padding" Value="56,12,16,12" />
+    </Style>
+    <Style Selector="Panel.narrow Border.subcard">
+        <Setter Property="Padding" Value="16,12,16,12" />
+    </Style>
+    <Style Selector="ui|FASymbolIcon.cardicon">
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="PathIcon.cardicon">
+        <Setter Property="Width" Value="20" />
+        <Setter Property="Height" Value="20" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.title">
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.caption">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="Margin" Value="0,2,0,0" />
+    </Style>
+    <Style Selector="TextBlock.status">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+        <Setter Property="Margin" Value="0,4,0,0" />
+    </Style>
+    <Style Selector="TextBlock.section">
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="2,28,0,8" />
+    </Style>
+    <Style Selector="TextBlock.value">
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!-- The control column: beside the text when wide, under it when narrow. -->
+    <Style Selector="Grid.cardgrid > :is(Control).control">
+        <Setter Property="Grid.Row" Value="0" />
+        <Setter Property="Grid.Column" Value="2" />
+        <Setter Property="Margin" Value="16,0,0,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="HorizontalAlignment" Value="Right" />
+    </Style>
+    <Style Selector="Panel.narrow Grid.cardgrid > :is(Control).control">
+        <Setter Property="Grid.Row" Value="1" />
+        <Setter Property="Grid.Column" Value="1" />
+        <Setter Property="Grid.ColumnSpan" Value="2" />
+        <Setter Property="Margin" Value="0,12,0,0" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+    </Style>
+    <!-- Without an icon the text takes the icon's column too. -->
+    <Style Selector="Panel.narrow Grid.cardgrid.bare > :is(Control).control">
+        <Setter Property="Grid.Column" Value="0" />
+        <Setter Property="Grid.ColumnSpan" Value="3" />
+    </Style>
+    <!-- A switch is compact, so it stays beside its text at every width. -->
+    <Style Selector="Grid.cardgrid > ToggleSwitch.toggle">
+        <Setter Property="Grid.Column" Value="2" />
+        <Setter Property="Margin" Value="16,0,0,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="MinWidth" Value="0" />
+    </Style>
+    <!-- A slider with its value: a fixed, comfortable width when wide, all
+         of the card when narrow. -->
+    <Style Selector="Grid.slider">
+        <Setter Property="Width" Value="260" />
+    </Style>
+    <Style Selector="Panel.narrow Grid.cardgrid > TextBox.control">
+        <Setter Property="Width" Value="NaN" />
+    </Style>
+    <Style Selector="Panel.narrow Grid.slider">
+        <Setter Property="Width" Value="NaN" />
+    </Style>
+    <Style Selector="Grid.slider > TextBlock">
+        <Setter Property="Grid.Column" Value="1" />
+        <Setter Property="HorizontalAlignment" Value="Right" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontFeatures" Value="+tnum" />
+    </Style>
+    <Style Selector="TimePicker">
+        <Setter Property="MinWidth" Value="0" />
+    </Style>
+
+    <!-- A notice across the top of a page: the Windows app's InfoBar, kept to
+         one block so it is never taller than the page title it sits under. -->
+    <Style Selector="Border.notice">
+        <Setter Property="Background" Value="{DynamicResource SystemFillColorCautionBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="16,12" />
+    </Style>
+    <Style Selector="Border.notice.info">
+        <Setter Property="Background" Value="{DynamicResource SystemFillColorAttentionBackgroundBrush}" />
+    </Style>
+</Styles>

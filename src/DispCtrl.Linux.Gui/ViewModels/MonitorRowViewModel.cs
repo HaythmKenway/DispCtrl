@@ -1,9 +1,10 @@
 using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using DispCtrl.Linux.Gui.Services;
 using FluentAvalonia.UI.Controls;
 
-namespace DispCtrl.Linux.Gui;
+namespace DispCtrl.Linux.Gui.ViewModels;
 
 /// <summary>One row: a slider that sends one command, whether it ends at a
 /// DDC/CI monitor, a backlight or an output's ramp.</summary>
@@ -36,6 +37,13 @@ public sealed class MonitorRowViewModel : INotifyPropertyChanged
         _command = command;
         _value = initialValue;
     }
+
+    /// <summary>The target: one monitor, backlight or output's ramp.</summary>
+    public string Key => _key;
+
+    /// <summary>The monitor model this control belongs to, when known: how a
+    /// DDC/CI monitor finds its display's card.</summary>
+    public string? Model { get; init; }
 
     public string Title { get; }
     public string Subtitle { get; }

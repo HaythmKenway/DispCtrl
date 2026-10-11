@@ -1,0 +1,68 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:FluentAvalonia.UI.Controls"
+             x:Class="DispCtrl.Linux.Gui.Views.Pages.SettingsPage">
+    <UserControl.Styles>
+        <Style Selector="Ellipse.running">
+            <Setter Property="Fill" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+        </Style>
+        <Style Selector="Ellipse.stopped">
+            <Setter Property="Fill" Value="{DynamicResource SystemFillColorCautionBrush}" />
+        </Style>
+    </UserControl.Styles>
+    <Panel Name="Root">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Classes="page">
+                <TextBlock Classes="pagetitle" Text="Settings" />
+                <TextBlock Classes="pagesubtitle" Text="The engine that keeps your settings applied, and where they are kept." />
+
+                <TextBlock Classes="section" Text="Engine" />
+                <StackPanel Spacing="4">
+                    <Border Classes="card">
+                        <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                            <ui:FASymbolIcon Classes="cardicon" Symbol="Setting" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Classes="title" Text="Background engine" />
+                                <TextBlock Name="EngineCaption" Classes="caption" />
+                                <SelectableTextBlock Name="EngineCommand" FontFamily="monospace" FontSize="12" Margin="0,6,0,0"
+                                                     TextWrapping="Wrap" IsVisible="False"
+                                                     Text="systemctl --user enable --now dispctrl-linux-engine" />
+                            </StackPanel>
+                            <StackPanel Classes="control" Orientation="Horizontal" Spacing="8">
+                                <Ellipse Name="EngineDot" Width="8" Height="8" VerticalAlignment="Center" />
+                                <TextBlock Name="EngineState" Classes="value" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <TextBlock Classes="section" Text="About" />
+                <StackPanel Spacing="4">
+                    <Border Classes="card">
+                        <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                            <Image Source="avares://dispctrl-linux-gui/Assets/dispctrl.png" Width="24" Height="24"
+                                   HorizontalAlignment="Left" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Name="VersionText" Classes="title" />
+                                <TextBlock Classes="caption"
+                                           Text="Early, for X11. The command line, dispctrl-linux, does everything this window does." />
+                            </StackPanel>
+                            <Button Classes="control" Content="Read the guide" Click="OnGuide"
+                                    AutomationProperties.Name="Read the guide" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="card">
+                        <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                            <ui:FASymbolIcon Classes="cardicon" Symbol="Document" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Classes="title" Text="Settings file" />
+                                <SelectableTextBlock Name="SettingsPath" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"
+                                                     Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Panel>
+</UserControl>

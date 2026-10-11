@@ -1,0 +1,69 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:FluentAvalonia.UI.Controls"
+             x:Class="DispCtrl.Linux.Gui.Views.Controls.ArrangeCanvas">
+
+    <UserControl.Styles>
+        <Style Selector="Border.tile">
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultSolidBrush}" />
+            <Setter Property="Background" Value="{DynamicResource ControlAltFillColorTertiaryBrush}" />
+            <Setter Property="Cursor" Value="SizeAll" />
+        </Style>
+        <Style Selector="Border.tile:pointerover">
+            <Setter Property="Background" Value="{DynamicResource ControlAltFillColorQuarternaryBrush}" />
+        </Style>
+        <Style Selector="Border.tile TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
+        <Style Selector="Border.tile.primary">
+            <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Border.tile.primary TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+        </Style>
+        <Style Selector="Border.tile.dragging">
+            <Setter Property="Opacity" Value="0.9" />
+        </Style>
+    </UserControl.Styles>
+
+    <!-- The controls live inside the surface, the way Windows puts Identify and
+         Apply inside its arrangement box: they are the diagram's own controls,
+         not page furniture that happens to sit near it. -->
+    <Border CornerRadius="8" BorderThickness="1"
+            Background="{DynamicResource LayerFillColorDefaultBrush}"
+            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+        <Grid RowDefinitions="*,Auto" Margin="12">
+            <!-- Transparent, not unset: a panel with no brush is not hit-testable
+                 where it is empty. ClipToBounds keeps a tile dragged past the
+                 edge from drawing over the page. -->
+            <Canvas Name="Surface" Background="Transparent" ClipToBounds="True" Height="260" />
+
+            <Grid Grid.Row="1" Name="Footer" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Margin="0,8,0,0">
+                <TextBlock Name="Hint" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="12"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <WrapPanel Name="Buttons" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right"
+                           ItemSpacing="8" LineSpacing="8">
+                    <ToggleButton Name="ResolutionToggle" Click="OnResolutionToggled"
+                                  ToolTip.Tip="Size each display by its resolution, as most display settings do. Off: by its real size."
+                                  AutomationProperties.Name="Arrange by resolution">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <ui:FASymbolIcon Symbol="FullScreen" FontSize="14" />
+                            <TextBlock Text="By resolution" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <Button Content="Identify" Click="OnIdentify"
+                            ToolTip.Tip="Show each display's number on it for three seconds; changes nothing"
+                            AutomationProperties.Name="Identify" />
+                    <Button Name="ResetButton" Content="Reset" Click="OnReset"
+                            ToolTip.Tip="Arrange the displays side by side with their top edges aligned"
+                            AutomationProperties.Name="Reset arrangement" />
+                    <Button Name="ApplyButton" Content="Apply" Classes="accent" IsEnabled="False" Click="OnApply"
+                            AutomationProperties.Name="Apply arrangement" />
+                </WrapPanel>
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>

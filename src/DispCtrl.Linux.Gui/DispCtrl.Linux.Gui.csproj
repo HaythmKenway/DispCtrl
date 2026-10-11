@@ -1,9 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <!-- The Linux window (Avalonia): night light, and a slider per writable
-       target found on this machine - a DDC/CI monitor, a backlight, an
-       output's software dimming. It sends dispctrl-linux commands, through the
-       engine when one runs. Not yet a redesign of the WinUI app's pages; see
-       docs/LINUX.md and docs/design/LINUX-PORT.md. -->
+  <!-- The Linux window (Avalonia), in the WinUI app's frame and page names:
+       the arrangement and each display, brightness, dimming and night light,
+       snap layouts, and the engine. It sends dispctrl-linux commands, through
+       the engine when one runs; see docs/LINUX.md. -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -14,7 +13,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
 
     <Platforms>x64</Platforms>
+    <!-- linux-x64 unless asked: package.sh also publishes linux-arm64 and
+         linux-musl-x64 (Alpine) with -r. -->
     <PlatformTarget>x64</PlatformTarget>
+    <PlatformTarget Condition="$(RuntimeIdentifier.EndsWith('-arm64'))">arm64</PlatformTarget>
     <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
     <SelfContained>false</SelfContained>
     <InvariantGlobalization>true</InvariantGlobalization>

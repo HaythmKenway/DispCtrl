@@ -13,6 +13,11 @@
              PreferSystemTheme/PreferUserAccentColor follow the desktop's own
              dark/light mode and accent colour, the same as the Windows app
              following the shell rather than hard-coding a palette. -->
-        <styling:FluentAvaloniaTheme PreferSystemTheme="True" PreferUserAccentColor="True" />
+        <!-- PreferSystemTheme and PreferUserAccentColor are set in App.Initialize,
+             only where gsettings exists: FluentAvalonia starts it unguarded, and
+             without it (KDE or XFCE without GLib's tools, Alpine, Void) the
+             window crashed before it opened. -->
+        <styling:FluentAvaloniaTheme />
+        <StyleInclude Source="avares://dispctrl-linux-gui/Styles/Cards.axaml" />
     </Application.Styles>
 </Application>
