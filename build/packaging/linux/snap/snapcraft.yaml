@@ -77,12 +77,18 @@ apps:
   dispctrl-linux:
     command: lib/dispctrl-linux
     command-chain: [bin/launch]
+    # network-bind is for the engine's command socket, not a network: the
+    # default seccomp filter allows bind but not listen or accept, so without
+    # it the engine died with EACCES at Listen. It is on the command line too,
+    # which runs the engine as "dispctrl-linux engine", and on the window,
+    # whose first run starts it (bin/launch). Auto-connected.
     plugs: &plugs
       - x11
       - desktop
       - gsettings
       - hardware-observe
       - login-session-control
+      - network-bind
   gui:
     command: lib/dispctrl-linux-gui
     command-chain: [bin/launch]
@@ -94,6 +100,7 @@ apps:
       - gsettings
       - hardware-observe
       - login-session-control
+      - network-bind
   engine:
     command: lib/dispctrl-linux engine
     command-chain: [bin/launch]

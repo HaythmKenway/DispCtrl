@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using DispCtrl.Linux.Commands;
+using DispCtrl.Linux.Distribution;
 using DispCtrl.Linux.Settings;
 
 namespace DispCtrl.Linux.Gui.Views.Pages;
@@ -17,6 +18,7 @@ public partial class SettingsPage : UserControl
         PageWidth.Track(this, Root);
         VersionText.Text = $"DispCtrl for Linux {CommandRunner.Version}";
         SettingsPath.Text = SettingsStore.FilePath;
+        EngineCommand.Text = Distro.EngineStartCommand;
         ShowEngine(null);
     }
 
@@ -27,7 +29,8 @@ public partial class SettingsPage : UserControl
         EngineDot.Classes.Set("running", running == true);
         EngineDot.Classes.Set("stopped", running == false);
         EngineCaption.Text = running == false
-            ? "Changes still apply now, but nothing follows the night light schedule, snaps windows or repairs a display after it is plugged in. Start it, and at every login after, with:"
+            ? "Changes still apply now, but nothing follows the night light schedule, snaps windows or repairs a display after it is plugged in. "
+              + (Distro.EngineStartsAtSignIn ? "It starts by itself when you sign in; to start it now, run:" : "Start it, and at every sign-in after, with:")
             : "Follows the night light schedule, snaps windows, and puts each display's ramp back after it is plugged in or changes mode. It runs with your session.";
         EngineCommand.IsVisible = running == false;
     }

@@ -1019,6 +1019,13 @@ unrecallable.
   liblttng-ust. That library is dropped from every package.
 - **Canonical's snapcraft image hands its arguments to snapcraft**, and exits
   0 when snapcraft fails: `pack.sh --docker` checks a .snap was made.
+- **A strict snap cannot `listen` on a Unix socket without `network-bind`.**
+  The default seccomp filter has `bind` but not `listen` or `accept`, and the
+  AppArmor log shows nothing: the engine died at `Socket.Listen` with EACCES,
+  so the window and the command line never found it. Every app that can run
+  the engine (`engine`, the command line, and the window, whose first run
+  starts it) plugs `network-bind`, which opens no network port. And the snap
+  has no systemd unit: advice comes from `Distro.EngineStartCommand`.
 - **BusyBox's `timeout` exits 143, not 124**, when it stops a command.
 - **Subscribe to raw motion only while button 1 is down.** Every pointer
   movement on the desk would otherwise wake the engine.

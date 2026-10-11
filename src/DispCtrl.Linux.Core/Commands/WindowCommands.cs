@@ -1,5 +1,6 @@
 using System.Globalization;
 using DispCtrl.Linux.Settings;
+using DispCtrl.Linux.Distribution;
 using DispCtrl.Linux.Snap;
 using DispCtrl.Linux.X11;
 
@@ -63,7 +64,7 @@ public static partial class CommandRunner
                 c.Out.WriteLine($"Snap gap: {gap} px.");
                 return Done;
             case ["pick"]:
-                if (c.Engine is null) return Refuse(c, "snap pick needs the engine: systemctl --user start dispctrl-linux-engine");
+                if (c.Engine is null) return Refuse(c, $"snap pick needs the engine: {Distro.EngineStartCommand}");
                 if (!c.Engine.SnapPick(out var why)) return Refuse(c, why ?? "the layouts could not open");
                 return Done;
         }
@@ -189,7 +190,7 @@ public static partial class CommandRunner
 
     private static int EngineNote(CommandContext c)
     {
-        if (!c.InEngine) c.Out.WriteLine("The engine applies it; it is not running (systemctl --user start dispctrl-linux-engine).");
+        if (!c.InEngine) c.Out.WriteLine($"The engine applies it; it is not running ({Distro.EngineStartCommand}).");
         return Done;
     }
 

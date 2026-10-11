@@ -201,7 +201,7 @@ public static partial class CommandRunner
 
         bool engine = c.InEngine || EngineClient.IsRunning();
         Line(engine, "engine", engine ? $"running ({Runtime.SocketPath})" : "not running",
-            "systemctl --user enable --now dispctrl-linux-engine   (the schedule and hot-plug need it)");
+            $"{Distro.EngineStartCommand}   (the schedule and hot-plug need it)");
         c.Out.WriteLine($"[ok]  {"settings",-16} {SettingsStore.FilePath}");
 
         c.Out.WriteLine();
@@ -457,7 +457,7 @@ public static partial class CommandRunner
         o.WriteLine($"strength     {n.Strength} ({Warmth.KelvinFor(n.Strength):0} K)");
         o.WriteLine(n.Scheduled ? $"schedule     {n.From} to {n.To}" : "schedule     none (warm whenever on)");
         if (n.Enabled && n.Scheduled && !engine)
-            o.WriteLine("note         the engine is not running, so nothing will follow the schedule: systemctl --user enable --now dispctrl-linux-engine");
+            o.WriteLine($"note         the engine is not running, so nothing will follow the schedule: {Distro.EngineStartCommand}");
     }
 
     /// <summary>Applies the ramps after a settings change; a write that failed is

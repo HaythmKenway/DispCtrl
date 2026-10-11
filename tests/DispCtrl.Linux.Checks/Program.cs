@@ -135,6 +135,16 @@ void DistributionChecks()
         "distro: Alpine and Void");
     Check(Distro.Detect("") == DistroFamily.Unknown, "distro: no os-release is unknown, not a guess");
 
+    // The snap has no systemd unit: its engine is an app of its own.
+    var snapName = Environment.GetEnvironmentVariable("SNAP_NAME");
+    try
+    {
+        Environment.SetEnvironmentVariable("SNAP_NAME", "dispctrl-linux");
+        Check(Distro.EngineStartCommand.Contains("dispctrl-linux.engine") && !Distro.EngineStartCommand.Contains("systemctl")
+            && Distro.EngineStartsAtSignIn, "distro: the snap starts its engine app, not a systemd unit it does not have");
+    }
+    finally { Environment.SetEnvironmentVariable("SNAP_NAME", snapName); }
+
     var xrandr = Distro.Libraries.First(l => l.Soname == "libXrandr.so.2");
     Check(Distro.PackageOf(xrandr, DistroFamily.Debian) == "libxrandr2" && Distro.PackageOf(xrandr, DistroFamily.Fedora) == "libXrandr"
         && Distro.PackageOf(xrandr, DistroFamily.Suse) == "libXrandr2" && Distro.PackageOf(xrandr, DistroFamily.Arch) == "libxrandr",

@@ -45,6 +45,24 @@ public static class Distro
         ? "the snap cannot reach monitors over DDC/CI (strict confinement keeps /dev/i2c-* out); the .deb, .rpm or tarball can"
         : $"ddcutil is not installed ({InstallCommand([Ddcutil])})";
 
+    /// <summary>The command that starts the engine now; with systemd it also
+    /// enables it for every sign-in.</summary>
+    /// <remarks>
+    /// The snap has no systemd unit (its engine is the <c>dispctrl-linux.engine</c>
+    /// app, started at sign-in by snapd's autostart), so the unit's command
+    /// failed there with "Unit file dispctrl-linux-engine.service does not
+    /// exist". A tarball install without systemd starts it from an autostart
+    /// entry at sign-in instead.
+    /// </remarks>
+    public static string EngineStartCommand =>
+        InSnap ? "setsid dispctrl-linux.engine &"
+        : Directory.Exists("/run/systemd/system") ? "systemctl --user enable --now dispctrl-linux-engine"
+        : "setsid dispctrl-linux engine &";
+
+    /// <summary>Whether <see cref="EngineStartCommand"/> covers later sign-ins
+    /// by itself (systemd) or only this one (the snap and autostart do the rest).</summary>
+    public static bool EngineStartsAtSignIn => InSnap || !Directory.Exists("/run/systemd/system");
+
     /// <summary>ddcutil's package, which has the same name everywhere it is packaged.</summary>
     public const string Ddcutil = "ddcutil";
 
