@@ -1,0 +1,15 @@
+[Desktop Entry]
+# The tray icon at sign-in, for the snap: snapd matches this file by name to
+# the gui app's `autostart:`. The window's program in --tray mode shows the
+# icon and nothing else, and ends at once when "Show the tray icon" is off
+# (dispctrl-linux tray off), so this entry needs no editing to switch it off.
+Type=Application
+Name=DispCtrl tray icon
+Comment=DispCtrl's menu and quick panel in the panel's tray
+Exec=dispctrl-linux.gui --tray
+Icon=dispctrl-linux
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=3
+X-KDE-autostart-phase=2

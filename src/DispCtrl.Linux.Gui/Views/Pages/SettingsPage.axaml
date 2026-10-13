@@ -30,7 +30,38 @@
                             <StackPanel Classes="control" Orientation="Horizontal" Spacing="8">
                                 <Ellipse Name="EngineDot" Width="8" Height="8" VerticalAlignment="Center" />
                                 <TextBlock Name="EngineState" Classes="value" VerticalAlignment="Center" />
+                                <Button Name="EngineButton" Click="OnEngineButton" Margin="8,0,0,0"
+                                        AutomationProperties.Name="Start or stop the engine" />
                             </StackPanel>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <TextBlock Classes="section" Text="Tray icon and quick panel" />
+                <StackPanel Spacing="4">
+                    <Border Classes="card">
+                        <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                            <ui:FASymbolIcon Classes="cardicon" Symbol="OpenPane" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Classes="title" Text="Show the tray icon" />
+                                <TextBlock Classes="caption"
+                                           Text="From sign-in, in the panel's tray, with a menu of the switches you use most. GNOME shows it with the AppIndicator extension, which Ubuntu has on." />
+                            </StackPanel>
+                            <ToggleSwitch Name="TraySwitch" Classes="toggle" OnContent="On" OffContent="Off"
+                                          AutomationProperties.Name="Show the tray icon" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="card">
+                        <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                            <ui:FASymbolIcon Classes="cardicon" Symbol="AllApps" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Classes="title" Text="Clicking the icon opens" />
+                                <TextBlock Classes="caption" Text="A right click always opens its menu." />
+                            </StackPanel>
+                            <ComboBox Name="TrayClick" Classes="control" AutomationProperties.Name="Clicking the icon opens">
+                                <ComboBoxItem Content="The quick panel" />
+                                <ComboBoxItem Content="The window" />
+                            </ComboBox>
                         </Grid>
                     </Border>
                 </StackPanel>

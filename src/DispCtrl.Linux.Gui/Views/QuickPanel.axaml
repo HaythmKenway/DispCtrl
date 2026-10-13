@@ -1,0 +1,126 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="using:FluentAvalonia.UI.Controls"
+        xmlns:vm="using:DispCtrl.Linux.Gui.ViewModels"
+        x:Class="DispCtrl.Linux.Gui.Views.QuickPanel"
+        Title="DispCtrl quick panel"
+        Width="380" SizeToContent="Height" MaxHeight="680"
+        CanResize="False" ShowInTaskbar="False" Topmost="True"
+        WindowDecorations="None"
+        Background="Transparent"
+        Icon="avares://dispctrl-linux-gui/Assets/dispctrl.png">
+
+    <Window.Styles>
+        <!-- The quick panel's tiles, as Windows' quick settings draw them:
+             an icon over a label, filled with the accent when on. -->
+        <Style Selector="ToggleButton.tile, Button.tile">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="Height" Value="64" />
+            <Setter Property="Margin" Value="3" />
+            <Setter Property="Padding" Value="6" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.tilelabel">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Margin" Value="0,4,0,0" />
+        </Style>
+        <Style Selector="TextBlock.panelsection">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="2,12,0,6" />
+        </Style>
+    </Window.Styles>
+
+    <Border Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="10">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="16,12,16,16">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                    <Image Source="avares://dispctrl-linux-gui/Assets/dispctrl.png" Width="20" Height="20" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="DispCtrl" FontWeight="SemiBold" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    <Button Grid.Column="2" Width="32" Height="32" Padding="0" Click="OnOpen" ToolTip.Tip="Open DispCtrl"
+                            AutomationProperties.Name="Open DispCtrl" Background="Transparent">
+                        <ui:FASymbolIcon Symbol="Settings" FontSize="16" />
+                    </Button>
+                    <Button Grid.Column="3" Width="32" Height="32" Padding="0" Click="OnClose" ToolTip.Tip="Close"
+                            AutomationProperties.Name="Close the quick panel" Background="Transparent">
+                        <ui:FASymbolIcon Symbol="Cancel" FontSize="14" />
+                    </Button>
+                </Grid>
+
+                <UniformGrid Columns="3" Margin="-3,9,-3,0">
+                    <ToggleButton Name="NightLightTile" Classes="tile" AutomationProperties.Name="Night light">
+                        <StackPanel><ui:FASymbolIcon Symbol="WeatherMoon" FontSize="18" /><TextBlock Classes="tilelabel" Text="Night light" /></StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Name="DarkTile" Classes="tile" AutomationProperties.Name="Dark mode">
+                        <StackPanel><ui:FASymbolIcon Symbol="DarkTheme" FontSize="18" /><TextBlock Classes="tilelabel" Text="Dark mode" /></StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Name="AwakeTile" Classes="tile" AutomationProperties.Name="Keep awake">
+                        <StackPanel><ui:FASymbolIcon Symbol="Clock" FontSize="18" /><TextBlock Name="AwakeLabel" Classes="tilelabel" Text="Keep awake" /></StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Name="StayActiveTile" Classes="tile" AutomationProperties.Name="Stay active">
+                        <StackPanel><ui:FASymbolIcon Symbol="Play" FontSize="18" /><TextBlock Classes="tilelabel" Text="Stay active" /></StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Name="SnapTile" Classes="tile" AutomationProperties.Name="Snap layouts">
+                        <StackPanel><ui:FASymbolIcon Symbol="DockLeft" FontSize="18" /><TextBlock Classes="tilelabel" Text="Snap layouts" /></StackPanel>
+                    </ToggleButton>
+                    <Button Classes="tile" Click="OnDisplaysOff" AutomationProperties.Name="Turn off displays">
+                        <StackPanel><ui:FASymbolIcon Symbol="FullScreenMinimize" FontSize="18" /><TextBlock Classes="tilelabel" Text="Displays off" /></StackPanel>
+                    </Button>
+                    <Button Classes="tile" Click="OnIdentify" AutomationProperties.Name="Identify displays">
+                        <StackPanel><ui:FASymbolIcon Symbol="ViewAll" FontSize="18" /><TextBlock Classes="tilelabel" Text="Identify" /></StackPanel>
+                    </Button>
+                    <Button Classes="tile" Click="OnRestore" AutomationProperties.Name="Restore">
+                        <StackPanel><ui:FASymbolIcon Symbol="Undo" FontSize="18" /><TextBlock Classes="tilelabel" Text="Restore" /></StackPanel>
+                    </Button>
+                </UniformGrid>
+
+                <TextBlock Classes="panelsection" Text="Brightness" />
+                <TextBlock Name="BrightnessEmpty" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                <ItemsControl Name="BrightnessRows">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:MonitorRowViewModel">
+                            <StackPanel Margin="0,0,0,6">
+                                <TextBlock Text="{Binding Title}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                                <Grid ColumnDefinitions="Auto,*,44">
+                                    <ui:FASymbolIcon Symbol="{Binding Icon}" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <Slider Grid.Column="1" Minimum="{Binding Minimum}" Maximum="{Binding Maximum}"
+                                            Value="{Binding Value, Mode=TwoWay}" AutomationProperties.Name="{Binding Title}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding ValueText}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                </Grid>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Classes="panelsection" Text="Night light" />
+                <Grid ColumnDefinitions="Auto,*,60">
+                    <ui:FASymbolIcon Symbol="WeatherMoon" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <Slider Grid.Column="1" Name="StrengthSlider" Minimum="0" Maximum="100" AutomationProperties.Name="Night light strength" />
+                    <TextBlock Grid.Column="2" Name="StrengthText" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                </Grid>
+
+                <StackPanel Name="ProjectSection">
+                    <TextBlock Classes="panelsection" Text="Display mode" />
+                    <WrapPanel>
+                        <Button Content="Extend" Tag="extend" Click="OnProject" Margin="0,0,6,6" />
+                        <Button Content="Duplicate" Tag="duplicate" Click="OnProject" Margin="0,0,6,6" />
+                        <Button Name="InternalButton" Content="Built-in only" Tag="internal" Click="OnProject" Margin="0,0,6,6" />
+                        <Button Name="ExternalButton" Content="Others only" Tag="external" Click="OnProject" Margin="0,0,6,6" />
+                    </WrapPanel>
+                </StackPanel>
+
+                <StackPanel Name="PresetSection">
+                    <TextBlock Classes="panelsection" Text="Presets" />
+                    <ItemsControl Name="PresetRows" />
+                </StackPanel>
+
+                <TextBlock Name="StatusText" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0" IsVisible="False"
+                           Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+            </StackPanel>
+        </ScrollViewer>
+    </Border>
+</Window>

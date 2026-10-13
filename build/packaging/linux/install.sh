@@ -49,7 +49,8 @@ stop_engine() {
 if [ "$uninstall" = true ]; then
   stop_engine
   rm -f "$units/$unit" "$bin/dispctrl-linux" "$bin/dispctrl-linux-gui" \
-        "$apps/dispctrl-linux.desktop" "$icons/dispctrl-linux.png" "$autostart/dispctrl-linux-engine.desktop"
+        "$apps/dispctrl-linux.desktop" "$icons/dispctrl-linux.png" "$autostart/dispctrl-linux-engine.desktop" \
+        "$autostart/dispctrl-linux-tray.desktop"
   rm -rf "$lib"
   have_user_systemd && systemctl --user daemon-reload || true
   if [ -f "$rule" ]; then echo "The backlight rule $rule is root's: remove it with sudo rm $rule"; fi
@@ -90,6 +91,10 @@ sed "s|^Exec=dispctrl-linux-gui|Exec=$lib/dispctrl-linux-gui|" "$here/share/appl
 cp "$here/share/icons/hicolor/256x256/apps/dispctrl-linux.png" "$icons/"
 sed "s|^ExecStart=.*|ExecStart=$lib/dispctrl-linux engine|" "$here/systemd/$unit" > "$units/$unit"
 command -v update-desktop-database >/dev/null && update-desktop-database "$apps" >/dev/null 2>&1 || true
+# The tray icon from the next login; "dispctrl-linux tray off" hides it without
+# touching this file.
+mkdir -p "$autostart"
+sed "s|^Exec=dispctrl-linux-gui|Exec=$lib/dispctrl-linux-gui|" "$here/share/autostart/dispctrl-linux-tray.desktop" > "$autostart/dispctrl-linux-tray.desktop"
 
 if [ "$backlight_rule" = true ]; then
   sudo install -m 0644 "$here/udev/90-dispctrl-backlight.rules" "$rule"

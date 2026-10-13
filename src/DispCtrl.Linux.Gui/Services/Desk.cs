@@ -46,7 +46,7 @@ public sealed class Desk
     /// so it follows an arrangement change without asking DDC/CI again.</summary>
     public async Task RefreshOutputsAsync()
     {
-        var (outputs, names) = await Task.Run(() => (XRandR.Query(), XRandR.MonitorNames()));
+        var (outputs, names, modes) = await Task.Run(() => (XRandR.Query(), XRandR.MonitorNames(), XRandR.Modes()));
         var lit = outputs.Where(o => o.Active).ToList();
         var byName = Outputs.ToDictionary(o => o.Output.Name, StringComparer.Ordinal);
         Outputs.Clear();
@@ -55,7 +55,7 @@ public sealed class Desk
             var o = lit[i];
             names.TryGetValue(o.Name, out var model);
             var view = byName.TryGetValue(o.Name, out var old) ? old : new OutputViewModel();
-            view.Update(o, i + 1, model);
+            view.Update(o, i + 1, model, modes.GetValueOrDefault(o.Name));
             view.Dim = Dimming.FirstOrDefault(d => d.Key == DimKey(o.Name));
             Outputs.Add(view);
         }
@@ -73,6 +73,7 @@ public sealed class Desk
         SetStatus("Looking for displays…");
         Brightness.Clear();
         Dimming.Clear();
+        _controls.Clear();
 
         var settings = SettingsStore.Load();
         var (ramps, names) = await Task.Run(() => (GammaRamp.Outputs(), XRandR.MonitorNames()));
@@ -114,6 +115,8 @@ public sealed class Desk
             foreach (var (monitor, level) in monitors)
             {
                 if (level is null) continue;
+                _controls[monitor.Model ?? ""] = await Task.Run(() => ReadControls(monitor.DisplayNum));
+                if (generation != _generation) return;
                 Brightness.Add(new MonitorRowViewModel(
                     title: monitor.Model ?? $"Display {monitor.DisplayNum}",
                     subtitle: "Set in the monitor itself, over DDC/CI",
@@ -141,6 +144,24 @@ public sealed class Desk
 
     private const string BuiltIn = "\0built-in";
 
+    // Each DDC/CI monitor's controls by model, read once a scan: capabilities
+    // take seconds, and the card should not wait for them again on each refresh.
+    private readonly Dictionary<string, IReadOnlyList<ControlRowViewModel>> _controls = new(StringComparer.Ordinal);
+
+    private List<ControlRowViewModel> ReadControls(int display)
+    {
+        var features = Ddcutil.Capabilities(display);
+        var rows = new List<ControlRowViewModel>();
+        foreach (var code in ControlRowViewModel.Offered)
+        {
+            if (!Ddcutil.IsWritable(features, code)) continue;
+            var feature = features.First(f => f.Code == code);
+            if (Ddcutil.GetVcp(display, code) is not { } value) continue;
+            rows.Add(new ControlRowViewModel(Sender, display, feature, value));
+        }
+        return rows;
+    }
+
     /// <summary>Puts each brightness control on its display's card, where the
     /// pairing is certain: the backlight on the one built-in output, a DDC/CI
     /// monitor on the one output whose EDID carries the same model name.</summary>
@@ -152,6 +173,7 @@ public sealed class Desk
             bool unique = model is not null && Outputs.Count(o => (o.IsBuiltIn ? BuiltIn : o.Model) == model) == 1;
             var rows = unique ? Brightness.Where(b => b.Model == model).ToList() : [];
             output.Brightness = rows.Count == 1 ? rows[0] : null;
+            output.Controls = rows.Count == 1 && rows[0].Model is { } m && _controls.TryGetValue(m, out var c) ? c : [];
         }
     }
 

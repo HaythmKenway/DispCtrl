@@ -14,6 +14,78 @@ public sealed class OutputViewModel : INotifyPropertyChanged
     private string? _model;
     private MonitorRowViewModel? _dim;
     private MonitorRowViewModel? _brightness;
+    private List<XRandRMode> _modes = [];
+    private IReadOnlyList<ControlRowViewModel> _controls = [];
+
+    /// <summary>A resolution, refresh rate or turn was chosen on the card:
+    /// (output, width, height, hertz, degrees). The page applies it and offers
+    /// to keep it.</summary>
+    public event Action<OutputViewModel, int, int, double, int>? ModeRequested;
+
+    private (int W, int H) Unturned => _output.Rotation is 90 or 270 ? (_output.HeightPx, _output.WidthPx) : (_output.WidthPx, _output.HeightPx);
+
+    /// <summary>Each size the output offers, largest first.</summary>
+    public List<string> Resolutions => Sizes.Select(s => string.Create(CultureInfo.InvariantCulture,
+        $"{s.W} × {s.H}{(_modes.Any(m => m.Width == s.W && m.Height == s.H && m.Preferred) ? " (recommended)" : "")}")).ToList();
+
+    private List<(int W, int H)> Sizes => _modes.Select(m => (m.Width, m.Height)).Distinct().ToList();
+
+    public int ResolutionIndex
+    {
+        get => Sizes.IndexOf(Unturned);
+        set
+        {
+            if (value < 0 || value >= Sizes.Count || value == ResolutionIndex) return;
+            var (w, h) = Sizes[value];
+            ModeRequested?.Invoke(this, w, h, 0, _output.Rotation);
+        }
+    }
+
+    private List<double> Rates => _modes.Where(m => (m.Width, m.Height) == Unturned).Select(m => m.RefreshHz).Distinct().ToList();
+
+    public List<string> RefreshRates => Rates.Select(r => string.Create(CultureInfo.InvariantCulture, $"{r:0.##} Hz")).ToList();
+
+    public int RefreshIndex
+    {
+        get
+        {
+            var rates = Rates;
+            if (rates.Count == 0) return -1;
+            return rates.IndexOf(rates.OrderBy(r => Math.Abs(r - _output.RefreshHz)).First());
+        }
+        set
+        {
+            if (value < 0 || value >= Rates.Count || value == RefreshIndex) return;
+            var (w, h) = Unturned;
+            ModeRequested?.Invoke(this, w, h, Rates[value], _output.Rotation);
+        }
+    }
+
+    public bool HasModes => _modes.Count > 0;
+
+    public static List<string> Orientations { get; } = ["Landscape", "Portrait", "Landscape (flipped)", "Portrait (flipped)"];
+    private static readonly int[] OrientationDegrees = [0, 90, 180, 270];
+
+    public int OrientationIndex
+    {
+        get => Array.IndexOf(OrientationDegrees, _output.Rotation);
+        set
+        {
+            if (value < 0 || value >= OrientationDegrees.Length || value == OrientationIndex) return;
+            var (w, h) = Unturned;
+            ModeRequested?.Invoke(this, w, h, _output.RefreshHz, OrientationDegrees[value]);
+        }
+    }
+
+    /// <summary>The monitor's own controls, when a DDC/CI monitor certainly
+    /// belongs to this display.</summary>
+    public IReadOnlyList<ControlRowViewModel> Controls
+    {
+        get => _controls;
+        set { _controls = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasControls)); }
+    }
+
+    public bool HasControls => _controls.Count > 0;
 
     public XRandROutput Output => _output;
 
@@ -98,11 +170,12 @@ public sealed class OutputViewModel : INotifyPropertyChanged
 
     public bool HasBrightness => _brightness is not null;
 
-    public void Update(XRandROutput output, int number, string? model)
+    public void Update(XRandROutput output, int number, string? model, List<XRandRMode>? modes = null)
     {
         _output = output;
         _number = number;
         _model = model;
+        if (modes is not null) _modes = modes;
         OnPropertyChanged(string.Empty);
     }
 

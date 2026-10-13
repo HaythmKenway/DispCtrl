@@ -1,0 +1,75 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:FluentAvalonia.UI.Controls"
+             xmlns:vm="using:DispCtrl.Linux.Gui.ViewModels"
+             x:Class="DispCtrl.Linux.Gui.Views.Pages.PresetsPage">
+    <Panel Name="Root">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Classes="page">
+                <TextBlock Classes="pagetitle" Text="Presets" />
+                <TextBlock Classes="pagesubtitle"
+                           Text="Save the whole desk under a name - where each display sits, its brightness, night light, the theme and the monitors' own controls - and put it back in one step." />
+
+                <TextBlock Classes="section" Text="Save the desk" />
+                <Border Classes="card">
+                    <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                        <ui:FASymbolIcon Classes="cardicon" Symbol="Save" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Classes="title" Text="Save as a preset" />
+                            <TextBlock Classes="caption" Text="As the desk is now. A name already used is updated." />
+                            <WrapPanel Name="PartsPanel" Margin="0,8,0,0" />
+                            <TextBlock Name="SaveStatus" Classes="status" IsVisible="False" />
+                        </StackPanel>
+                        <StackPanel Classes="control" Orientation="Horizontal" Spacing="8">
+                            <TextBox Name="NameBox" Width="180" PlaceholderText="Name, e.g. Evening"
+                                     AutomationProperties.Name="Preset name" />
+                            <Button Name="SaveButton" Content="Save" Click="OnSave" Classes="accent"
+                                    AutomationProperties.Name="Save the preset" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <TextBlock Classes="section" Text="Your presets" />
+                <TextBlock Name="EmptyText" Classes="caption" Margin="2,0,0,8"
+                           Text="None yet. Set the desk up as you like it, give it a name above and save." />
+                <TextBlock Name="ListStatus" Classes="status" IsVisible="False" Margin="2,0,0,8" />
+                <ItemsControl Name="PresetList">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Spacing="4" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:PresetRowViewModel">
+                            <Border Classes="card">
+                                <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                                    <ui:FASymbolIcon Classes="cardicon" Symbol="Bookmarks" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Classes="title" Text="{Binding Name}" />
+                                        <TextBlock Classes="caption" Text="{Binding Details}" />
+                                        <TextBlock Classes="caption" Text="{Binding Fit}" />
+                                    </StackPanel>
+                                    <StackPanel Classes="control" Orientation="Horizontal" Spacing="8">
+                                        <Button Content="Apply" Click="OnApply" Tag="{Binding Name}"
+                                                AutomationProperties.Name="{Binding Name, StringFormat='Apply {0}'}" />
+                                        <Button Width="36" Padding="0" Tag="{Binding Name}"
+                                                AutomationProperties.Name="{Binding Name, StringFormat='More for {0}'}">
+                                            <ui:FASymbolIcon Symbol="More" FontSize="16" />
+                                            <Button.Flyout>
+                                                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                                    <MenuItem Header="Save the desk into it" Click="OnUpdate" Tag="{Binding Name}" />
+                                                    <MenuItem Header="Rename…" Click="OnRename" Tag="{Binding Name}" />
+                                                    <MenuItem Header="Delete" Click="OnDelete" Tag="{Binding Name}" />
+                                                </MenuFlyout>
+                                            </Button.Flyout>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+    </Panel>
+</UserControl>

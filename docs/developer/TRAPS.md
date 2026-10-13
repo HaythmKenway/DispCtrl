@@ -1026,6 +1026,18 @@ unrecallable.
   the engine (`engine`, the command line, and the window, whose first run
   starts it) plugs `network-bind`, which opens no network port. And the snap
   has no systemd unit: advice comes from `Distro.EngineStartCommand`.
+- **Tmds.DBus's `MessageWriter` is a ref struct: write a body through it by
+  `ref`.** Handed to an `Action<MessageWriter>`, the arguments went into a
+  copy whose length the original never saw; the bus received a malformed
+  call and closed the connection, and every keep awake inhibitor came back
+  "Connection closed by peer" on both buses. `Inhibitor` uses a
+  `delegate void BodyWriter(ref MessageWriter)`. GNOME and KDE also drop an
+  inhibitor when its connection closes, so the engine holds the connections
+  open for as long as keep awake is on; a `gdbus call` could never hold one.
+- **A `Width` set on an Avalonia control beats every style.** The window's
+  lists carried `Width="220"`, so the narrow-page rule that stretches a
+  control under its text could not, and the lists sat centred at a fixed
+  width. Widths of card controls live in `Styles/Cards.axaml`.
 - **BusyBox's `timeout` exits 143, not 124**, when it stops a command.
 - **Subscribe to raw motion only while button 1 is down.** Every pointer
   movement on the desk would otherwise wake the engine.

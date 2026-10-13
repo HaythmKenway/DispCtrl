@@ -1,38 +1,38 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- Everything the Linux command line, engine and window share: the hardware
-       (ddcutil, sysfs backlight, XRandR ramps), settings, the commands and the
-       engine's protocol. No UI. Overrides every Windows-only default the root
-       Directory.Build.props sets - see DispCtrl.Linux.csproj. -->
+       (ddcutil, sysfs backlight, XRandR ramps and modes), settings, presets,
+       the commands and the engine's protocol. No UI. Its build settings are
+       build/linux/Linux.Build.props, never the Windows app's. -->
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <TargetPlatformMinVersion />
     <AssemblyName>DispCtrl.Linux.Core</AssemblyName>
     <RootNamespace>DispCtrl.Linux</RootNamespace>
 
     <!-- A library with no native code of its own: any CPU, no runtime of its
          own, so the arm64 and musl packages load the same assembly. -->
-    <Platforms>x64</Platforms>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <RuntimeIdentifier />
-    <SelfContained>false</SelfContained>
 
-    <LangVersion>latest</LangVersion>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <InvariantGlobalization>true</InvariantGlobalization>
     <!-- GammaRamp walks libXrandr's structures and passes an unmanaged error handler. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
-    <Description>XRandR, ddcutil and backlight backends shared by dispctrl-linux and the GUI.</Description>
+    <Description>XRandR, ddcutil, backlight and session backends shared by dispctrl-linux and the window.</Description>
   </PropertyGroup>
 
   <!-- The arrangement geometry is DispCtrl.Core's own, compiled in rather
        than copied: those files are pure geometry with no Windows type, and one
-       source keeps a drag on Linux landing where it would on Windows. The
-       rest of DispCtrl.Core targets Windows. -->
+       source keeps a drag on Linux landing where it would on Windows. Source
+       only: no Windows project or build setting comes with it. -->
   <ItemGroup>
     <Compile Include="..\DispCtrl.Core\Arrangement\*.cs" Link="Arrangement\Shared\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The session bus, for keep awake's inhibitors: GNOME and KDE drop an
+         inhibitor when the connection that asked for it closes, so a
+         one-shot gdbus call could never hold one. Avalonia already ships it
+         with the window, at the same version. -->
+    <PackageReference Include="Tmds.DBus.Protocol" />
   </ItemGroup>
 
   <ItemGroup>

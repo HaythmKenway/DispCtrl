@@ -33,4 +33,14 @@ if [ ! -e "$marker" ]; then
     esac
 fi
 
+# The tray icon at sign-in, offered once in the same way, by the gui app's
+# `autostart:`. Its own marker, so a snap that already offered the engine
+# still offers it.
+tray="$SNAP_USER_COMMON/tray-autostart-offered"
+if [ ! -e "$tray" ]; then
+    mkdir -p "$HOME/.config/autostart" "$SNAP_USER_COMMON"
+    cp "$SNAP/share/dispctrl-linux/dispctrl-linux-tray.desktop" "$HOME/.config/autostart/" 2>/dev/null
+    : > "$tray"
+fi
+
 exec "$@"

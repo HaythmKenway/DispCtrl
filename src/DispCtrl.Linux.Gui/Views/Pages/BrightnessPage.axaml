@@ -127,6 +127,33 @@
                         </Grid>
                     </Border>
                 </StackPanel>
+
+                <TextBlock Classes="section" Text="Theme" />
+                <StackPanel Spacing="4">
+                    <Border Classes="card">
+                        <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                            <ui:FASymbolIcon Classes="cardicon" Symbol="DarkTheme" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Classes="title" Text="Dark mode" />
+                                <TextBlock Classes="caption" Text="The desktop's own dark theme, for its apps and panels." />
+                                <TextBlock Name="DarkStatus" Classes="status" IsVisible="False" />
+                            </StackPanel>
+                            <ToggleSwitch Name="DarkSwitch" Classes="toggle" OnContent="On" OffContent="Off"
+                                          AutomationProperties.Name="Dark mode" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="card">
+                        <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                            <ui:FASymbolIcon Classes="cardicon" Symbol="Clock" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Classes="title" Text="Dark on night light's schedule" />
+                                <TextBlock Classes="caption" Text="Dark between the hours above, light outside them; switched at each end, so a change by hand lasts until the next." />
+                            </StackPanel>
+                            <ToggleSwitch Name="DarkScheduleSwitch" Classes="toggle" OnContent="On" OffContent="Off"
+                                          AutomationProperties.Name="Dark on night light's schedule" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
             </StackPanel>
         </ScrollViewer>
     </Panel>

@@ -1,7 +1,9 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using DispCtrl.Linux.Commands;
 using DispCtrl.Linux.Distribution;
+using DispCtrl.Linux.Gui.Services;
 using DispCtrl.Linux.Settings;
 
 namespace DispCtrl.Linux.Gui.Views.Pages;
@@ -20,11 +22,38 @@ public partial class SettingsPage : UserControl
         SettingsPath.Text = SettingsStore.FilePath;
         EngineCommand.Text = Distro.EngineStartCommand;
         ShowEngine(null);
+
+        var tray = SettingsStore.Load().Tray;
+        TraySwitch.IsChecked = tray.Enabled;
+        TrayClick.SelectedIndex = tray.QuickPanel ? 0 : 1;
+        TraySwitch.IsCheckedChanged += async (_, _) =>
+        {
+            bool on = TraySwitch.IsChecked == true;
+            await DeskActions.RunAsync("tray", on ? "on" : "off");
+            // This process keeps the icon: start it here rather than at the next sign-in.
+            if (on && Application.Current is App app) app.EnsureTray();
+        };
+        TrayClick.SelectionChanged += (_, _) => _ = DeskActions.RunAsync("tray", "click", TrayClick.SelectedIndex == 1 ? "window" : "panel");
+    }
+
+    private bool? _running;
+
+    private async void OnEngineButton(object? sender, RoutedEventArgs e)
+    {
+        EngineButton.IsEnabled = false;
+        if (_running == true) await DeskActions.StopEngine();
+        else DeskActions.StartEngine();
+        await Task.Delay(1500);
+        EngineButton.IsEnabled = true;
+        ShowEngine(await Task.Run(() => Engine.EngineClient.IsRunning()));
     }
 
     /// <summary>Shows whether the engine runs; null while not yet known.</summary>
     public void ShowEngine(bool? running)
     {
+        _running = running;
+        EngineButton.Content = running == true ? "Stop" : "Start";
+        EngineButton.IsVisible = running is not null;
         EngineState.Text = running switch { true => "Running", false => "Not running", null => "Checking…" };
         EngineDot.Classes.Set("running", running == true);
         EngineDot.Classes.Set("stopped", running == false);

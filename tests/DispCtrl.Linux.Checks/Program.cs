@@ -5,6 +5,8 @@ using DispCtrl.Linux.Commands;
 using DispCtrl.Linux.Distribution;
 using DispCtrl.Linux.Engine;
 using DispCtrl.Linux.Hardware;
+using DispCtrl.Linux.Presets;
+using DispCtrl.Linux.Session;
 using DispCtrl.Linux.Ramps;
 using DispCtrl.Linux.Settings;
 using DispCtrl.Linux.Snap;
@@ -39,6 +41,7 @@ try
     Targets();
     SettingsFile();
     Commands();
+    NewFeatureChecks();
     Client();
     EngineProcess();
 }
@@ -381,6 +384,140 @@ void SnapGeometryChecks()
     Check(DispCtrl.Linux.Graphics.DesktopTheme.AccentFrom(null, "Yaru-purple-dark") == DispCtrl.Linux.Graphics.Rgba.Hex("#9141ac")
         && DispCtrl.Linux.Graphics.DesktopTheme.AccentFrom(null, "Yaru-dark") == DispCtrl.Linux.Graphics.Rgba.Hex("#e95420"),
         "theme: Ubuntu's accent comes from the Yaru variant");
+}
+
+void NewFeatureChecks()
+{
+    // ddcutil capabilities, as the Dell P2723DE on this desk prints them (cut).
+    const string caps = """
+        Model: P2723DE
+        MCCS version: 2.1
+        VCP Features:
+           Feature: 04 (Restore factory defaults)
+           Feature: 10 (Brightness)
+           Feature: 12 (Contrast)
+           Feature: 14 (Select color preset)
+              Values:
+                 05: 6500 K
+                 0b: User 1
+           Feature: 60 (Input Source)
+              Values:
+                 1b: Unrecognized value
+                 0f: DisplayPort-1
+                 11: HDMI-1
+           Feature: AA (Screen Orientation)
+           Feature: D6 (Power mode)
+           Feature: E2 (Manufacturer specific feature)
+              Values: 00 02 04 0E 12 14 (interpretation unavailable)
+        """;
+    var features = Ddcutil.ParseCapabilities(caps);
+    Check(features.Count == 8 && features.First(f => f.Code == 0x60).Values.Select(v => v.Value).SequenceEqual(new byte[] { 0x0F, 0x11 }),
+        "ddcutil: capabilities list each feature and its named values, without 'Unrecognized value'");
+    Check(features.First(f => f.Code == 0xE2).Values.Count == 0, "ddcutil: a manufacturer feature's bare value list is not read as names");
+    Check(Ddcutil.IsWritable(features, 0x12) && Ddcutil.IsWritable(features, 0x60) && !Ddcutil.IsWritable(features, 0x62),
+        "ddcutil: a listed control is writable, an unlisted one is not");
+    Check(!Ddcutil.IsWritable(features, 0x04) && !Ddcutil.IsWritable(features, 0xD6) && !Ddcutil.IsWritable(features, 0xAA) && !Ddcutil.IsWritable(features, 0xE2),
+        "ddcutil: factory reset, power mode, orientation and manufacturer codes are never written");
+    Check(Ddcutil.ParseVcp("VCP 60 SNC x0f\n") == new DdcVcpValue(15, null), "ddcutil: a list value is read in hex");
+
+    Check(CommandRunner.TryDuration("30m", out var d1) && d1 == TimeSpan.FromMinutes(30)
+        && CommandRunner.TryDuration("1h30m", out var d2) && d2 == TimeSpan.FromMinutes(90)
+        && CommandRunner.TryDuration("45", out var d3) && d3 == TimeSpan.FromMinutes(45),
+        "awake: 30m, 1h30m and a bare number of minutes");
+    Check(!CommandRunner.TryDuration("0", out _) && !CommandRunner.TryDuration("h", out _) && !CommandRunner.TryDuration("8d", out _)
+        && !CommandRunner.TryDuration("200h", out _), "awake: nothing, nonsense and more than a week are refused");
+    var awake = new AwakeSettings { Mode = AwakeMode.Until, Until = DateTimeOffset.Now.AddMinutes(-1) };
+    Check(!awake.ActiveAt(DateTimeOffset.Now) && new AwakeSettings { Mode = AwakeMode.On }.ActiveAt(DateTimeOffset.Now),
+        "awake: a timed keep awake ends at its time");
+    var orphan = new AwakeSettings { Mode = AwakeMode.Until };
+    orphan.Normalise();
+    Check(orphan.Mode == AwakeMode.Off, "awake: a timed keep awake with no time is off");
+
+    Check(DarkMode.Sibling("Yaru", true) == "Yaru-dark" && DarkMode.Sibling("Yaru-purple-dark", false) == "Yaru-purple"
+        && DarkMode.Sibling("Yaru-dark", true) is null && DarkMode.Sibling("SomeTheme", true) is null,
+        "dark mode: a GTK theme switches to its dark sibling only where one is known to exist");
+
+    // A laptop below-left of a 1440p monitor, and a projector connected but off.
+    XRandROutput[] desk =
+    [
+        new("eDP", true, true, 1920, 1080, 333, 1440, 344, 194, 0, 144),
+        new("DP-1", true, false, 2560, 1440, 0, 0, 597, 336, 0, 59.95),
+        new("HDMI-1", true, false, 0, 0, 0, 0, 0, 0),
+    ];
+    var modes = new Dictionary<string, List<XRandRMode>>
+    {
+        ["eDP"] = [new(1, 1920, 1080, 144, true), new(2, 1280, 720, 60, false)],
+        ["DP-1"] = [new(3, 2560, 1440, 59.95, true), new(4, 1920, 1080, 60, false), new(5, 1280, 720, 60, false)],
+        ["HDMI-1"] = [new(6, 1280, 720, 60, true)],
+    };
+    var extend = DisplayPlans.Extend(desk, modes);
+    Check(extend.Count == 3 && extend.Single(p => p.Name == "HDMI-1") is { Enabled: true, Width: 1280, X: 2560, Y: 0 },
+        "plans: extend lights an output that was off in its preferred mode, on the right");
+    Check(DisplayPlans.Duplicate(desk, modes, out var dup) is null && dup.All(p => p is { Width: 1280, Height: 720, X: 0, Y: 0 }),
+        "plans: duplicate uses the largest size every display offers, all at 0,0");
+    Check(DisplayPlans.Only(true, desk, modes, out var only) is null
+        && only.Single(p => p.Enabled).Name == "eDP" && only.Count(p => !p.Enabled) == 2,
+        "plans: internal keeps the built-in panel and switches the rest off");
+    Check(DisplayPlans.Only(false, [desk[0]], modes, out _) is { } noExternal && noExternal.Contains("no external", StringComparison.Ordinal),
+        "plans: external with no external display is refused, not a black desk");
+    Check(DisplayPlans.ChangeMode("DP-1", 1920, 1080, 60, 0, desk, out var smaller) is null
+        && smaller.Single(p => p.Name == "eDP") is { X: 333, Y: 1080 },
+        "plans: a smaller mode pulls the display below it up to its new edge");
+    Check(DisplayPlans.ChangeMode("eDP", 1920, 1080, 144, 90, desk, out var turned) is null
+        && turned.Single(p => p.Name == "eDP").Extent == (1080, 1920),
+        "plans: a turned display swaps its sides on the desktop");
+    Check(DisplayPlans.Changes(DisplayPlans.Extend(desk, modes), desk).Select(p => p.Name).SequenceEqual(["HDMI-1"]),
+        "plans: outputs already where they are asked to be are left alone");
+
+    var preset = new Preset
+    {
+        Name = "Desk",
+        Outputs = [new() { Name = "DP-1", Model = "DELL P2723DE", Enabled = true, Width = 2560, Height = 1440, Primary = true },
+                   new() { Name = "eDP", Enabled = false }],
+    };
+    var names = new Dictionary<string, string> { ["DP-1"] = "DELL P2723DE" };
+    Check(PresetDesk.Mismatch(preset, desk, names) is null, "presets: the same monitor on the same port matches");
+    Check(PresetDesk.Mismatch(preset, desk, new Dictionary<string, string> { ["DP-1"] = "LG ULTRAGEAR" }) is { } other
+        && other.Contains("LG ULTRAGEAR", StringComparison.Ordinal), "presets: another monitor on that port does not");
+    Check(PresetDesk.LayoutPlan(preset, desk, names, out var plan, out var primary) is null
+        && primary == "DP-1" && plan.Single(p => p.Name == "eDP").Enabled == false,
+        "presets: the layout plan lights, switches off and names the main display as saved");
+
+    var saved = SettingsStore.Update(s =>
+    {
+        s.Presets.Add(new Preset { Name = "  Evening ", Skip = ["layout", "wallpaper"] });
+        s.Presets.Add(new Preset { Name = " " });
+    });
+    Check(saved.Presets.Count == 1 && saved.Presets[0] is { Name: "Evening" } p && p.Skip.SequenceEqual(["layout"]),
+        "presets: names are trimmed, nameless ones dropped and unknown parts forgotten");
+
+    (int Code, string Out, string Err) Run(params string[] args)
+    {
+        var o = new StringWriter();
+        var e = new StringWriter();
+        int code = CommandRunner.Run(args, new CommandContext(o, e, InEngine: false, () => []));
+        return (code, o.ToString(), e.ToString());
+    }
+    Check(Run("awake", "for", "soon").Code == CommandRunner.AskedWrongly, "commands: awake for a non-time is asked wrongly");
+    var held = Run("awake", "for", "45m");
+    Check(held.Code == CommandRunner.Done && SettingsStore.Load().Awake is { Mode: AwakeMode.Until, Until: not null }
+        && held.Out.Contains("engine", StringComparison.Ordinal), "commands: a timed keep awake is saved, and says the engine holds it");
+    Check(Run("awake", "off").Code == CommandRunner.Done && SettingsStore.Load().Awake.Mode == AwakeMode.Off, "commands: keep awake off");
+    Check(Run("preset", "save", "x", "--skip", "wallpaper").Code == CommandRunner.AskedWrongly, "commands: an unknown preset part is asked wrongly");
+    Check(Run("preset", "apply", "nothing-called-this").Code == CommandRunner.AskedWrongly, "commands: an unknown preset is asked wrongly");
+    Check(Run("preset", "rename", "Evening", "Night").Code == CommandRunner.Done && SettingsStore.Load().Presets.Single().Name == "Night",
+        "commands: a preset is renamed");
+    Check(Run("preset", "delete", "night").Code == CommandRunner.Done && SettingsStore.Load().Presets.Count == 0,
+        "commands: a preset is deleted, its name matched without case");
+    Check(Run("display", "set", "--output", "DP-1", "--mode", "big").Code == CommandRunner.AskedWrongly, "commands: a mode that is not a size is asked wrongly");
+    Check(Run("display", "set", "--output", "DP-1", "--rotate", "sideways").Code == CommandRunner.AskedWrongly, "commands: an unknown turn is asked wrongly");
+    Check(Run("display", "project", "mirror").Code == CommandRunner.AskedWrongly, "commands: an unknown projection is asked wrongly");
+    Check(Run("display", "project", "extend").Code == CommandRunner.Refused, "commands: projecting without an X display is refused");
+    Check(Run("darkmode", "schedule", "maybe").Code == CommandRunner.AskedWrongly, "commands: darkmode schedule takes on or off");
+    Check(Run("tray", "click", "middle").Code == CommandRunner.AskedWrongly, "commands: tray click takes panel or window");
+    Check(Run("help").Out.Contains("preset save NAME", StringComparison.Ordinal) && Run("help").Out.Contains("awake for", StringComparison.Ordinal),
+        "commands: help names the new commands");
+    File.Delete(SettingsStore.FilePath);
 }
 
 void Client()

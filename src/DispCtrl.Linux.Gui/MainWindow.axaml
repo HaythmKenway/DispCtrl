@@ -33,9 +33,19 @@
                     <ui:FASymbolIconSource Symbol="WeatherSunny" />
                 </ui:FANavigationViewItem.IconSource>
             </ui:FANavigationViewItem>
+            <ui:FANavigationViewItem Content="Screen care" Tag="care" AutomationProperties.Name="Screen care">
+                <ui:FANavigationViewItem.IconSource>
+                    <ui:FASymbolIconSource Symbol="Clock" />
+                </ui:FANavigationViewItem.IconSource>
+            </ui:FANavigationViewItem>
             <ui:FANavigationViewItem Content="Windows" Tag="windows" AutomationProperties.Name="Windows">
                 <ui:FANavigationViewItem.IconSource>
                     <ui:FASymbolIconSource Symbol="DockLeft" />
+                </ui:FANavigationViewItem.IconSource>
+            </ui:FANavigationViewItem>
+            <ui:FANavigationViewItem Content="Presets" Tag="presets" AutomationProperties.Name="Presets">
+                <ui:FANavigationViewItem.IconSource>
+                    <ui:FASymbolIconSource Symbol="Bookmarks" />
                 </ui:FANavigationViewItem.IconSource>
             </ui:FANavigationViewItem>
         </ui:FANavigationView.MenuItems>

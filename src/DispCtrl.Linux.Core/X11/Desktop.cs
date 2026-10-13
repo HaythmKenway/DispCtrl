@@ -99,6 +99,13 @@ public static unsafe class Desktop
         return dx * dx + dy * dy;
     }
 
+    /// <summary>Where the pointer is on the desktop, in pixels.</summary>
+    public static (int X, int Y) Pointer(XConnection x)
+    {
+        Xlib.XQueryPointer(x.Display, x.Root, out _, out _, out int rx, out int ry, out _, out _, out _);
+        return (rx, ry);
+    }
+
     public static ulong? Active(XConnection x) =>
         x.Long(x.Root, "_NET_ACTIVE_WINDOW") is long id and not 0 ? (ulong)id : null;
 

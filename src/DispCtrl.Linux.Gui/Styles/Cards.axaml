@@ -124,6 +124,18 @@
     <Style Selector="Panel.narrow Grid.cardgrid > TextBox.control">
         <Setter Property="Width" Value="NaN" />
     </Style>
+    <!-- A list's width lives here, not on the control: a local Width beats
+         the narrow rule below, which left lists centred at a fixed width. -->
+    <Style Selector="Grid.cardgrid > ComboBox.control, Grid.cardgrid > Panel.control ComboBox">
+        <Setter Property="Width" Value="260" />
+    </Style>
+    <Style Selector="Panel.narrow Grid.cardgrid > ComboBox.control">
+        <Setter Property="Width" Value="NaN" />
+    </Style>
+    <Style Selector="Panel.narrow Grid.cardgrid > Panel.control ComboBox">
+        <Setter Property="Width" Value="NaN" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+    </Style>
     <Style Selector="Panel.narrow Grid.slider">
         <Setter Property="Width" Value="NaN" />
     </Style>

@@ -41,6 +41,9 @@ public interface IEngineHooks
 
     /// <summary>Whether snapping is live, and what is in its way.</summary>
     string SnapStatus();
+
+    /// <summary>The inhibitors keep awake holds, and Stay active's state.</summary>
+    string AwakeStatus();
 }
 
 /// <summary>Every <c>dispctrl-linux</c> command. Exit codes follow
@@ -72,6 +75,14 @@ public static partial class CommandRunner
                 "restore" => Restore(context),
                 "windows" => WindowsCommand(args[1..], context),
                 "snap" => SnapCommand(args[1..], context),
+                "awake" => AwakeCommand(args[1..], context),
+                "stayactive" or "stay-active" => StayActive(args[1..], context),
+                "displays-off" => DisplaysOff(args[1..], context),
+                "darkmode" or "dark-mode" => DarkModeCommand(args[1..], context),
+                "monitor" => MonitorCommand(args[1..], context),
+                "input" => InputCommand(args[1..], context),
+                "preset" or "presets" => PresetCommand(args[1..], context),
+                "tray" => TrayCommand(args[1..], context),
                 "version" or "--version" => Write(context.Out, $"dispctrl-linux {Version}"),
                 "help" or "--help" or "-h" => Usage(context),
                 _ => Wrong(context, $"unknown command '{args[0]}' (dispctrl-linux help lists them)"),
@@ -90,7 +101,7 @@ public static partial class CommandRunner
     }
 
     public const string UsageText = """
-        dispctrl-linux - per-monitor brightness, dimming, night light and arrangement on Linux (X11)
+        dispctrl-linux - per-monitor brightness, dimming, night light, arrangement and presets on Linux (X11)
 
           displays                                 outputs, DDC/CI monitors and backlight devices
           status                                   the engine, night light, dimming and every ramp
@@ -108,6 +119,27 @@ public static partial class CommandRunner
           nightlight --schedule off                warm whenever it is on
 
           restore                                  night light off, no dimming, every ramp back to normal
+          darkmode [on | off | toggle]             the desktop's dark theme (GNOME, KDE, XFCE)
+          darkmode schedule on|off                 dark during night light's hours, light outside them
+
+          monitor [list]                           DDC/CI monitors and their display numbers
+          monitor <n>                              the controls a monitor lists, with their values
+          monitor <n> set <control> <value>        contrast, volume, colour-preset, picture-mode, red ... or 0x12;
+                                                   a listed value by name (picture-mode movie). Never resets or power
+          input <n> [<source>]                     the input sources it lists, or switch to one (input 1 HDMI-1)
+
+          awake [on | off]                         keep the computer awake (the engine holds it)
+          awake for 30m | 2h | 1h30m               for a while
+          awake until HH:MM                        until a time
+          awake displays on|off                    also keep the displays on and the screen unlocked
+          stayactive on|off                        nudge the pointer a pixel after 55 s still (a mouse jiggler)
+          displays-off                             every display off now; any key or the mouse wakes them
+
+          preset [list]                            saved desks, and whether each fits the displays attached
+          preset save NAME [--skip PARTS]          the desk now: layout, brightness, nightlight, theme, controls
+          preset apply NAME                        put it back
+          preset show NAME | delete NAME | rename OLD NEW
+          preset set NAME --skip PARTS|none        the parts it leaves alone
 
           display [list]                           each lit output: main, mode, position, size
           display set --output <name> --x <n> --y <n>   move one output (others stay; the desktop is
@@ -115,6 +147,12 @@ public static partial class CommandRunner
           display set --output <name> --primary true    make it the main display
           display arrange <output>=<x>,<y> ...     the whole layout in one change
           display arrange reset                    side by side, top edges aligned
+          display modes [--output <name>]          the resolutions and refresh rates each offers
+          display set --output <name> --mode 1920x1080 [--rate 60]   resolution and refresh rate
+          display set --output <name> --rotate normal|left|right|inverted
+          display set --output <name> --enabled true|false   light it, or switch it off
+          display project extend | duplicate | internal | external   Win+P's four arrangements
+          display only <output>                    that display alone
 
           windows                                  the open windows, front first, with their ids
           snap                                     Snap layouts and Snap Assist: state and settings
@@ -125,6 +163,8 @@ public static partial class CommandRunner
           snap pick                                open the layouts for the window in front (needs the engine)
           snap <layout> <zone> [--window <id>]     place a window (the active one by default) in a zone
           snap layouts                             the layouts each display offers
+          tray [on | off]                          the tray icon (kept by dispctrl-linux-gui --tray)
+          tray click panel | window                what a left click on it opens
           engine [run] | status | stop             the resident engine (docs/LINUX.md)
           version
 

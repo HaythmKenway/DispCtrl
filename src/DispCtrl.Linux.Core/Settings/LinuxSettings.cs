@@ -15,6 +15,15 @@ public sealed class LinuxSettings
 
     public SnapSettings Snap { get; set; } = new();
 
+    public AwakeSettings Awake { get; set; } = new();
+
+    public DarkModeSettings DarkMode { get; set; } = new();
+
+    public TraySettings Tray { get; set; } = new();
+
+    /// <summary>Saved desks, in the order they were made.</summary>
+    public List<Preset> Presets { get; set; } = [];
+
     /// <summary>Properties a newer build wrote: kept and saved back untouched.</summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Unknown { get; set; }
@@ -27,6 +36,13 @@ public sealed class LinuxSettings
         NightLight.Normalise();
         Snap ??= new SnapSettings();
         Snap.Normalise();
+        Awake ??= new AwakeSettings();
+        Awake.Normalise();
+        DarkMode ??= new DarkModeSettings();
+        Tray ??= new TraySettings();
+        Presets ??= [];
+        Presets.RemoveAll(p => p is null || string.IsNullOrWhiteSpace(p.Name));
+        foreach (var preset in Presets) preset.Normalise();
         Dim ??= new Dictionary<string, double>(StringComparer.Ordinal);
         foreach (var key in Dim.Keys.ToList())
         {
@@ -104,4 +120,69 @@ public sealed class SnapSettings
         Gap = Math.Clamp(Gap, 0, 32);
         Shortcut = (Shortcut ?? "").Trim();
     }
+}
+
+/// <summary>Keep awake and Stay active (Screen care on Windows).</summary>
+public sealed class AwakeSettings
+{
+    /// <summary>Off; on until switched off; or on until <see cref="Until"/>.</summary>
+    public AwakeMode Mode { get; set; }
+
+    /// <summary>When a timed keep awake ends, as local time in ISO 8601.</summary>
+    public DateTimeOffset? Until { get; set; }
+
+    /// <summary>Also keep the displays from blanking and the screen from
+    /// locking, not only the computer from sleeping.</summary>
+    public bool KeepDisplaysOn { get; set; } = true;
+
+    /// <summary>Nudge the pointer by a pixel and back after 55 seconds without
+    /// it moving, so apps that watch for activity (chat status, remote
+    /// sessions) see someone there. The "mouse jiggler".</summary>
+    public bool StayActive { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
+    /// <summary>Whether the computer is to be kept awake at <paramref name="now"/>.</summary>
+    public bool ActiveAt(DateTimeOffset now) => Mode switch
+    {
+        AwakeMode.On => true,
+        AwakeMode.Until => Until is { } until && now < until,
+        _ => false,
+    };
+
+    public void Normalise()
+    {
+        if (!Enum.IsDefined(Mode)) Mode = AwakeMode.Off;
+        if (Mode == AwakeMode.Until && Until is null) Mode = AwakeMode.Off;
+        if (Mode != AwakeMode.Until) Until = null;
+    }
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<AwakeMode>))]
+public enum AwakeMode { Off, On, Until }
+
+/// <summary>Dark mode. Whether it is on now is the desktop's own setting,
+/// read each time, so a change made in GNOME's Settings is never undone.</summary>
+public sealed class DarkModeSettings
+{
+    /// <summary>Dark between night light's hours and light outside them,
+    /// switched at each end of the schedule only.</summary>
+    public bool FollowSchedule { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+}
+
+/// <summary>The icon in the panel's tray and its quick panel.</summary>
+public sealed class TraySettings
+{
+    /// <summary>Show the icon from sign-in on.</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>A left click opens the quick panel; off, it opens the window.</summary>
+    public bool QuickPanel { get; set; } = true;
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
 }

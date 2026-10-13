@@ -6,6 +6,7 @@ using DispCtrl.Linux.Commands;
 using DispCtrl.Linux.Engine;
 using DispCtrl.Linux.Hardware;
 using DispCtrl.Linux.Ramps;
+using DispCtrl.Linux.Session;
 using DispCtrl.Linux.Settings;
 using DispCtrl.Linux.Snap;
 
@@ -34,6 +35,10 @@ internal sealed class EngineHost : IEngineHooks
     private readonly Lock _snapGate = new();
     private SnapService? _snap;
     private string? _snapSettings;
+    private Inhibitor? _inhibitor;
+    private bool _inhibitDisplays;
+    private PointerNudge? _nudge;
+    private bool? _darkWanted;
 
     public static int Run()
     {
@@ -89,6 +94,8 @@ internal sealed class EngineHost : IEngineHooks
             try { reconcile.Wait(5000); } catch (AggregateException) { }
             _gate.Wait(5000);
             lock (_snapGate) { _snap?.Dispose(); _snap = null; }
+            _inhibitor?.Dispose();
+            _nudge?.Dispose();
             RampApplier.Release(_owned);
             _owned.Clear();
             Runtime.SaveOwnedRamps(_owned);
@@ -212,6 +219,8 @@ internal sealed class EngineHost : IEngineHooks
                 settings = SettingsStore.Load();
                 ApplyRampsLocked();
                 UpdateSnap(settings.Snap);
+                settings = UpdateAwake(settings);
+                UpdateDarkMode(settings);
             }
             catch (Exception ex)
             {
@@ -227,6 +236,14 @@ internal sealed class EngineHost : IEngineHooks
                 var untilBoundary = Schedule.NextBoundary(DateTime.Now, from, to) - DateTime.Now + TimeSpan.FromMilliseconds(200);
                 if (untilBoundary < wait) wait = untilBoundary;
             }
+            if ((n.Enabled && n.Scheduled) is false && settings.DarkMode.FollowSchedule
+                && Schedule.TryParse(n.From, out var darkFrom) && Schedule.TryParse(n.To, out var darkTo))
+            {
+                var untilBoundary = Schedule.NextBoundary(DateTime.Now, darkFrom, darkTo) - DateTime.Now + TimeSpan.FromMilliseconds(200);
+                if (untilBoundary < wait) wait = untilBoundary;
+            }
+            if (settings.Awake is { Mode: AwakeMode.Until, Until: { } until } && until - DateTimeOffset.Now is var left && left < wait)
+                wait = left > TimeSpan.Zero ? left + TimeSpan.FromMilliseconds(200) : TimeSpan.FromMilliseconds(200);
             try { _wake.Wait(wait, _stop.Token); }
             catch (OperationCanceledException) { break; }
             while (_wake.CurrentCount > 0) _wake.Wait(0);
@@ -269,6 +286,71 @@ internal sealed class EngineHost : IEngineHooks
     }
 
     private DateTime _snapStartedAt;
+
+    /// <summary>Holds or lets go of keep awake's inhibitors and starts or stops
+    /// Stay active to match settings; a timed keep awake whose time has come
+    /// is switched off in settings, so every client reads it as off.</summary>
+    private LinuxSettings UpdateAwake(LinuxSettings settings)
+    {
+        var a = settings.Awake;
+        if (a.Mode == AwakeMode.Until && !a.ActiveAt(DateTimeOffset.Now))
+        {
+            settings = SettingsStore.Update(s => { s.Awake.Mode = AwakeMode.Off; s.Awake.Until = null; });
+            a = settings.Awake;
+            Log("keep awake: its time is up");
+        }
+
+        bool wanted = a.ActiveAt(DateTimeOffset.Now);
+        if (!wanted || (_inhibitor is not null && _inhibitDisplays != a.KeepDisplaysOn))
+        {
+            if (_inhibitor is not null) { _inhibitor.Dispose(); _inhibitor = null; Log("keep awake: let go"); }
+        }
+        if (wanted && _inhibitor is null)
+        {
+            _inhibitor = Inhibitor.Acquire(a.KeepDisplaysOn, a.KeepDisplaysOn ? "Keep awake, with the displays on" : "Keep awake");
+            _inhibitDisplays = a.KeepDisplaysOn;
+            Log($"keep awake: holding {(_inhibitor.Holding.Count == 0 ? "nothing" : string.Join(", ", _inhibitor.Holding))}"
+                + (_inhibitor.Failed.Count == 0 ? "" : $"; not offered: {string.Join("; ", _inhibitor.Failed)}"));
+        }
+
+        bool nudge = a.StayActive && !GammaRamp.OnWayland;
+        if (!nudge && _nudge is not null) { _nudge.Dispose(); _nudge = null; }
+        if (nudge && _nudge is not { Running: true })
+        {
+            _nudge?.Dispose();
+            using var probe = X11.XConnection.Open();
+            if (probe is not null) { _nudge = new PointerNudge(Log); _nudge.Start(); }
+        }
+        return settings;
+    }
+
+    /// <summary>Dark between night light's hours when asked: switched when the
+    /// engine starts and at each end of the schedule, never in between, so a
+    /// change made by hand lasts until the next boundary.</summary>
+    private void UpdateDarkMode(LinuxSettings settings)
+    {
+        if (!settings.DarkMode.FollowSchedule) { _darkWanted = null; return; }
+        if (!Schedule.TryParse(settings.NightLight.From, out var from) || !Schedule.TryParse(settings.NightLight.To, out var to)) return;
+        bool wanted = Schedule.IsActive(TimeOnly.FromDateTime(DateTime.Now), from, to);
+        if (_darkWanted == wanted) return;
+        _darkWanted = wanted;
+        if (DarkMode.Read() is bool now && now != wanted)
+        {
+            if (DarkMode.Set(wanted, out var error)) Log($"dark mode: {(wanted ? "on" : "off")}, on schedule");
+            else Log($"dark mode: {error}");
+        }
+    }
+
+    public string AwakeStatus()
+    {
+        var parts = new List<string>();
+        if (_inhibitor is { } i)
+            parts.Add(i.Holding.Count == 0 ? "no inhibitor was granted" : string.Join(", ", i.Holding));
+        else parts.Add("nothing (keep awake off)");
+        if (_nudge is { Running: true } n)
+            parts.Add(n.LastNudge == default ? "stay active running" : $"stay active, last nudge {n.LastNudge.ToLocalTime():HH:mm:ss}");
+        return string.Join("; ", parts);
+    }
 
     public bool SnapPick(out string? why)
     {

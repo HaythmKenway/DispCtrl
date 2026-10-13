@@ -36,7 +36,8 @@ public partial class MainWindow : Window
         _ = Desk.Current.RescanAsync();
     }
 
-    /// <summary>Opens a page by its tag: displays, brightness, windows or settings.</summary>
+    /// <summary>Opens a page by its tag: displays, brightness, care, windows,
+    /// presets or settings.</summary>
     public void Show(string tag)
     {
         if (!_pages.TryGetValue(tag, out var page))
@@ -44,6 +45,8 @@ public partial class MainWindow : Window
             page = tag switch
             {
                 "brightness" => new BrightnessPage(),
+                "care" => new ScreenCarePage(),
+                "presets" => new PresetsPage(),
                 "windows" => new WindowsPage(),
                 "settings" => new SettingsPage(),
                 _ => new DisplaysPage(),

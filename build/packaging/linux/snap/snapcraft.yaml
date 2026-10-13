@@ -24,13 +24,16 @@
 # user unit would start before the session's DISPLAY is known.
 name: dispctrl-linux
 title: DispCtrl
-summary: Per-display brightness, dimming, night light and snap layouts
+summary: Per-display brightness, night light, presets and snap layouts
 description: |
   DispCtrl for Linux warms or dims any display through its gamma ramp, keeps
-  a night light schedule, arranges displays, sets a laptop panel's
-  backlight, and brings Windows 11's snap layouts and Snap Assist to X11
-  desktops. A small engine started at sign-in keeps it all applied; the
-  window and the dispctrl-linux command both talk to it.
+  a night light schedule, arranges displays and changes their resolution,
+  refresh rate and orientation, sets a laptop panel's backlight, keeps the
+  computer awake, switches dark mode, saves the whole desk as presets, and
+  brings Windows 11's snap layouts and Snap Assist to X11 desktops. A tray
+  icon with a quick panel puts it all one click away; a small engine started
+  at sign-in keeps it applied, and the window and the dispctrl-linux command
+  both talk to it.
 
   It needs an X11 session: on Wayland the compositor keeps gamma and window
   placement to itself.
@@ -89,10 +92,15 @@ apps:
       - hardware-observe
       - login-session-control
       - network-bind
+      # Keep awake: GNOME's session inhibitor and org.freedesktop.ScreenSaver.
+      - screen-inhibit-control
   gui:
     command: lib/dispctrl-linux-gui
     command-chain: [bin/launch]
     desktop: usr/share/applications/dispctrl-linux.desktop
+    # The tray icon at sign-in (dispctrl-linux.gui --tray); bin/launch puts
+    # the entry in place on first use, as it does the engine's.
+    autostart: dispctrl-linux-tray.desktop
     plugs:
       - x11
       - desktop
@@ -101,6 +109,9 @@ apps:
       - hardware-observe
       - login-session-control
       - network-bind
+      - screen-inhibit-control
+      # The tray icon: StatusNotifierItem and its dbusmenu on the session bus.
+      - unity7
   engine:
     command: lib/dispctrl-linux engine
     command-chain: [bin/launch]
@@ -126,7 +137,7 @@ parts:
       - DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
     override-pull: |
       craftctl default
-      version="${DISPCTRL_VERSION:-$(sed -n 's:.*<DispCtrlVersion>\(.*\)</DispCtrlVersion>.*:\1:p' Directory.Build.props)}"
+      version="${DISPCTRL_VERSION:-$(sed -n 's:.*<DispCtrlVersion>\(.*\)</DispCtrlVersion>.*:\1:p' build/linux/Linux.Build.props)}"
       craftctl set version="$version"
     override-build: |
       case "$CRAFT_ARCH_BUILD_FOR" in
@@ -172,6 +183,8 @@ parts:
       - libx11-6
       - libxrandr2
       - libxi6
+      - libxtst6
+      - libxext6
       - libxfixes3
       - libxcomposite1
       - libcairo2
@@ -207,6 +220,8 @@ parts:
     organize:
       launch: bin/launch
       dispctrl-linux-engine.desktop: share/dispctrl-linux/dispctrl-linux-engine.desktop
+      dispctrl-linux-tray.desktop: share/dispctrl-linux/dispctrl-linux-tray.desktop
     stage:
       - bin/launch
       - share/dispctrl-linux/dispctrl-linux-engine.desktop
+      - share/dispctrl-linux/dispctrl-linux-tray.desktop

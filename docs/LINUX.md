@@ -1,13 +1,15 @@
 # DispCtrl for Linux
 
 Each display's brightness, software dimming and a night light with a
-schedule, from a command line (`dispctrl-linux`) and a window
-(`dispctrl-linux-gui`), kept by a small engine that runs with your session.
+schedule; the arrangement, resolution, refresh rate and orientation; the
+monitors' own controls; keep awake, Stay active and dark mode; presets of
+the whole desk; snap layouts; and a tray icon with a quick panel. From a
+command line (`dispctrl-linux`), a window and the tray (`dispctrl-linux-gui`),
+kept by a small engine that runs with your session.
 
-It is early, and smaller than DispCtrl for Windows: no taskbar, hotkeys,
-presets, OLED care or quick panel yet, and a display's resolution and
-rotation are shown but not changed. Night light and dimming need an X11
-session (see [Wayland](#wayland)). What follows is everything it does today.
+It is smaller than DispCtrl for Windows: no taskbar, hotkeys, OLED care or
+Focus mode yet. Most of it needs an X11 session (see [Wayland](#wayland)).
+What follows is everything it does today.
 
 | | How | Needs |
 |---|---|---|
@@ -16,7 +18,15 @@ session (see [Wayland](#wayland)). What follows is everything it does today.
 | Software dimming, per display | the output's gamma ramp | an X11 session |
 | Night light, with a schedule | the output's gamma ramp, 6500 K to 1900 K | an X11 session; the engine for the schedule |
 | Snap layouts and Snap Assist | moving windows through the window manager | an X11 session and the engine |
-| Arranging displays, and the main display | XRandR positions, in one change | an X11 session and `xrandr` |
+| Arranging displays, and the main display | XRandR positions, in one change | an X11 session |
+| Resolution, refresh rate, orientation; extend, duplicate, one display | XRandR, with fifteen seconds to keep it in the window | an X11 session |
+| A monitor's own controls: contrast, input, colour preset, picture mode, colour gains, volume | DDC/CI, only the codes the monitor lists | `ddcutil` (not in the snap) |
+| Keep awake, for good or for a while | the desktop's inhibitors and logind's sleep lock, held by the engine | the engine |
+| Stay active (a pointer nudge after 55 s still) | XTest | an X11 session and the engine |
+| Turn off displays | DPMS | an X11 session |
+| Dark mode, and dark on night light's hours | GNOME's gsettings, KDE's colour scheme, XFCE's xfconf | GNOME, KDE or XFCE |
+| Presets of the whole desk | all of the above, saved under a name | as each part needs |
+| Tray icon and quick panel | StatusNotifierItem | a tray: KDE, XFCE, Cinnamon, MATE, Budgie; GNOME with the AppIndicator extension (on in Ubuntu) |
 
 ## Install
 
@@ -31,7 +41,7 @@ later), or musl (Alpine), on x86-64 or 64-bit ARM. Download from the
 | Fedora, RHEL, Rocky, Alma, openSUSE | `dispctrl-linux-<version>-1.x86_64.rpm` (or `.aarch64`) | `sudo dnf install ./dispctrl-linux-*.rpm` or `sudo zypper install ./dispctrl-linux-*.rpm` |
 | Anything else: Arch, Manjaro, Void, Gentoo, NixOS... | `dispctrl-linux-<version>-linux-x64.tar.gz` (or `-linux-arm64`) | `./install.sh`, below |
 | Alpine and other musl systems | `dispctrl-linux-<version>-linux-musl-x64.tar.gz` | `./install.sh`, below |
-| Any, as a snap | `dispctrl-linux_<version>_amd64.snap` (or `_arm64`) | `sudo snap install --dangerous ./dispctrl-linux_*.snap` (see [The snap](#the-snap)); not in the Snap Store yet |
+| Any, as a snap | the [Snap Store](https://snapcraft.io/dispctrl-linux) | `sudo snap install dispctrl-linux` (`--edge` for the newest build; see [The snap](#the-snap)) |
 
 The .deb and .rpm pull in what they need. Start the engine once after
 installing them; it starts by itself at every login after:
@@ -73,8 +83,10 @@ is read and moved through libXrandr directly.
 
 The snap runs under strict confinement, which keeps it from `/dev/i2c-*`: an
 external monitor's own brightness over DDC/CI is not available in it, and the
-window and `doctor` say so. Everything else is: night light, dimming,
-arranging, the main display, snap layouts and the laptop's backlight. The
+window and `doctor` say so, and so are the monitors' own controls and input
+switching. Everything else is: night light, dimming, arranging and display
+modes, keep awake, Stay active, dark mode, presets, the tray icon, snap
+layouts and the laptop's backlight. The
 backlight needs one permission the Store does not connect by itself:
 
 ```bash
@@ -100,9 +112,12 @@ dispctrl-linux restore                       night light off, no dimming, every 
 dispctrl-linux status                        what is on, and what every ramp holds
 ```
 
-The window has the Windows app's pages: **Displays** (the arrangement, and
-each display's card), **Brightness** (hardware brightness, dimming and night
-light), **Windows** (snap layouts) and **Settings** (the engine).
+The window has the Windows app's pages: **Displays** (the arrangement,
+display mode, and each display's card with its resolution, refresh rate,
+orientation and the monitor's own controls), **Brightness** (hardware
+brightness, dimming, night light and dark mode), **Screen care** (keep awake,
+Stay active, turning the displays off), **Windows** (snap layouts),
+**Presets** and **Settings** (the engine and the tray icon).
 
 `dispctrl-linux help` lists everything. Exit codes are those of `dispctrl.exe`
 on Windows: 0 done, 1 refused, 2 asked wrongly.
@@ -136,6 +151,112 @@ whole. A gap or an overlap is refused, as Windows refuses it.
 GNOME and KDE keep a saved layout of their own (GNOME's in
 `~/.config/monitors.xml`) and may put it back at the next login or when a
 display is plugged in; DispCtrl does not write theirs.
+
+### Resolution, refresh rate, orientation and display mode
+
+Each display's card on the Displays page changes its resolution, refresh
+rate and orientation; **Display mode** above them has Windows' Win+P choices.
+A change is undone after fifteen seconds unless you keep it, so a mode the
+monitor cannot show puts itself back. Displays to the right of or below one
+that changes size move with its new edge.
+
+```
+dispctrl-linux display modes [--output DP-1]          sizes and refresh rates each offers
+dispctrl-linux display set --output DP-1 --mode 1920x1080 --rate 60
+dispctrl-linux display set --output DP-1 --rotate left    normal, left, right, inverted
+dispctrl-linux display set --output HDMI-1 --enabled false
+dispctrl-linux display project extend                 extend, duplicate, internal, external
+dispctrl-linux display only DP-1                      that display alone
+```
+
+The command line does not count down: a script asked for it.
+
+## A monitor's own controls
+
+Over DDC/CI, a monitor offers more than brightness. DispCtrl reads what it
+lists (`ddcutil capabilities`) and offers those on its display's card:
+contrast, input source, colour preset, picture mode, the red, green and blue
+gains, sharpness and volume. It never writes a code the monitor did not list,
+a manufacturer code (E0 to FF), a factory reset or its power mode; those stay
+in the monitor's own menu.
+
+```
+dispctrl-linux monitor                       DDC/CI monitors and their numbers
+dispctrl-linux monitor 1                     the controls it lists, with their values
+dispctrl-linux monitor 1 set contrast 70
+dispctrl-linux monitor 1 set picture-mode Movie
+dispctrl-linux input 1                       its input sources, the current one starred
+dispctrl-linux input 1 HDMI-1
+```
+
+## Screen care
+
+**Keep awake** stops the computer sleeping, until you switch it off or for a
+while. The engine holds it, through every inhibitor the session offers:
+GNOME's session manager, `org.freedesktop.ScreenSaver` (KDE, XFCE, Cinnamon),
+KDE's power management and logind's sleep lock. They all end with the engine,
+so nothing is left keeping a laptop awake in a bag. With **Keep the displays
+on**, the screen does not blank or lock either.
+
+**Stay active** moves the pointer one pixel and back after 55 seconds without
+it moving, so chat apps and remote sessions do not call you away; a hand on
+the mouse is never fought. **Turn off displays** switches every display off
+through DPMS; any key or the mouse brings them back.
+
+```
+dispctrl-linux awake on | off
+dispctrl-linux awake for 30m | 2h | 1h30m
+dispctrl-linux awake until 18:30
+dispctrl-linux awake displays on|off         keep the displays on too
+dispctrl-linux stayactive on|off
+dispctrl-linux displays-off
+```
+
+## Dark mode
+
+```
+dispctrl-linux darkmode on | off | toggle
+dispctrl-linux darkmode schedule on          dark during night light's hours
+```
+
+On GNOME it sets the colour scheme and, where the theme has a dark sibling
+(Yaru, Adwaita), the GTK theme with it, as Ubuntu's Appearance page does; on
+KDE the Breeze colour scheme; on XFCE the theme's dark sibling. On a schedule
+it switches at each end of night light's hours only, so a change by hand
+lasts until the next.
+
+## Presets
+
+A preset is the desk as it was when saved: where each display sits and its
+mode, each display's brightness, night light and dimming, the theme, and the
+monitors' own controls (not the input, which would take the picture away).
+Applying one writes only what differs. Monitors are remembered by model and
+serial, so a preset made for one monitor is not applied to another on the
+same port; `preset list` says whether each fits the displays attached.
+
+```
+dispctrl-linux preset save Evening [--skip layout,controls]
+dispctrl-linux preset apply Evening
+dispctrl-linux preset list | show Evening | rename Evening Night | delete Night
+dispctrl-linux preset set Evening --skip none
+```
+
+Parts: `layout`, `brightness`, `nightlight` (with dimming), `theme`, `controls`.
+
+## The tray icon and quick panel
+
+The icon starts at sign-in. Its menu has each display's brightness, night
+light and its strength, dark mode, keep awake, Stay active, turning the
+displays off, display mode, Identify, presets, snap layouts, Restore, and
+the engine. A left click opens the **quick panel** beside it: tiles for the
+switches, a slider for each display's brightness and night light's strength,
+display mode and presets. Settings chooses whether a click opens the panel
+or the window, or hides the icon (`dispctrl-linux tray off`).
+
+GNOME shows tray icons only with the AppIndicator extension, which Ubuntu
+ships on; elsewhere on GNOME, install "AppIndicator and KStatusNotifierItem
+Support". Opening DispCtrl while the tray runs brings up its window rather
+than a second copy.
 
 ## Snap layouts and Snap Assist
 

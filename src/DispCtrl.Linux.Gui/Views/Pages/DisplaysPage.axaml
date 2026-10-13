@@ -52,6 +52,25 @@
                                Text="GNOME and KDE keep a saved layout of their own, and may put it back at the next login or when a display is plugged in." />
                 </StackPanel>
 
+                <StackPanel Name="ProjectSection" Margin="0,24,0,0" Spacing="8">
+                    <Grid ColumnDefinitions="40,*">
+                        <ui:FASymbolIcon Classes="cardicon" Symbol="ShareScreen" />
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Classes="title" Text="Display mode" />
+                            <TextBlock Classes="caption" Text="Windows' Win+P choices. Undone after 15 seconds unless you keep it." />
+                        </StackPanel>
+                    </Grid>
+                    <WrapPanel Name="ProjectButtons" Orientation="Horizontal">
+                        <Button Content="Extend" Tag="extend" Click="OnProject" Margin="0,0,8,8" AutomationProperties.Name="Extend" />
+                        <Button Content="Duplicate" Tag="duplicate" Click="OnProject" Margin="0,0,8,8" AutomationProperties.Name="Duplicate" />
+                        <Button Name="InternalButton" Content="Built-in display only" Tag="internal" Click="OnProject" Margin="0,0,8,8"
+                                AutomationProperties.Name="Built-in display only" />
+                        <Button Name="ExternalButton" Content="Other displays only" Tag="external" Click="OnProject" Margin="0,0,8,8"
+                                AutomationProperties.Name="Other displays only" />
+                    </WrapPanel>
+                    <TextBlock Name="ProjectStatus" Classes="status" IsVisible="False" />
+                </StackPanel>
+
                 <TextBlock Classes="section" Text="Each display" />
                 <ItemsControl Name="Outputs">
                     <ItemsControl.ItemsPanel>
@@ -125,16 +144,55 @@
 
                                     <Border Classes="subcard">
                                         <Grid Classes="cardgrid bare" ColumnDefinitions="0,*,Auto" RowDefinitions="Auto,Auto">
-                                            <TextBlock Grid.Column="1" Classes="title" Text="Resolution and refresh rate" VerticalAlignment="Center" />
-                                            <TextBlock Classes="value control" Text="{Binding ModeText}" />
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Classes="title" Text="Resolution" />
+                                                <TextBlock Classes="caption" Text="A change is undone after 15 seconds unless you keep it." />
+                                            </StackPanel>
+                                            <ComboBox Classes="control" ItemsSource="{Binding Resolutions}"
+                                                      SelectedIndex="{Binding ResolutionIndex, Mode=TwoWay}" IsEnabled="{Binding HasModes}"
+                                                      AutomationProperties.Name="Resolution" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Classes="subcard">
+                                        <Grid Classes="cardgrid bare" ColumnDefinitions="0,*,Auto" RowDefinitions="Auto,Auto">
+                                            <TextBlock Grid.Column="1" Classes="title" Text="Refresh rate" VerticalAlignment="Center" />
+                                            <ComboBox Classes="control" ItemsSource="{Binding RefreshRates}"
+                                                      SelectedIndex="{Binding RefreshIndex, Mode=TwoWay}" IsEnabled="{Binding HasModes}"
+                                                      AutomationProperties.Name="Refresh rate" />
                                         </Grid>
                                     </Border>
                                     <Border Classes="subcard">
                                         <Grid Classes="cardgrid bare" ColumnDefinitions="0,*,Auto" RowDefinitions="Auto,Auto">
                                             <TextBlock Grid.Column="1" Classes="title" Text="Orientation" VerticalAlignment="Center" />
-                                            <TextBlock Classes="value control" Text="{Binding OrientationText}" />
+                                            <ComboBox Classes="control" ItemsSource="{x:Static vm:OutputViewModel.Orientations}"
+                                                      SelectedIndex="{Binding OrientationIndex, Mode=TwoWay}"
+                                                      AutomationProperties.Name="Orientation" />
                                         </Grid>
                                     </Border>
+                                    <ItemsControl ItemsSource="{Binding Controls}" IsVisible="{Binding HasControls}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="vm:ControlRowViewModel">
+                                                <Border Classes="subcard">
+                                                    <Grid Classes="cardgrid bare" ColumnDefinitions="0,*,Auto" RowDefinitions="Auto,Auto">
+                                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                            <TextBlock Classes="title" Text="{Binding Title}" />
+                                                            <TextBlock Classes="status" Text="{Binding Status}" IsVisible="{Binding HasStatus}" />
+                                                        </StackPanel>
+                                                        <Panel Classes="control">
+                                                            <ComboBox ItemsSource="{Binding Options}" IsVisible="{Binding IsList}"
+                                                                      SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}"
+                                                                      AutomationProperties.Name="{Binding Title}" />
+                                                            <Grid Classes="slider" ColumnDefinitions="*,56" IsVisible="{Binding IsLevel}">
+                                                                <Slider Minimum="0" Maximum="{Binding Maximum}" Value="{Binding Value, Mode=TwoWay}"
+                                                                        VerticalAlignment="Center" AutomationProperties.Name="{Binding Title}" />
+                                                                <TextBlock Text="{Binding ValueText}" />
+                                                            </Grid>
+                                                        </Panel>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                     <Border Classes="subcard">
                                         <Grid Classes="cardgrid bare" ColumnDefinitions="0,*,Auto" RowDefinitions="Auto,Auto">
                                             <TextBlock Grid.Column="1" Classes="title" Text="Size" VerticalAlignment="Center" />

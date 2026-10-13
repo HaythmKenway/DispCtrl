@@ -36,10 +36,44 @@ public partial class BrightnessPage : UserControl
         FromPicker.SelectedTimeChanged += (_, _) => OnScheduleChanged();
         ToPicker.SelectedTimeChanged += (_, _) => OnScheduleChanged();
 
+        DarkSwitch.IsCheckedChanged += (_, _) =>
+        {
+            if (_themeReady) SendTheme(["darkmode", DarkSwitch.IsChecked == true ? "on" : "off"]);
+        };
+        DarkScheduleSwitch.IsCheckedChanged += (_, _) =>
+        {
+            if (_themeReady) SendTheme(["darkmode", "schedule", DarkScheduleSwitch.IsChecked == true ? "on" : "off"]);
+        };
+
         LoadNightLight();
-        AttachedToVisualTree += (_, _) => { _desk.Changed += Refresh; Refresh(); };
+        _ = LoadThemeAsync();
+        AttachedToVisualTree += (_, _) => { _desk.Changed += Refresh; Refresh(); _ = LoadThemeAsync(); };
         DetachedFromVisualTree += (_, _) => _desk.Changed -= Refresh;
     }
+
+    private bool _themeReady;
+
+    /// <summary>Reads the theme from the desktop each time: it is the
+    /// desktop's setting, and GNOME's own Settings may have changed it.</summary>
+    public async Task LoadThemeAsync()
+    {
+        _themeReady = false;
+        var dark = await Task.Run(Session.DarkMode.Read);
+        DarkSwitch.IsChecked = dark == true;
+        DarkSwitch.IsEnabled = dark is not null;
+        DarkScheduleSwitch.IsChecked = SettingsStore.Load().DarkMode.FollowSchedule;
+        DarkStatus.Text = dark is null ? "This desktop keeps its theme where DispCtrl cannot reach it (GNOME, KDE and XFCE can be)." : "";
+        DarkStatus.IsVisible = dark is null;
+        _themeReady = true;
+    }
+
+    private void SendTheme(string[] args) =>
+        _desk.Sender.Post("darkmode", args, error =>
+        {
+            DarkStatus.Text = error ?? "";
+            DarkStatus.IsVisible = error is not null;
+            if (error is not null) _ = LoadThemeAsync();
+        });
 
     private void Refresh()
     {

@@ -15,8 +15,8 @@ set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 here="$repo/build/packaging/linux"
-version="${DISPCTRL_VERSION:-$(sed -n 's:.*<DispCtrlVersion>\(.*\)</DispCtrlVersion>.*:\1:p' "$repo/Directory.Build.props")}"
-[[ -n $version ]] || { echo "No DispCtrlVersion in Directory.Build.props" >&2; exit 1; }
+version="${DISPCTRL_VERSION:-$(sed -n 's:.*<DispCtrlVersion>\(.*\)</DispCtrlVersion>.*:\1:p' "$repo/build/linux/Linux.Build.props")}"
+[[ -n $version ]] || { echo "No DispCtrlVersion in build/linux/Linux.Build.props" >&2; exit 1; }
 targets="${DISPCTRL_LINUX_TARGETS:-linux-x64 linux-arm64 linux-musl-x64}"
 
 out="$repo/artifacts/linux-$version"
@@ -57,7 +57,7 @@ tarball() { # rid: the same files install.sh expects next to it
   mkdir -p "$tree/share/applications" "$tree/share/autostart" "$tree/share/icons/hicolor/256x256/apps" "$tree/systemd" "$tree/udev"
   cp -a "$work/$rid/lib" "$tree/lib"
   cp "$here/desktop/dispctrl-linux.desktop" "$tree/share/applications/"
-  cp "$here/desktop/dispctrl-linux-engine.desktop" "$tree/share/autostart/"
+  cp "$here/desktop/dispctrl-linux-engine.desktop" "$here/desktop/dispctrl-linux-tray.desktop" "$tree/share/autostart/"
   cp "$repo/src/DispCtrl.Linux.Gui/Assets/dispctrl.png" "$tree/share/icons/hicolor/256x256/apps/dispctrl-linux.png"
   cp "$here/systemd/dispctrl-linux-engine.service" "$tree/systemd/"
   cp "$here/udev/90-dispctrl-backlight.rules" "$tree/udev/"
@@ -84,7 +84,7 @@ system_tree() { # rid root
   cp "$here/desktop/dispctrl-linux.desktop" "$root/usr/share/applications/"
   # Where the user manager is systemd's this does nothing (it checks), so the
   # service stays the one engine; elsewhere it is how the engine starts.
-  cp "$here/desktop/dispctrl-linux-engine.desktop" "$root/etc/xdg/autostart/"
+  cp "$here/desktop/dispctrl-linux-engine.desktop" "$here/desktop/dispctrl-linux-tray.desktop" "$root/etc/xdg/autostart/"
   cp "$repo/src/DispCtrl.Linux.Gui/Assets/dispctrl.png" "$root/usr/share/icons/hicolor/256x256/apps/dispctrl-linux.png"
   cp "$repo/LICENSE" "$root/usr/share/doc/dispctrl-linux/copyright"
 }
@@ -98,7 +98,7 @@ deb() { # rid arch
   # hyphen would read as a Debian revision and sort after it.
   local debversion="${version//-/\~}"
   sed -e "s/@VERSION@/$debversion/" -e "s/@SIZE@/$size/" -e "s/@ARCH@/$arch/" "$here/deb/control" > "$deb/DEBIAN/control"
-  printf '/etc/xdg/autostart/dispctrl-linux-engine.desktop\n' > "$deb/DEBIAN/conffiles"
+  printf '/etc/xdg/autostart/dispctrl-linux-engine.desktop\n/etc/xdg/autostart/dispctrl-linux-tray.desktop\n' > "$deb/DEBIAN/conffiles"
   install -m 0755 "$here/deb/postinst" "$here/deb/prerm" "$here/deb/postrm" "$deb/DEBIAN/"
   chmod -R go-w "$deb"
   find "$deb" -type d -exec chmod 0755 {} +

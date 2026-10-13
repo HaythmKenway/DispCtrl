@@ -1,0 +1,74 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:FluentAvalonia.UI.Controls"
+             x:Class="DispCtrl.Linux.Gui.Views.Pages.ScreenCarePage">
+    <Panel Name="Root">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Classes="page">
+                <TextBlock Classes="pagetitle" Text="Screen care" />
+                <TextBlock Classes="pagesubtitle"
+                           Text="Keep the computer awake, keep apps seeing you there, and turn the displays off." />
+
+                <TextBlock Classes="section" Text="Keep awake" />
+                <StackPanel Spacing="4">
+                    <Border Classes="card">
+                        <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                            <ui:FASymbolIcon Classes="cardicon" Symbol="Clock" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Classes="title" Text="Keep awake" />
+                                <TextBlock Name="AwakeCaption" Classes="caption"
+                                           Text="Stops the computer sleeping, for good or for a while. The engine holds it." />
+                                <TextBlock Name="AwakeStatus" Classes="status" IsVisible="False" />
+                            </StackPanel>
+                            <ComboBox Name="AwakeMode" Classes="control" AutomationProperties.Name="Keep awake">
+                                <ComboBoxItem Content="Off" />
+                                <ComboBoxItem Content="Until I switch it off" />
+                                <ComboBoxItem Content="For 30 minutes" />
+                                <ComboBoxItem Content="For 1 hour" />
+                                <ComboBoxItem Content="For 2 hours" />
+                                <ComboBoxItem Content="For 4 hours" />
+                            </ComboBox>
+                        </Grid>
+                    </Border>
+                    <Border Classes="card">
+                        <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                            <ui:FASymbolIcon Classes="cardicon" Symbol="FullScreenMaximize" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Classes="title" Text="Keep the displays on" />
+                                <TextBlock Classes="caption" Text="While awake, the displays do not blank and the screen does not lock." />
+                            </StackPanel>
+                            <ToggleSwitch Name="DisplaysOnSwitch" Classes="toggle" OnContent="On" OffContent="Off"
+                                          AutomationProperties.Name="Keep the displays on" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="card">
+                        <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                            <ui:FASymbolIcon Classes="cardicon" Symbol="Play" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Classes="title" Text="Stay active" />
+                                <TextBlock Classes="caption"
+                                           Text="After 55 seconds without the pointer moving, it moves a pixel and back, so chat apps and remote sessions do not call you away." />
+                            </StackPanel>
+                            <ToggleSwitch Name="StayActiveSwitch" Classes="toggle" OnContent="On" OffContent="Off"
+                                          AutomationProperties.Name="Stay active" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <TextBlock Classes="section" Text="Displays" />
+                <Border Classes="card">
+                    <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                        <ui:FASymbolIcon Classes="cardicon" Symbol="FullScreenMinimize" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Classes="title" Text="Turn off displays" />
+                            <TextBlock Classes="caption" Text="Every display off now, the computer still running. Any key or the mouse brings them back." />
+                            <TextBlock Name="OffStatus" Classes="status" IsVisible="False" />
+                        </StackPanel>
+                        <Button Name="OffButton" Classes="control" Content="Turn off now" Click="OnDisplaysOff"
+                                AutomationProperties.Name="Turn off displays" />
+                    </Grid>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Panel>
+</UserControl>
