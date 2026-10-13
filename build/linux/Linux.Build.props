@@ -1,0 +1,45 @@
+<Project>
+
+  <!-- Every Linux project's build settings, in place of the repository's root
+       Directory.Build.props, which is the Windows app's: win-x64, CsWin32,
+       the Windows SDK projection and its trimming rules. Each Linux project
+       has a Directory.Build.props of one line that imports this file, and
+       MSBuild stops at the first one it finds, so nothing of the Windows
+       configuration reaches a Linux build. Before, every Linux project file
+       began by undoing it (TargetPlatformMinVersion, RuntimeIdentifier), and a
+       Windows default added later would have leaked into the Linux packages
+       unnoticed. -->
+  <PropertyGroup>
+    <!-- The Linux release's version; package.sh, the snap and the release
+         workflow pass -p:Version to override it. -->
+    <DispCtrlVersion>0.3.0</DispCtrlVersion>
+    <Version Condition="'$(Version)' == ''">$(DispCtrlVersion)</Version>
+
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- linux-x64 unless asked: package.sh also publishes linux-arm64 and
+         linux-musl-x64 (Alpine) with -r. -->
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">linux-x64</RuntimeIdentifier>
+    <PlatformTarget>x64</PlatformTarget>
+    <PlatformTarget Condition="$(RuntimeIdentifier.EndsWith('-arm64'))">arm64</PlatformTarget>
+    <SelfContained>false</SelfContained>
+
+    <!-- Warnings are the cheapest bug detector in interop code, where a
+         marshalling mistake reads as a crash three layers away. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+
+    <Product>DispCtrl for Linux</Product>
+    <Authors>HaythmKenway</Authors>
+    <Copyright>Copyright (c) 2026 Jesvi Jonathan and DispCtrl for Linux's contributors. MIT licence.</Copyright>
+    <RepositoryUrl>https://github.com/HaythmKenway/DispCtrl</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/HaythmKenway/DispCtrl</PackageProjectUrl>
+  </PropertyGroup>
+
+</Project>

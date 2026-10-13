@@ -1,0 +1,4 @@
+<Project>
+  <!-- The Linux build settings, not the root's Windows ones: build/linux/Linux.Build.props. -->
+  <Import Project="$(MSBuildThisFileDirectory)../../build/linux/Linux.Build.props" />
+</Project>

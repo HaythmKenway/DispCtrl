@@ -1,35 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- The Linux command line: DDC/CI (ddcutil), backlight (sysfs) and display
-       layout/gamma (XRandR). Deliberately does not reference DispCtrl.Core or
-       DispCtrl.Display, which target net10.0-windows10.0.26100.0 and carry
-       CsWin32/WMI bindings that mean nothing here; see docs/LINUX.md and
-       docs/design/LINUX-PORT.md for the rest of the port this is part of.
-       Overrides every Windows-only default the root Directory.Build.props
-       sets, since MSBuild property groups evaluate in document order and this
-       file is imported after it. -->
+  <!-- The Linux command line and, as "engine", the resident process. It
+       references no Windows project: its build settings are
+       build/linux/Linux.Build.props, and docs/LINUX.md has the rest. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
-    <TargetPlatformMinVersion />
     <AssemblyName>dispctrl-linux</AssemblyName>
     <RootNamespace>DispCtrl.Linux</RootNamespace>
-
-    <Platforms>x64</Platforms>
-    <!-- linux-x64 unless asked: package.sh also publishes linux-arm64 and
-         linux-musl-x64 (Alpine) with -r. -->
-    <PlatformTarget>x64</PlatformTarget>
-    <PlatformTarget Condition="$(RuntimeIdentifier.EndsWith('-arm64'))">arm64</PlatformTarget>
-    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
-    <SelfContained>false</SelfContained>
-    <!-- Not per-monitor-aware WinUI interop, so no app.manifest equivalent needed. -->
-
-    <LangVersion>latest</LangVersion>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <InvariantGlobalization>true</InvariantGlobalization>
-
-    <Description>Linux DDC/CI, backlight and XRandR display control.</Description>
+    <Description>Per-display brightness, dimming, night light, arrangement and presets on Linux.</Description>
   </PropertyGroup>
 
   <ItemGroup>
