@@ -32,8 +32,11 @@ What follows is everything it does today.
 
 Every package is self-contained: .NET comes with it, and it runs on any
 distribution with glibc 2.27 or later (Ubuntu 18.04, Debian 10, RHEL 8 and
-later), or musl (Alpine), on x86-64 or 64-bit ARM. Download from the
-[releases](https://github.com/HaythmKenway/DispCtrl/releases):
+later), or musl (Alpine), on x86-64 or 64-bit ARM. The snap is in the
+[Snap Store](https://snapcraft.io/dispctrl-linux); the others are attached to
+the [releases](https://github.com/HaythmKenway/DispCtrl/releases) from the
+first one, and until then are built with `./build.cmd linux-package`
+([Building from source](#building-from-source)):
 
 | Your system | Download | Install |
 |---|---|---|

@@ -9,10 +9,9 @@
 Brightness, night light, display modes, presets and snap layouts for every display,<br>
 from a window, a tray icon with a quick panel, and a scriptable command line.
 
-[![Get it from the Snap Store](https://snapcraft.io/en/dark/install.svg)](https://snapcraft.io/dispctrl-linux) [![dispctrl-linux](https://snapcraft.io/dispctrl-linux/badge.svg)](https://snapcraft.io/dispctrl-linux)
-[![dispctrl-linux](https://snapcraft.io/dispctrl-linux/trending.svg?name=0)](https://snapcraft.io/dispctrl-linux)
+<a href="https://snapcraft.io/dispctrl-linux"><img alt="Get it from the Snap Store" src="https://snapcraft.io/en/dark/install.svg" height="48"></a>
 
-[![Releases](https://img.shields.io/github/v/release/HaythmKenway/DispCtrl?include_prereleases&color=8b5cf6&label=release)](https://github.com/HaythmKenway/DispCtrl/releases) [![Linux](https://img.shields.io/badge/platform-Linux%20(X11)-FCC624?logo=linux&logoColor=black)](#install) [![Licence: MIT](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
+<a href="https://snapcraft.io/dispctrl-linux"><img alt="dispctrl-linux" src="https://snapcraft.io/dispctrl-linux/badge.svg"></a> <a href="https://snapcraft.io/dispctrl-linux"><img alt="dispctrl-linux" src="https://snapcraft.io/dispctrl-linux/trending.svg?name=0"></a> <a href="#install"><img alt="Linux (X11)" src="https://img.shields.io/badge/platform-Linux%20(X11)-FCC624?logo=linux&amp;logoColor=black"></a> <a href="LICENSE"><img alt="Licence: MIT" src="https://img.shields.io/badge/licence-MIT-green"></a>
 
 [Install](#install) · [Getting started](#getting-started) · [Guide](docs/LINUX.md)
 
@@ -37,7 +36,7 @@ It needs an X11 session for most of this; on Wayland the compositor keeps gamma 
 sudo snap install dispctrl-linux          # the Snap Store; --edge for the newest build
 ```
 
-Or from the [releases](https://github.com/HaythmKenway/DispCtrl/releases): a `.deb` (Debian, Ubuntu, Mint), an `.rpm` (Fedora, RHEL, openSUSE), and tarballs for everything else, Alpine included, each for x86-64 and 64-bit ARM, with .NET inside. The snap cannot reach monitors over DDC/CI under strict confinement; for an external monitor's own brightness and controls, use a package. [Install](docs/LINUX.md#install) has the details.
+The snap cannot reach monitors over DDC/CI under strict confinement. For an external monitor's own brightness and controls, build the `.deb`, `.rpm` or tarball (below; with .NET inside, for x86-64 and 64-bit ARM); they will be attached to this repository's releases from the first one. [Install](docs/LINUX.md#install) has the details.
 
 ## Getting started
 
