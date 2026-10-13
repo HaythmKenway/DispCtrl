@@ -9,9 +9,12 @@
 Brightness, night light, display modes, presets and snap layouts for every display,<br>
 from a window, a tray icon with a quick panel, and a scriptable command line.
 
-[![Snap Store](https://img.shields.io/badge/snap-dispctrl--linux-82BEA0?logo=snapcraft&logoColor=white)](https://snapcraft.io/dispctrl-linux) [![Releases](https://img.shields.io/github/v/release/HaythmKenway/DispCtrl?include_prereleases&color=8b5cf6&label=release)](https://github.com/HaythmKenway/DispCtrl/releases) [![Linux](https://img.shields.io/badge/platform-Linux%20(X11)-FCC624?logo=linux&logoColor=black)](#install) [![Licence: MIT](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
+<a href="https://snapcraft.io/dispctrl-linux"><img alt="dispctrl-linux" src="https://snapcraft.io/dispctrl-linux/badge.svg" /></a>
+<a href="https://snapcraft.io/dispctrl-linux"><img alt="dispctrl-linux" src="https://snapcraft.io/dispctrl-linux/trending.svg?name=0" /></a>
 
-[Install](#install) · [Getting started](#getting-started) · [Guide](docs/LINUX.md) · [Windows and macOS](#windows-and-macos)
+[![Releases](https://img.shields.io/github/v/release/HaythmKenway/DispCtrl?include_prereleases&color=8b5cf6&label=release)](https://github.com/HaythmKenway/DispCtrl/releases) [![Linux](https://img.shields.io/badge/platform-Linux%20(X11)-FCC624?logo=linux&logoColor=black)](#install) [![Licence: MIT](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
+
+[Install](#install) · [Getting started](#getting-started) · [Guide](docs/LINUX.md)
 
 </div>
 
@@ -23,7 +26,7 @@ from a window, a tray icon with a quick panel, and a scriptable command line.
 - **Your monitor's own controls**: contrast, input source, colour preset, picture mode, colour gains and volume - only those it lists.
 - **Presets**: save the whole desk under a name and put it back in one click.
 - **Screen care**: keep the computer awake for good or for a while, Stay active (a one-pixel nudge after 55 seconds still), turn the displays off.
-- **Snap layouts and Snap Assist**, as on Windows 11: drag a window to the top centre, or press Super+Z.
+- **Snap layouts and Snap Assist**: drag a window to the top centre, or press Super+Z.
 - **A tray icon and quick panel** with all of it one click away, and `dispctrl-linux` for scripts.
 
 It needs an X11 session for most of this; on Wayland the compositor keeps gamma and window placement to itself, and brightness still works. The [guide](docs/LINUX.md) has everything, feature by feature.
@@ -54,12 +57,9 @@ dispctrl-linux help                        everything
 
 **A screen too dark or too orange?** `dispctrl-linux restore`, or **Restore** in the window or the tray, puts every display back.
 
-## Windows and macOS
+## Windows
 
-DispCtrl began on Windows, and this is its Linux edition, kept in its own repository.
-
-- **Windows 11**: [jesvijonathan/DispCtrl](https://github.com/jesvijonathan/DispCtrl) - the original, by [Jesvi Jonathan](https://github.com/jesvijonathan), from the Microsoft Store or its installer.
-- **macOS**: coming soon, from the same project.
+Looking for DispCtrl on Windows? See the original, [jesvijonathan/DispCtrl](https://github.com/jesvijonathan/DispCtrl).
 
 ## Documentation
 
@@ -79,7 +79,7 @@ git clone https://github.com/HaythmKenway/DispCtrl.git && cd DispCtrl
 ./build.cmd linux-package     # .deb, .rpm and tarballs into artifacts/
 ```
 
-The Linux projects build with their own settings (`build/linux/Linux.Build.props`), not the Windows app's. [Building from source](docs/LINUX.md#building-from-source) has the rest.
+The Linux projects build with their own settings, in `build/linux/Linux.Build.props`. [Building from source](docs/LINUX.md#building-from-source) has the rest.
 
 ## Licence
 
