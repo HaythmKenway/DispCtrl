@@ -2,285 +2,85 @@
 
 <img src="site/assets/logo.png" alt="DispCtrl" width="104" height="104">
 
-# DispCtrl - Display Control
+# DispCtrl for Linux
 
-**Every monitor on your desk, controlled as one.**
+**Every monitor on your desk, controlled as one - on Linux.**
 
-One place for brightness, night light, taskbars and OLED care across your desk.<br>
-A native Windows app, a quick panel in your tray, and a scriptable command line.
+Brightness, night light, display modes, presets and snap layouts for every display,<br>
+from a window, a tray icon with a quick panel, and a scriptable command line.
 
-[![Monitor library](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fjesvijonathan%2FDispCtrl%2Fmaster%2Fdevices%2Findex.json&query=%24.counts.models&label=monitor%20library&color=8b5cf6)](devices/CATALOG.md) [![GitHub stars](https://img.shields.io/github/stars/jesvijonathan/DispCtrl?label=stars&color=8b5cf6&logo=github)](https://github.com/jesvijonathan/DispCtrl/stargazers) [![Downloads](https://img.shields.io/github/downloads/jesvijonathan/DispCtrl/total?color=8b5cf6)](https://github.com/jesvijonathan/DispCtrl/releases) [![Windows](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows11&logoColor=white)](#install) [![Licence: MIT](https://img.shields.io/badge/licence-MIT-green)](LICENSE) [![Sponsor](https://img.shields.io/badge/sponsor-%E2%9D%A4-db61a2?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/jesvijonathan)
+[![Snap Store](https://img.shields.io/badge/snap-dispctrl--linux-82BEA0?logo=snapcraft&logoColor=white)](https://snapcraft.io/dispctrl-linux) [![Releases](https://img.shields.io/github/v/release/HaythmKenway/DispCtrl?include_prereleases&color=8b5cf6&label=release)](https://github.com/HaythmKenway/DispCtrl/releases) [![Linux](https://img.shields.io/badge/platform-Linux%20(X11)-FCC624?logo=linux&logoColor=black)](#install) [![Licence: MIT](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
 
-[Install](#install) · [Getting started](#getting-started) · [Documentation](#documentation) · [Website](https://jesvijonathan.github.io/DispCtrl/)
-
-<br>
-
-<a href="https://apps.microsoft.com/detail/9PNQWKNRGVR0?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Download from the Microsoft Store" width="200" height="55"></a>&nbsp;&nbsp;<a href="https://github.com/jesvijonathan/DispCtrl/releases/latest"><img src="site/assets/badges/download-installer.svg" alt="Download the installer" width="200" height="55"></a>
-
-<br>
-
-<img src="site/assets/hero.png" alt="The DispCtrl window with the quick panel open in front of it" width="100%">
+[Install](#install) · [Getting started](#getting-started) · [Guide](docs/LINUX.md) · [Windows and macOS](#windows-and-macos)
 
 </div>
 
-## Features
+## What it does
 
-<table>
-<tr>
-<td width="50%" valign="top">
+- **Brightness for every display**: external monitors over DDC/CI, the laptop's own panel through its backlight, and dimming in software below what a panel can do.
+- **Night light** on a schedule, from 6500 K down to 1900 K, and **dark mode** on the same hours (GNOME, KDE, XFCE).
+- **Displays**: drag them into place at their real size; change resolution, refresh rate and orientation with fifteen seconds to keep it; extend, duplicate or one display, as with Win+P.
+- **Your monitor's own controls**: contrast, input source, colour preset, picture mode, colour gains and volume - only those it lists.
+- **Presets**: save the whole desk under a name and put it back in one click.
+- **Screen care**: keep the computer awake for good or for a while, Stay active (a one-pixel nudge after 55 seconds still), turn the displays off.
+- **Snap layouts and Snap Assist**, as on Windows 11: drag a window to the top centre, or press Super+Z.
+- **A tray icon and quick panel** with all of it one click away, and `dispctrl-linux` for scripts.
 
-### Brightness
-
-- **Unison**: one slider for every display, each within its own calibrated range
-- **Replace Windows brightness**: let the laptop's brightness keys and Quick Settings move every display
-- Hardware brightness over DDC/CI and WMI, software dimming below it
-- Leave a display out of unison; turn the mouse wheel over the tray icon
-
-</td>
-<td width="50%" valign="top">
-
-### Colour and comfort
-
-- Night light per display or in unison, scheduled or following Windows
-- Warmth down to 1900K with the optional expanded gamma range
-- Focus mode, keep-awake, Stay active and dark mode, on night light's schedule if you like
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-### Taskbar and desktop
-
-- Hide taskbars independently on secondary monitors
-- A wallpaper per display; arrangement drawn at true physical size
-- Extend, duplicate and single-screen modes; identify and detect
-
-</td>
-<td width="50%" valign="top">
-
-### OLED care
-
-- Two-stage idle dimming, paused for full-screen video and games
-- Rests each display on its own while you work on another, and keeps apps you watch awake
-- Knows OLED panels from the monitor or the device library; pairs with taskbar hiding
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-### Your monitor's own controls
-
-- Contrast, input, picture mode, volume and more, over DDC/CI
-- Controls offered according to the monitor's capabilities
-- A shared device library for named controls and panel information
-
-</td>
-<td width="50%" valign="top">
-
-### Automation
-
-- A quick panel on the tray icon: tiles, sliders, a row per display
-- Global hotkeys that work with the window closed
-- `dispctrl.exe`: every option, with JSON output
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-### Windows
-
-- Pin any window on top, marked with a border and kept clear of focus dimming
-- Gather every window onto one display, maximized and fullscreen ones included
-- Put windows back when a monitor returns; open new windows where you work
-
-</td>
-<td width="50%" valign="top">
-
-### Safety and updates
-
-- Stops talking to a monitor whose capabilities read crashed Windows
-- Settings that survive moving to a newer or an older version
-- A daily check for new releases, one switch to turn off; the Microsoft Store updates itself
-
-</td>
-</tr>
-</table>
-
-**More:** [all features](docs/FEATURES.md) · [settings](docs/SETTINGS.md) · [command line](docs/CLI.md)
+It needs an X11 session for most of this; on Wayland the compositor keeps gamma and window placement to itself, and brightness still works. The [guide](docs/LINUX.md) has everything, feature by feature.
 
 ## Install
 
-- [**Microsoft Store**](https://apps.microsoft.com/detail/9PNQWKNRGVR0) - updates itself. Or: `winget install 9PNQWKNRGVR0 --source msstore`
-- [**Installer**](https://github.com/jesvijonathan/DispCtrl/releases/latest) (`...-setup.exe`) - no administrator rights, starts at sign-in, keeps your settings.
-- [**Portable**](https://github.com/jesvijonathan/DispCtrl/releases/latest) (`...-portable.zip`) - unzip anywhere and run `DispCtrl.App.exe`.
-- [**Command line**](https://github.com/jesvijonathan/DispCtrl/releases/latest) (`...-cli.zip`) - for scripts, without the window.
+```bash
+sudo snap install dispctrl-linux          # the Snap Store; --edge for the newest build
+```
 
-Windows 11, x64; nothing else to install. Settings live in `%LOCALAPPDATA%\DispCtrl`.
+Or from the [releases](https://github.com/HaythmKenway/DispCtrl/releases): a `.deb` (Debian, Ubuntu, Mint), an `.rpm` (Fedora, RHEL, openSUSE), and tarballs for everything else, Alpine included, each for x86-64 and 64-bit ARM, with .NET inside. The snap cannot reach monitors over DDC/CI under strict confinement; for an external monitor's own brightness and controls, use a package. [Install](docs/LINUX.md#install) has the details.
 
 ## Getting started
 
-1. Open **DispCtrl** from the Start menu. The engine starts with it and puts an icon in the notification area.
-2. Click the icon for the quick panel: one brightness slider for every display, and one for each.
-3. On the **Brightness** page, switch on **Use captured limits** and set each screen's dimmest and brightest level, so one slider moves them all evenly.
-4. Switch on **Replace Windows brightness** and the laptop's brightness keys move every display.
+1. Open **DispCtrl** from the applications menu. Its icon appears in the panel's tray; on GNOME that needs the AppIndicator extension, which Ubuntu has on.
+2. Click the icon for the quick panel: a slider for each display, night light, keep awake and the rest.
+3. Run `dispctrl-linux doctor` to see what it can reach, and what to install for what it cannot.
 
-| Shortcut | What it does |
-|---|---|
-| <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>PgUp</kbd> / <kbd>PgDn</kbd> | Every display brighter / dimmer |
-| <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>D</kbd> | The quick panel |
-| <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>N</kbd> | Night light |
-| <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>L</kbd> | Turn the displays off, and back on |
-| <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>P</kbd> / <kbd>G</kbd> | Pin the window in front on top / gather every window onto this display |
-| <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>Backspace</kbd> | **Put every display back** |
-
-> [!TIP]
-> **A screen stuck black, dim or tinted?** <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>Backspace</kbd> switches off everything DispCtrl does to how a screen looks and keeps your other settings. **Settings › Undo the way back** switches it all on again.
-
-More shortcuts are set up and switched off on the **Hotkeys** page.
-
-## A tour
-
-<div align="center">
-<img src="site/assets/demo.gif" alt="A tour of DispCtrl: the quick panel, the Displays, Brightness and Screen care pages" width="880">
-</div>
-
-### The quick panel
-
-Click the tray icon: brightness first, everything else a fold away. A new install opens in Simple mode; the dot in the title bar switches to the full panel.
-
-<table>
-<tr>
-<td width="50%" align="center" valign="bottom">
-<img src="site/assets/screenshots/quick-panel.png" alt="The full quick panel: brightness, quick toggles and each display" width="300"><br>
-<sub><b>The full panel</b></sub>
-</td>
-<td width="50%" align="center" valign="bottom">
-<img src="site/assets/screenshots/quick-panel-simple.png" alt="The quick panel in Simple mode: one slider for all displays, then one per display" width="300"><br>
-<sub><b>Simple mode</b>, as a new install opens</sub>
-</td>
-</tr>
-</table>
-
-### The app
-
-<table>
-<tr>
-<td width="50%" valign="top"><b>Displays</b>: the arrangement at real size<br><br>
-<img src="site/assets/screenshots/displays.png" alt="The Displays page with the arrangement of two displays" width="100%"></td>
-<td width="50%" valign="top"><b>Brightness</b>: unison, room light, night light<br><br>
-<img src="site/assets/screenshots/brightness.png" alt="The Brightness page with unison brightness and night light" width="100%"></td>
-</tr>
-<tr>
-<td width="50%" valign="top"><b>Screen care</b>: focus, OLED care, keep awake<br><br>
-<img src="site/assets/screenshots/screen-care.png" alt="The Screen care page with focus mode and OLED idle protection" width="100%"></td>
-<td width="50%" valign="top"><b>Presets</b>: a whole desk, saved<br><br>
-<img src="site/assets/screenshots/presets.png" alt="The Presets page listing saved presets" width="100%"></td>
-</tr>
-<tr>
-<td width="50%" valign="top"><b>Hotkeys</b>: shortcuts, features, triggers<br><br>
-<img src="site/assets/screenshots/hotkeys.png" alt="The Hotkeys page with the default shortcuts" width="100%"></td>
-<td width="50%" valign="top"><b>Taskbar</b>: hiding, glass, reveal timing<br><br>
-<img src="site/assets/screenshots/taskbar.png" alt="The Taskbar page with glass, opacity and reveal behaviour" width="100%"></td>
-</tr>
-</table>
-
-<details>
-<summary><b>More screenshots</b>: devices, the quick panel's own settings, Settings</summary>
-
-<br>
-
-<table>
-<tr>
-<td width="50%" valign="top"><b>Devices</b>: each monitor's controls<br><br>
-<img src="site/assets/screenshots/devices.png" alt="The Devices page with a monitor's details" width="100%"></td>
-<td width="50%" valign="top"><b>Quick panel</b>: what it shows and how<br><br>
-<img src="site/assets/screenshots/quick-panel-settings.png" alt="The Quick panel page: what the panel shows and how" width="100%"></td>
-</tr>
-<tr>
-<td width="50%" valign="top"><b>Settings</b>: engine, updates, maintenance<br><br>
-<img src="site/assets/screenshots/settings.png" alt="The Settings page: engine, updates and maintenance" width="100%"></td>
-<td width="50%" valign="top"></td>
-</tr>
-</table>
-
-</details>
-
-## Works with
-
-| | |
-|---|---|
-| **External monitors** | Brightness, contrast, input, volume and the monitor's other controls over DDC/CI, offered only where the monitor says it has them. DDC/CI is sometimes off in the monitor's own menu. |
-| **Laptop panels** | Brightness through Windows (WMI), and the brightness keys can drive every display. A panel with no hardware control gets software dimming. |
-| **Docks, hubs and daisy chains** | Thunderbolt, USB-C and DisplayPort MST: each display behind them is its own display, with its own controls where DDC/CI gets through. |
-| **Virtual and wireless displays** | Parsec, spacedesk and other virtual displays, USB display adapters and Miracast are recognised and named as such. They have no DDC/CI, so brightness there is software dimming where the driver allows it. |
-| **Snap, FancyZones and other window tools** | Windows' Snap layouts are untouched. When PowerToys FancyZones is set to put new windows in their last zone, DispCtrl leaves new windows to it. |
-| **Other brightness tools** | Twinkle Tray, Monitorian and DispCtrl can share a monitor: every DDC/CI conversation waits its turn, and a monitor whose capabilities read ever took Windows down is not read again until you allow it. |
-| **The main taskbar** | Windows keeps it where it is: DispCtrl hides it through Windows' own auto-hide, and other taskbars independently. |
-
-## Command line
-
-Everything the app does, `dispctrl` does: from a script, a scheduled task, a stream deck or a macro key.
-
-```powershell
-dispctrl displays list                          # what is attached
-dispctrl unison set --level 40                  # every display, in step
-dispctrl nightlight set --enabled on --from 20:00 --to 07:00
-dispctrl display control --monitor 2 --name input-source --value hdmi-1
-dispctrl preset apply Evening
+```bash
+dispctrl-linux displays                    every display, monitor and backlight
+dispctrl-linux brightness 60 --ddc 1       a monitor's own brightness
+dispctrl-linux nightlight --from 20:00 --to 07:00
+dispctrl-linux display project extend      or duplicate, internal, external
+dispctrl-linux preset save Evening         and later: preset apply Evening
+dispctrl-linux awake for 2h
+dispctrl-linux help                        everything
 ```
 
-`dispctrl help` lists the topics and `dispctrl help TOPIC` shows one; `--json` gives one line of machine-readable output, and the exit code is `0` done, `1` refused, `2` asked wrongly. [The command line guide](docs/CLI.md) has everything, and [docs/examples](docs/examples) scripts to start from.
+**A screen too dark or too orange?** `dispctrl-linux restore`, or **Restore** in the window or the tray, puts every display back.
 
-<div align="center">
-<img src="site/assets/cli.png" alt="dispctrl help and a command's output in Windows Terminal" width="820">
-</div>
+## Windows and macOS
 
-## Privacy
+DispCtrl began on Windows, and this is its Linux edition, kept in its own repository.
 
-No telemetry and no account. The one request DispCtrl makes by itself is a daily check for a new release, which sends the version number and nothing else, never downloads, and is one switch to turn off in Settings (the Store version leaves updates to the Store). Sharing a monitor's record or a problem report removes serial numbers, device paths and your account name, then opens a prefilled GitHub issue for you to read before you submit it.
+- **Windows 11**: [jesvijonathan/DispCtrl](https://github.com/jesvijonathan/DispCtrl) - the original, by [Jesvi Jonathan](https://github.com/jesvijonathan), from the Microsoft Store or its installer.
+- **macOS**: coming soon, from the same project.
 
 ## Documentation
 
 | | |
 |---|---|
-| [Features](docs/FEATURES.md) | Every page, option and shortcut, in the order the app shows them |
-| [Settings reference](docs/SETTINGS.md) | Every stored setting, its default and what it does |
-| [Command line](docs/CLI.md) | Commands, options, JSON output and exit codes |
-| [Presets](docs/PRESETS.md), [custom controls](docs/CUSTOM-CONTROLS.md) | Desk profiles, app rules, mapped monitor controls and features |
-| [Device library](docs/DEVICE-LIBRARY.md) | Monitor definitions and how to share yours |
-| [For developers](docs/README.md#for-developers) | Architecture, building, testing, the traps already paid for, releasing |
+| [DispCtrl for Linux](docs/LINUX.md) | Install, every feature, the engine, the snap, Wayland |
 | [Changelog](docs/CHANGELOG.md) | What changed in each release |
+| [Traps](docs/developer/TRAPS.md#linux-client) | What was learned the hard way, for contributors |
 
 ## Build from source
 
-```powershell
-git clone https://github.com/jesvijonathan/DispCtrl.git
-cd DispCtrl
-.\build.cmd setup -Install   # checks the machine; offers .NET 10 and MinGW through winget
-.\build.cmd build            # builds, stopping and restarting the engine for you
-.\build.cmd test             # the hardware-free checks
-.\build.cmd run app          # or: engine, panel, cli <arguments>
+```bash
+git clone https://github.com/HaythmKenway/DispCtrl.git && cd DispCtrl
+./build.cmd setup             # the .NET 10 SDK, if missing
+./build.cmd linux-build       # the command line, the window and the checks
+./build.cmd linux-run gui
+./build.cmd linux-package     # .deb, .rpm and tarballs into artifacts/
 ```
 
-On Linux, macOS or WSL, `./build.cmd setup`, `build` and `test` build everything except the window (WinUI needs Windows) and run the checks that need no Windows APIs; CI runs the same on Linux for every change. [Developing](docs/developer/DEVELOPING.md) has every option, and the [repository layout](docs/developer/ARCHITECTURE.md) where each part lives.
-
-## Contributing
-
-- **Share your monitor**: **Devices › Contribute** in the app, or `dispctrl devices contribute --monitor 2 --open`. It is the quickest way to make DispCtrl work on hardware the author does not have.
-- **Report a problem**: **Help › Report a problem**, or `dispctrl report --what "..."`, which gathers the diagnostics for you.
-- **Send code**: see [CONTRIBUTING](.github/CONTRIBUTING.md). Security issues go through [SECURITY](.github/SECURITY.md), not public issues.
-
-## Support the project
-
-DispCtrl is free and open source, made in spare time. A donation pays for development and for monitors to test on.
-
-[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor_on_GitHub-db61a2?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/jesvijonathan) [![Donate with PayPal](https://img.shields.io/badge/Donate_with_PayPal-0070ba?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/jesvijon) [![Donate with UPI](https://img.shields.io/badge/Donate_with_UPI-168a5b?style=for-the-badge)](https://jesvijonathan.github.io/DispCtrl/#upi)
-
-Helping costs nothing, too: [star the repository](https://github.com/jesvijonathan/DispCtrl), [share your monitor](#contributing) or [report a bug](https://github.com/jesvijonathan/DispCtrl/issues). Every way to give, including a UPI QR code, is on the [support page](https://jesvijonathan.github.io/DispCtrl/#support).
+The Linux projects build with their own settings (`build/linux/Linux.Build.props`), not the Windows app's. [Building from source](docs/LINUX.md#building-from-source) has the rest.
 
 ## Licence
 
-[MIT](LICENSE) © 2026 [Jesvi Jonathan](https://www.jesvi.net) · [jesvi22j@gmail.com](mailto:jesvi22j@gmail.com) · [GitHub](https://github.com/jesvijonathan)
+[MIT](LICENSE). DispCtrl is © 2026 [Jesvi Jonathan](https://github.com/jesvijonathan); the Linux edition is maintained by [@HaythmKenway](https://github.com/HaythmKenway). If it helps you, consider [sponsoring the original author](https://github.com/sponsors/jesvijonathan).
