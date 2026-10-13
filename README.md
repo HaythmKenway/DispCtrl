@@ -9,8 +9,8 @@
 Brightness, night light, display modes, presets and snap layouts for every display,<br>
 from a window, a tray icon with a quick panel, and a scriptable command line.
 
-<a href="https://snapcraft.io/dispctrl-linux"><img alt="dispctrl-linux" src="https://snapcraft.io/dispctrl-linux/badge.svg" /></a>
-<a href="https://snapcraft.io/dispctrl-linux"><img alt="dispctrl-linux" src="https://snapcraft.io/dispctrl-linux/trending.svg?name=0" /></a>
+[![Get it from the Snap Store](https://snapcraft.io/en/dark/install.svg)](https://snapcraft.io/dispctrl-linux) [![dispctrl-linux](https://snapcraft.io/dispctrl-linux/badge.svg)](https://snapcraft.io/dispctrl-linux)
+[![dispctrl-linux](https://snapcraft.io/dispctrl-linux/trending.svg?name=0)](https://snapcraft.io/dispctrl-linux)
 
 [![Releases](https://img.shields.io/github/v/release/HaythmKenway/DispCtrl?include_prereleases&color=8b5cf6&label=release)](https://github.com/HaythmKenway/DispCtrl/releases) [![Linux](https://img.shields.io/badge/platform-Linux%20(X11)-FCC624?logo=linux&logoColor=black)](#install) [![Licence: MIT](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
 
