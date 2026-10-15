@@ -60,11 +60,23 @@ public partial class SettingsPage : UserControl
         wall.Click += async (_, _) =>
         {
             if (TopLevel.GetTopLevel(this)?.StorageProvider is not { } storage) return;
-            var files = await storage.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions
+            IReadOnlyList<IStorageFile> files;
+            try
             {
-                Title = "Wallpaper",
-                FileTypeFilter = [Avalonia.Platform.Storage.FilePickerFileTypes.ImageAll],
-            });
+                files = await storage.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions
+                {
+                    Title = "Wallpaper",
+                    FileTypeFilter = [Avalonia.Platform.Storage.FilePickerFileTypes.ImageAll],
+                });
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                // The desktop's file chooser is a separate service (a portal);
+                // when it crashed mid-pick, the exception closed the whole window.
+                wallStatus.Classes.Set("status", true);
+                Views.CardBuilder.Show(wallStatus, $"The desktop's file chooser stopped answering ({ex.GetType().Name}). Try again; if it keeps failing, sign out and in again.");
+                return;
+            }
             if (files.FirstOrDefault() is not { } file) return;
             // Copied through the picker's own grant to a folder the desktop can
             // read too: in the snap neither the engine nor GNOME may open the

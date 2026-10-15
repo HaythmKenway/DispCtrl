@@ -30,6 +30,15 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // An exception from a handler the code did not foresee (a desktop
+        // service that crashed under a picker, a launcher) is logged, not
+        // allowed to close the tray and the window with it.
+        Dispatcher.UIThread.UnhandledException += (_, e) =>
+        {
+            System.Diagnostics.Trace.WriteLine($"unhandled: {e.Exception}");
+            Console.Error.WriteLine($"dispctrl-linux-gui: {e.Exception.GetType().Name}: {e.Exception.Message}");
+            e.Handled = true;
+        };
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             _desktop = desktop;
