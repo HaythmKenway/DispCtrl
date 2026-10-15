@@ -54,8 +54,13 @@
                     </StackPanel>
                 </Grid>
 
+                <ProgressBar Name="ScanBar" IsIndeterminate="True" IsVisible="False" Margin="0,12,0,0"
+                             AutomationProperties.Name="Looking for displays" />
+
                 <TextBlock Classes="section" Text="Each display" />
                 <TextBlock Name="ScanStatus" Classes="caption" Margin="2,0,0,8" IsVisible="False" />
+                <TextBlock Name="BrightnessEmpty" Classes="caption" Margin="2,0,0,8" IsVisible="False"
+                           Text="No display has a brightness control DispCtrl can reach. Rescan once a monitor is connected and its DDC/CI setting is on." />
                 <ItemsControl Name="BrightnessRows" ItemTemplate="{StaticResource SliderCard}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -66,6 +71,8 @@
 
                 <TextBlock Classes="section" Text="Dim in software" />
                 <TextBlock Name="DimStatus" Classes="caption" Margin="2,0,0,8" IsVisible="False" />
+                <TextBlock Name="DimEmpty" Classes="caption" Margin="2,0,0,8" IsVisible="False"
+                           Text="No display can be dimmed in software." />
                 <ItemsControl Name="DimRows" ItemTemplate="{StaticResource SliderCard}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>

@@ -42,14 +42,19 @@ public sealed class Desk
 
     private int _generation;
 
+    /// <summary>Every output as X last answered, lit or not, for the pages
+    /// that need to know what is connected but switched off.</summary>
+    public IReadOnlyList<XRandROutput> AllOutputs { get; private set; } = [];
+
     /// <summary>The layout only: positions, modes and the main display. Quick,
     /// so it follows an arrangement change without asking DDC/CI again.</summary>
     public async Task RefreshOutputsAsync()
     {
         var (outputs, names, modes) = await Task.Run(() => (XRandR.Query(), XRandR.MonitorNames(), XRandR.Modes()));
+        AllOutputs = outputs;
         var lit = outputs.Where(o => o.Active).ToList();
         var byName = Outputs.ToDictionary(o => o.Output.Name, StringComparer.Ordinal);
-        Outputs.Clear();
+        var views = new List<OutputViewModel>();
         for (int i = 0; i < lit.Count; i++)
         {
             var o = lit[i];
@@ -57,7 +62,17 @@ public sealed class Desk
             var view = byName.TryGetValue(o.Name, out var old) ? old : new OutputViewModel();
             view.Update(o, i + 1, model, modes.GetValueOrDefault(o.Name));
             view.Dim = Dimming.FirstOrDefault(d => d.Key == DimKey(o.Name));
-            Outputs.Add(view);
+            views.Add(view);
+        }
+        // Updated in place: clearing and refilling the collection rebuilt every
+        // expander, which flashed and collapsed the ones that were open.
+        for (int i = Outputs.Count - 1; i >= 0; i--)
+            if (!views.Contains(Outputs[i])) Outputs.RemoveAt(i);
+        for (int i = 0; i < views.Count; i++)
+        {
+            if (i < Outputs.Count && Outputs[i] == views[i]) continue;
+            if (Outputs.Contains(views[i])) Outputs.Move(Outputs.IndexOf(views[i]), i);
+            else Outputs.Insert(i, views[i]);
         }
         AttachBrightness();
         Changed?.Invoke();

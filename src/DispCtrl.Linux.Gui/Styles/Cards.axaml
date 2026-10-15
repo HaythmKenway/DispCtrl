@@ -3,9 +3,28 @@
         xmlns:ui="using:FluentAvalonia.UI.Controls">
 
     <Styles.Resources>
+      <ResourceDictionary>
         <!-- A monitor, as Windows' TV-monitor glyph draws it: the bundled
              symbol font has none (Remote is a pair of chevrons). -->
         <StreamGeometry x:Key="MonitorGlyph">F0 M2,4 H22 V17 H2 Z M3.5,5.5 V15.5 H20.5 V5.5 Z M11.25,17 H12.75 V19 H11.25 Z M8,19 H16 V20.5 H8 Z</StreamGeometry>
+        <!-- Shared by every drawn device: a display tile, a keyboard key. They
+             follow the light and dark themes, which the Fluent brushes alone
+             do not do for a surface that sits on a card-coloured layer. -->
+        <ResourceDictionary.ThemeDictionaries>
+            <ResourceDictionary x:Key="Light">
+                <SolidColorBrush x:Key="DispCtrlTileBrush" Color="#FFFFFF" />
+                <SolidColorBrush x:Key="DispCtrlTileHoverBrush" Color="#F0F4FA" />
+                <SolidColorBrush x:Key="DispCtrlTileBorderBrush" Color="#B8BEC8" />
+                <SolidColorBrush x:Key="DispCtrlGuideBrush" Color="#D6336C" />
+            </ResourceDictionary>
+            <ResourceDictionary x:Key="Dark">
+                <SolidColorBrush x:Key="DispCtrlTileBrush" Color="#33363D" />
+                <SolidColorBrush x:Key="DispCtrlTileHoverBrush" Color="#41454E" />
+                <SolidColorBrush x:Key="DispCtrlTileBorderBrush" Color="#5A606B" />
+                <SolidColorBrush x:Key="DispCtrlGuideBrush" Color="#FF7AA8" />
+            </ResourceDictionary>
+        </ResourceDictionary.ThemeDictionaries>
+      </ResourceDictionary>
     </Styles.Resources>
 
     <!-- Every page's cards, laid out here rather than with FASettingsExpanderItem:
@@ -40,7 +59,10 @@
         <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="8" />
-        <Setter Property="Padding" Value="16,14" />
+        <Setter Property="Padding" Value="16,12" />
+        <!-- A switch card and a text-only card are otherwise a few pixels apart in
+             height, which made a list of them look ragged. -->
+        <Setter Property="MinHeight" Value="64" />
     </Style>
     <!-- A card inside an expanded display: flat, so the expander reads as one block. -->
     <Style Selector="Border.subcard">
@@ -78,10 +100,12 @@
         <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
         <Setter Property="Margin" Value="0,4,0,0" />
     </Style>
+    <!-- Larger than a card's title, which is also 14 px: at the same size the
+         headings did not read as headings. -->
     <Style Selector="TextBlock.section">
-        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontSize" Value="16" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Margin" Value="2,28,0,8" />
+        <Setter Property="Margin" Value="2,28,0,10" />
     </Style>
     <Style Selector="TextBlock.value">
         <Setter Property="FontSize" Value="14" />
@@ -110,6 +134,9 @@
         <Setter Property="Grid.ColumnSpan" Value="3" />
     </Style>
     <!-- A switch is compact, so it stays beside its text at every width. -->
+    <Style Selector="ProgressBar">
+        <Setter Property="MinWidth" Value="0" />
+    </Style>
     <Style Selector="Grid.cardgrid > ToggleSwitch.toggle">
         <Setter Property="Grid.Column" Value="2" />
         <Setter Property="Margin" Value="16,0,0,0" />
@@ -139,7 +166,12 @@
     <Style Selector="Panel.narrow Grid.slider">
         <Setter Property="Width" Value="NaN" />
     </Style>
+    <Style Selector="Grid.slider > Slider">
+        <Setter Property="MinWidth" Value="120" />
+    </Style>
     <Style Selector="Grid.slider > TextBlock">
+        <Setter Property="TextAlignment" Value="Right" />
+        <Setter Property="Margin" Value="8,0,0,0" />
         <Setter Property="Grid.Column" Value="1" />
         <Setter Property="HorizontalAlignment" Value="Right" />
         <Setter Property="VerticalAlignment" Value="Center" />
@@ -147,6 +179,53 @@
     </Style>
     <Style Selector="TimePicker">
         <Setter Property="MinWidth" Value="0" />
+    </Style>
+
+    <!-- Shared drawing surface: the rounded layer a diagram or a keyboard sits
+         on (Border.surface), a small pill for a state (Border.chip with a
+         TextBlock.badge inside), and the tile and key look
+         (Border.devicetile, :selected for the one chosen). -->
+    <Style Selector="Border.surface">
+        <Setter Property="Background" Value="{DynamicResource LayerFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="12" />
+    </Style>
+    <Style Selector="Border.chip">
+        <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Padding" Value="7,1" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+    <Style Selector="Border.chip.quiet">
+        <Setter Property="Background" Value="{DynamicResource ControlAltFillColorTertiaryBrush}" />
+    </Style>
+    <Style Selector="Border.chip > TextBlock.badge">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+    </Style>
+    <Style Selector="Border.chip.quiet > TextBlock.badge">
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    </Style>
+    <Style Selector="Border.devicetile">
+        <Setter Property="Background" Value="{DynamicResource DispCtrlTileBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource DispCtrlTileBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Focusable" Value="True" />
+    </Style>
+    <Style Selector="Border.devicetile:pointerover">
+        <Setter Property="Background" Value="{DynamicResource DispCtrlTileHoverBrush}" />
+    </Style>
+    <Style Selector="Border.devicetile.selected">
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="Border.devicetile:focus-visible">
+        <Setter Property="BorderBrush" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="BorderThickness" Value="2" />
     </Style>
 
     <!-- A notice across the top of a page: the Windows app's InfoBar, kept to

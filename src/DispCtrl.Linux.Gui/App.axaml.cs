@@ -35,8 +35,7 @@ public partial class App : Application
         // allowed to close the tray and the window with it.
         Dispatcher.UIThread.UnhandledException += (_, e) =>
         {
-            System.Diagnostics.Trace.WriteLine($"unhandled: {e.Exception}");
-            Console.Error.WriteLine($"dispctrl-linux-gui: {e.Exception.GetType().Name}: {e.Exception.Message}");
+            DispCtrl.Linux.Diagnostics.AppLog.Error("gui", "unhandled exception on the interface thread", e.Exception);
             e.Handled = true;
         };
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
@@ -51,13 +50,21 @@ public partial class App : Application
             if (Program.Request == Instance.Window) OpenWindow();
             else if (Program.Request == Instance.Panel) OpenPanel();
             if (_tray is not null || _trayStarting) _ = Desk.Current.RescanAsync();
-            Instance.Listen(request => Dispatcher.UIThread.Post(() => Handle(request)));
+            // Answered only once the interface thread has run the request, so a
+            // blocked one is reported by the second start instead of swallowed.
+            Instance.Listen(request => Dispatcher.UIThread.InvokeAsync(() => Handle(request)).Wait(TimeSpan.FromSeconds(3)));
         }
 
         base.OnFrameworkInitializationCompleted();
     }
 
     private void Handle(string request)
+    {
+        try { Dispatch(request); }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { Log.Write($"'{request}' failed: {ex}"); }
+    }
+
+    private void Dispatch(string request)
     {
         if (request == Instance.Panel) OpenPanel();
         else if (request == Instance.Window) OpenWindow();
@@ -78,14 +85,14 @@ public partial class App : Application
         _trayStarting = true;
         try
         {
-            _tray = await TrayHost.StartAsync(OpenWindow, OpenPage, OpenPanel, Quit);
+            _tray = await TrayHost.StartAsync(OpenWindow, OpenPage, OpenPanel, Quit, Program.Request == Instance.Tray);
             // Built now, while nobody waits: the first click shows it at once.
             Dispatcher.UIThread.Post(CreatePanel, DispatcherPriority.Background);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             // No session bus or no tray host: the window still works without it.
-            System.Diagnostics.Trace.WriteLine($"tray: {ex.Message}");
+            Log.Write($"tray: {ex.Message}");
             _tray = null;
             if (Program.Request == Instance.Tray && _window is null && _panel?.IsVisible != true) _desktop?.Shutdown();
         }
@@ -94,19 +101,42 @@ public partial class App : Application
 
     public void OpenWindow()
     {
+        Log.Write("open window");
+        // A window that was built but never shown (its Show threw) must not stay
+        // as _window: every later click would activate nothing, for ever.
+        if (_window is not null && !_window.IsVisible && _window.WindowState != Avalonia.Controls.WindowState.Minimized)
+        {
+            Log.Write("the window was never shown; building it again");
+            _window = null;
+        }
         if (_window is null)
         {
-            _window = new MainWindow();
-            _window.Closed += (_, _) =>
+            MainWindow window;
+            try
             {
+                window = new MainWindow();
+                window.Closed += (_, _) =>
+                {
+                    if (_window == window) _window = null;
+                    if (_tray is null && !_trayStarting && _panel?.IsVisible != true) _desktop?.Shutdown();
+                };
+                if (_desktop is not null) _desktop.MainWindow = window;
+                window.Show();
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                Log.Write($"the window could not be opened: {ex}");
                 _window = null;
-                if (_tray is null && !_trayStarting && _panel?.IsVisible != true) _desktop?.Shutdown();
-            };
-            if (_desktop is not null) _desktop.MainWindow = _window;
-            _window.Show();
+                return;
+            }
+            _window = window;
         }
         if (_window.WindowState == Avalonia.Controls.WindowState.Minimized) _window.WindowState = Avalonia.Controls.WindowState.Normal;
         _window.Activate();
+        // Mutter often refuses plain focus to a window that is open behind
+        // others or on another workspace; a moment on top brings it forward.
+        _window.Topmost = true;
+        _window.Topmost = false;
     }
 
     private void OpenPage(string tag)
@@ -119,8 +149,11 @@ public partial class App : Application
     /// for the life of the process, built ahead of the first click.</summary>
     public void OpenPanel()
     {
+        Log.Write("open panel");
         CreatePanel();
-        if (_panel!.IsVisible) { _panel.Hide(); return; }
+        // Visible but not active: it never took focus (Mutter may refuse it), so
+        // it is not the one a click should close; show it properly instead.
+        if (_panel!.IsVisible && _panel.IsActive) { _panel.Hide(); return; }
         // The click on the icon that hid the panel (it lost focus) arrives
         // here a moment later: it means close, not open again.
         if (DateTime.UtcNow - _panelHidden < TimeSpan.FromMilliseconds(400)) return;

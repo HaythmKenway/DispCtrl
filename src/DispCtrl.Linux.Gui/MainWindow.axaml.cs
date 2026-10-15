@@ -27,6 +27,7 @@ public partial class MainWindow : Window
         };
         Nav.SelectedItem = Nav.MenuItems.OfType<FANavigationViewItem>().First();
 
+        Motion.Watch(this, () => { if (Motion.Reduced) PageHost.PageTransition = null; });
         RefreshEngine();
         // Only while the window is open: the engine can start or stop under it.
         _engineTimer = new DispatcherTimer(TimeSpan.FromSeconds(5), DispatcherPriority.Background, (_, _) => RefreshEngine());

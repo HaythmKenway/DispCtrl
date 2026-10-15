@@ -367,6 +367,11 @@ public sealed class LightingSettings
     public string Host { get; set; } = "127.0.0.1";
     public int Port { get; set; } = 6742;
 
+    /// <summary>Start an OpenRGB found on this computer (headless) when a
+    /// lighting command finds its server not running, and at sign-in once
+    /// lighting has been used.</summary>
+    public bool AutoStart { get; set; } = true;
+
     /// <summary>What DispCtrl last set on every device: a colour (#RRGGBB),
     /// "off", or "mode:NAME"; what a preset saves.</summary>
     public string? Last { get; set; }

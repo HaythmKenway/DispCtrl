@@ -15,7 +15,7 @@
              an icon over a label, filled with the accent when on. -->
         <Style Selector="ToggleButton.tile, Button.tile">
             <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="Height" Value="64" />
+            <Setter Property="Height" Value="68" />
             <Setter Property="Margin" Value="3" />
             <Setter Property="Padding" Value="6" />
             <Setter Property="HorizontalContentAlignment" Value="Center" />
@@ -28,9 +28,9 @@
             <Setter Property="Margin" Value="0,4,0,0" />
         </Style>
         <Style Selector="TextBlock.panelsection">
-            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontSize" Value="14" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Margin" Value="2,12,0,6" />
+            <Setter Property="Margin" Value="2,16,0,8" />
         </Style>
     </Window.Styles>
 
@@ -40,7 +40,7 @@
             <StackPanel Margin="16,12,16,16">
                 <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                     <Image Source="avares://dispctrl-linux-gui/Assets/dispctrl.png" Width="20" Height="20" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="1" Text="DispCtrl" FontWeight="SemiBold" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="DispCtrl" FontSize="14" FontWeight="SemiBold" Margin="8,0,0,0" VerticalAlignment="Center" />
                     <Button Grid.Column="2" Width="32" Height="32" Padding="0" Click="OnOpen" ToolTip.Tip="Open DispCtrl"
                             AutomationProperties.Name="Open DispCtrl" Background="Transparent">
                         <ui:FASymbolIcon Symbol="Settings" FontSize="16" />
@@ -94,11 +94,11 @@
                         <DataTemplate DataType="vm:MonitorRowViewModel">
                             <StackPanel Margin="0,0,0,6">
                                 <TextBlock Text="{Binding Title}" FontSize="12" TextTrimming="CharacterEllipsis" />
-                                <Grid ColumnDefinitions="Auto,*,44">
+                                <Grid ColumnDefinitions="Auto,*,48">
                                     <ui:FASymbolIcon Symbol="{Binding Icon}" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0" />
                                     <Slider Grid.Column="1" Minimum="{Binding Minimum}" Maximum="{Binding Maximum}"
                                             Value="{Binding Value, Mode=TwoWay}" AutomationProperties.Name="{Binding Title}" />
-                                    <TextBlock Grid.Column="2" Text="{Binding ValueText}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding ValueText}" TextAlignment="Right" HorizontalAlignment="Right" VerticalAlignment="Center" FontFeatures="+tnum" />
                                 </Grid>
                             </StackPanel>
                         </DataTemplate>
@@ -109,7 +109,7 @@
                 <Grid ColumnDefinitions="Auto,*,60">
                     <ui:FASymbolIcon Symbol="WeatherMoon" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0" />
                     <Slider Grid.Column="1" Name="StrengthSlider" Minimum="0" Maximum="100" AutomationProperties.Name="Night light strength" />
-                    <TextBlock Grid.Column="2" Name="StrengthText" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2" Name="StrengthText" TextAlignment="Right" HorizontalAlignment="Right" VerticalAlignment="Center" FontFeatures="+tnum" />
                 </Grid>
 
                 <StackPanel Name="ProjectSection">

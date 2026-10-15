@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using DispCtrl.Linux.Commands;
+using DispCtrl.Linux.Diagnostics;
 using DispCtrl.Linux.Engine;
 using DispCtrl.Linux.Hardware;
 using DispCtrl.Linux.Ramps;
@@ -55,9 +56,18 @@ internal sealed class EngineHost : IEngineHooks
 
     public static int Run()
     {
+        AppLog.Configure("engine", echo: true);
+        AppLog.InstallExceptionHooks();
+        try { return RunLogged(); }
+        finally { AppLog.Flush(); }
+    }
+
+    private static int RunLogged()
+    {
         string path = Runtime.SocketPath;
         if (path.Length > Runtime.MaxSocketPath)
         {
+            AppLog.Error("engine", $"the socket path is too long ({path.Length} > {Runtime.MaxSocketPath})");
             Console.Error.WriteLine($"dispctrl-linux engine: the socket path is too long for a Unix socket ({path.Length} > {Runtime.MaxSocketPath}): {path}");
             return CommandRunner.Refused;
         }
@@ -135,6 +145,7 @@ internal sealed class EngineHost : IEngineHooks
     private void Stop(PosixSignalContext context)
     {
         context.Cancel = true;
+        Log($"stop requested ({context.Signal})");
         _stop.Cancel();
     }
 
@@ -188,7 +199,7 @@ internal sealed class EngineHost : IEngineHooks
         }
         catch (Exception ex)
         {
-            Log($"command '{string.Join(' ', args)}' failed: {ex}");
+            AppLog.Error("engine", $"command '{string.Join(' ', args)}' failed", ex);
             return new EngineReply(CommandRunner.Refused, output.ToString(), error + $"engine: {ex.Message}\n");
         }
         finally { _gate.Release(); }
@@ -251,10 +262,11 @@ internal sealed class EngineHost : IEngineHooks
                 UpdateHotkeys(settings);
                 UpdateEvents(settings);
                 UpdateRoomLight(settings);
+                UpdateLighting(settings);
             }
             catch (Exception ex)
             {
-                Log($"ramp pass failed: {ex.Message}");
+                AppLog.Error("engine", "ramp pass failed", ex);
                 settings = new LinuxSettings();
             }
             finally { _gate.Release(); }
@@ -285,6 +297,26 @@ internal sealed class EngineHost : IEngineHooks
             catch (OperationCanceledException) { break; }
             while (_wake.CurrentCount > 0) _wake.Wait(0);
         }
+    }
+
+    private bool _lightingStarted;
+
+    /// <summary>Starts OpenRGB's server once at sign-in, only for someone who
+    /// already uses lighting (a colour was set before) and has not turned it off.
+    /// Off the gate's hot path: starting can wait for the AppImage to extract.</summary>
+    private void UpdateLighting(LinuxSettings settings)
+    {
+        if (_lightingStarted || !settings.Lighting.AutoStart || settings.Lighting.Last is null) return;
+        _lightingStarted = true;
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                if (Lighting.OpenRgbSetup.Answers(settings.Lighting)) return;
+                if (Lighting.OpenRgbSetup.AutoStart(settings.Lighting)) Log("started OpenRGB for lighting");
+            }
+            catch (Exception ex) { Log($"starting OpenRGB failed: {ex.Message}"); }
+        });
     }
 
     /// <summary>Starts, reloads or stops the snap thread to match settings. It
@@ -734,8 +766,8 @@ internal sealed class EngineHost : IEngineHooks
         else Log($"{change.Output}: ramp {t.Red:0.000} {t.Green:0.000} {t.Blue:0.000} x {t.Dim:0.00}");
     }
 
-    // journald stamps each line itself; a terminal run reads the same.
-    private static void Log(string message) => Console.Error.WriteLine(message);
+    // The shared log echoes to stderr, where journald stamps each line itself.
+    private static void Log(string message) => AppLog.Auto("engine", message);
 
     [DllImport("libc", SetLastError = true)]
     private static extern int setsid();

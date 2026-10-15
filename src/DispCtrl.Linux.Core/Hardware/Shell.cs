@@ -60,6 +60,7 @@ public static class Shell
         }
         catch (System.ComponentModel.Win32Exception)
         {
+            Diagnostics.AppLog.Warn("shell", $"{fileName} could not be started (not installed, or not allowed)");
             return new ShellResult(-1, string.Empty, $"{fileName}: not found");
         }
 
@@ -70,9 +71,17 @@ public static class Shell
         if (!process.WaitForExit(timeoutMs))
         {
             try { process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+            Diagnostics.AppLog.Warn("shell", $"{fileName} gave no answer within {timeoutMs / 1000} s and was stopped");
             return new ShellResult(-2, string.Empty, $"{fileName}: no answer within {timeoutMs / 1000} s");
         }
         process.WaitForExit();
+        if (process.ExitCode != 0)
+        {
+            // ddcutil failing is a monitor refusing; the other tools are often only probed.
+            var why = stderr.Result.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault() ?? "";
+            var level = fileName.EndsWith("ddcutil", StringComparison.Ordinal) ? Diagnostics.LogLevel.Warn : Diagnostics.LogLevel.Debug;
+            Diagnostics.AppLog.Write(level, "shell", $"{Path.GetFileName(fileName)} {string.Join(' ', arguments.Take(3))} exited {process.ExitCode}{(why.Length > 0 ? $": {why}" : "")}");
+        }
         return new ShellResult(process.ExitCode, stdout.Result, stderr.Result);
     }
 }

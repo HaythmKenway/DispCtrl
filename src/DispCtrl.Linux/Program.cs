@@ -1,4 +1,5 @@
 using DispCtrl.Linux.Commands;
+using DispCtrl.Linux.Diagnostics;
 using DispCtrl.Linux.Engine;
 
 namespace DispCtrl.Linux;
@@ -11,6 +12,13 @@ namespace DispCtrl.Linux;
 internal static class Program
 {
     private static int Main(string[] args)
+    {
+        AppLog.InstallExceptionHooks();
+        try { return Dispatch(args); }
+        finally { AppLog.Flush(); }
+    }
+
+    private static int Dispatch(string[] args)
     {
         if (args.Length > 0 && args[0] == "engine")
         {

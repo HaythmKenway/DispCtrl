@@ -173,6 +173,10 @@ calls it. The Devices page already works that way - it sends the same
 | In the app | Command |
 | --- | --- |
 | Prepare problem report | `report --what "What happened" --steps "How to reproduce it"` |
+| Open a GitHub issue (Linux: Open GitHub issue) | `report --open` or `report --url` |
+| Email the log (Linux: Email the log) | `report --mail` or `report --mail-url` |
+| Save the report (Linux: Save report…) | `report --save [FILE]` |
+| Show or open the log (Linux: Open log folder) | `logs [--tail N] [--path] [--open]` |
 
 ## Not on the command line, and why
 

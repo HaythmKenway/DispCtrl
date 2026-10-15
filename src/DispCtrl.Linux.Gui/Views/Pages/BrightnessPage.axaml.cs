@@ -116,6 +116,9 @@ public partial class BrightnessPage : UserControl
         bool ramps = GammaRamp.IsAvailable(out var reason);
         DimStatus.Text = ramps ? "" : $"Unavailable: {reason}.";
         DimStatus.IsVisible = !ramps;
+        ScanBar.IsVisible = _desk.Scanning;
+        BrightnessEmpty.IsVisible = !_desk.Scanning && _desk.Brightness.Count == 0;
+        DimEmpty.IsVisible = ramps && !_desk.Scanning && _desk.Dimming.Count == 0;
     }
 
     private void OnRescan(object? sender, RoutedEventArgs e) => _ = _desk.RescanAsync();

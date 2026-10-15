@@ -1,9 +1,12 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using DispCtrl.Linux.Arrangement;
 using DispCtrl.Linux.Commands;
+using DispCtrl.Linux.Diagnostics;
 using DispCtrl.Linux.Distribution;
 using DispCtrl.Linux.Engine;
+using DispCtrl.Linux.Gui.Services;
 using DispCtrl.Linux.Hardware;
 using DispCtrl.Linux.Presets;
 using DispCtrl.Linux.Session;
@@ -24,6 +27,8 @@ Directory.CreateDirectory(runtime);
 File.SetUnixFileMode(runtime, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
 Environment.SetEnvironmentVariable("DISPCTRL_LINUX_CONFIG_DIR", config);
 Environment.SetEnvironmentVariable("XDG_RUNTIME_DIR", runtime);
+// The checks log too (every refusal does); into scratch, never the real log.
+Environment.SetEnvironmentVariable("DISPCTRL_LINUX_LOG_DIR", Path.Combine(scratch, "logs"));
 
 int failed = 0;
 void Check(bool condition, string name)
@@ -36,16 +41,20 @@ try
 {
     Parsing();
     ArrangementChecks();
+    EditorChecks.Run(Check);
     DistributionChecks();
     SnapGeometryChecks();
+    FocusVeilChecks();
     WarmthAndSchedule();
     Targets();
     SettingsFile();
     Commands();
+    LoggingChecks();
     NewFeatureChecks();
     MajorReleaseChecks();
     Client();
     EngineProcess();
+    InstanceChecks();
 }
 finally
 {
@@ -161,6 +170,9 @@ void DistributionChecks()
         "backlight: logind through busctl, then dbus-send, then gdbus (systemd-less distributions)");
     Check(calls[1].Args.Contains("uint32:50") && calls[2].Args.Contains("'amdgpu_bl2'") && calls[2].Args.Contains("uint32 50"),
         "backlight: dbus-send and gdbus spell the arguments their own way");
+
+    Check(Backlight.MinimumRaw(61680) == 617 && Backlight.MinimumRaw(50) == 1,
+        "backlight: never written below 1%, so a panel is never switched off completely");
 
     Environment.SetEnvironmentVariable("SNAP_NAME", "dispctrl-linux");
     Check(Distro.InSnap && Distro.DdcutilAdvice.Contains("snap cannot reach", StringComparison.Ordinal),
@@ -287,6 +299,21 @@ void Commands()
         return (code, o.ToString(), e.ToString());
     }
 
+    {
+        var snapCommon = Path.Combine(scratch, "snapcommon");
+        var elsewhere = Path.Combine(scratch, "elsewhere");
+        Directory.CreateDirectory(elsewhere);
+        var pic = Path.Combine(elsewhere, "p.png");
+        File.WriteAllBytes(pic, [1, 2, 3]);
+        Environment.SetEnvironmentVariable("SNAP_NAME", "dispctrl-linux");
+        Environment.SetEnvironmentVariable("SNAP_USER_COMMON", snapCommon);
+        var kept = CommandRunner.KeepPicture(pic);
+        Check(kept == Path.Combine(snapCommon, "wallpapers", "p.png") && File.ReadAllBytes(kept).Length == 3, "wallpaper: in the snap a picture is copied where GNOME can read it");
+        Check(CommandRunner.KeepPicture(kept) == kept, "wallpaper: a picture already kept is not copied again");
+        Environment.SetEnvironmentVariable("SNAP_NAME", null);
+        Environment.SetEnvironmentVariable("SNAP_USER_COMMON", null);
+        Check(CommandRunner.KeepPicture(pic) == pic, "wallpaper: outside the snap the path is used as it is");
+    }
     Check(Run("frobnicate").Code == CommandRunner.AskedWrongly, "commands: an unknown command is asked wrongly");
     Check(Run("brightness", "150", "--ddc", "1").Code == CommandRunner.AskedWrongly, "commands: brightness above 100 is asked wrongly");
     Check(Run("brightness", "50").Code == CommandRunner.AskedWrongly, "commands: brightness without a target is asked wrongly");
@@ -312,6 +339,34 @@ void Commands()
         "commands: arranging without an X display is refused, never sent to the desk");
     Check(Run("version").Out.StartsWith("dispctrl-linux ", StringComparison.Ordinal), "commands: version");
     File.Delete(SettingsStore.FilePath);
+}
+
+void FocusVeilChecks()
+{
+    var screen = new Rect(0, 0, 1000, 800);
+    long Covered(List<Rect> rs) => rs.Sum(r => r.Area);
+    bool Disjoint(List<Rect> rs) => rs.All(a => rs.All(b => a == b || a.Intersect(b).IsEmpty));
+
+    var none = FocusOverlay.VeilRects(screen, []);
+    Check(none.Count == 1 && none[0] == screen, "focus veil: no hole leaves the whole display veiled");
+    var one = FocusOverlay.VeilRects(screen, [new Rect(100, 100, 300, 200)]);
+    Check(one.Count == 4 && Covered(one) == screen.Area - 300 * 200 && Disjoint(one), "focus veil: one window costs four rectangles");
+    Check(FocusOverlay.VeilRects(screen, [screen]).Count == 0, "focus veil: a window covering the display lifts the veil");
+    Check(FocusOverlay.VeilRects(screen, [new Rect(-500, -500, 10, 10), new Rect(2000, 0, 50, 50)]).Sum(r => r.Area) == screen.Area,
+        "focus veil: holes on other displays change nothing");
+
+    var holes = new List<Rect> { new(100, 100, 300, 200), new(300, 150, 300, 300), new(0, 0, 80, 800), new(900, -20, 200, 100) };
+    var many = FocusOverlay.VeilRects(screen, holes);
+    bool exact = true;
+    for (int y = 0; y < 800; y += 7)
+        for (int x2 = 0; x2 < 1000; x2 += 7)
+            exact &= many.Count(r => r.Contains(x2, y)) == (holes.Any(h => h.Contains(x2, y)) ? 0 : 1);
+    Check(exact && Disjoint(many), "focus veil: overlapping and edge holes are subtracted exactly, with no overlap");
+
+    var dock = FocusOverlay.VeilRects(screen, [new Rect(0, 0, 80, 800), new Rect(0, 0, 1000, 30)]);
+    Check(Covered(dock) == (1000 - 80) * (800 - 30), "focus veil: a dock and a top bar are both left clear");
+    Check(FocusOverlay.VeilRects(screen, [new Rect(0, 0, 80, 800), new Rect(80, 0, 920, 800)]).Count == 0,
+        "focus veil: touching holes leave no seam");
 }
 
 void SnapGeometryChecks()
@@ -607,6 +662,8 @@ void MajorReleaseChecks()
         "desk profiles: exactly the displays saved, with the same monitors, and no other");
 
     OpenRgbChecks();
+    LightingSetupChecks();
+    KeyboardLayoutChecks();
 
     (int Code, string Out, string Err) Run(params string[] args)
     {
@@ -633,9 +690,12 @@ void MajorReleaseChecks()
     Check(Run("focus", "on", "--dim", "5").Code == CommandRunner.AskedWrongly, "commands: focus's dimming is held to its range");
     // A port nothing listens on: the machine running the checks may have
     // OpenRGB's server up (this desk does), and it must not be reached.
-    SettingsStore.Update(s => s.Lighting.Port = 9);
+    // No kernel LEDs either (this laptop has a real keyboard backlight), and no autostart.
+    SettingsStore.Update(s => { s.Lighting.Port = 9; s.Lighting.AutoStart = false; });
+    DispCtrl.Linux.Lighting.SysfsLeds.Root = Path.Combine(scratch, "no-leds");
     Check(Run("rgb").Code == CommandRunner.Refused && Run("rgb").Err.Contains("OpenRGB", StringComparison.Ordinal),
         "commands: lighting without OpenRGB running says what to start");
+    DispCtrl.Linux.Lighting.SysfsLeds.Root = "/sys/class/leds";
     Check(Run("rgb", "colour", "chartreuse-ish").Code == CommandRunner.AskedWrongly, "commands: a colour that is not one is asked wrongly");
     Check(Run("pin").Code == CommandRunner.Refused, "commands: pinning without an X display is refused");
     Check(Run("unison", "range", "x", "80", "20").Code == CommandRunner.AskedWrongly, "commands: a unison range lowest first");
@@ -718,6 +778,214 @@ void OpenRgbChecks()
         "openrgb: a colour reaches every LED, after the handshake settles on protocol 3");
 }
 
+void KeyboardLayoutChecks()
+{
+    // The EVision keyboard's zone matrix as OpenRGB reports it, -1 where a cell has no LED.
+    int[][] evision =
+    [
+        [0, -1, 1, 2, 3, 4, -1, 5, 6, 7, 8, -1, 9, 10, 11, 12, 14, 15, 16, -1, -1, -1, -1],
+        [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, -1, 32, 33, 34, -1, 35, 36, 37, 38, 39, 40, 41],
+        [42, -1, 43, 44, 45, 46, -1, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62],
+        [63, -1, 64, 65, 66, 67, -1, 68, 69, 70, 71, 72, 73, 74, 76, -1, -1, -1, -1, 80, 81, 82, -1],
+        [84, -1, 86, 87, 88, 89, -1, 90, -1, 91, 92, 93, 94, 95, 97, -1, -1, 99, -1, 101, 102, 103, 104],
+        [105, 106, 107, -1, -1, -1, -1, 108, -1, -1, -1, -1, 109, 110, 111, 113, 119, 120, 121, 123, -1, 124, -1],
+    ];
+    var map = evision.SelectMany(r => r).Select(v => v < 0 ? uint.MaxValue : (uint)v).ToArray();
+    var zone = new DispCtrl.Linux.Lighting.RgbZone("Keyboard", 2, 126, 126, 126, 6, 23, map);
+    var generic = new DispCtrl.Linux.Lighting.RgbDevice(0, "EVision", "EVision", 5, 0, [], 126,
+        Enumerable.Range(0, 126).Select(i => new DispCtrl.Linux.Lighting.RgbLed($"Keyboard LED {i}", 0)).ToList(), [zone]);
+    var geometry = DispCtrl.Linux.Lighting.KeyboardLayout.Build(generic);
+    DispCtrl.Linux.Lighting.KeyCap Cap(string id) => geometry.Keys.Single(k => k.Id == id);
+    Check(generic.HasPerKeyLeds && geometry.Source == "matrix order" && geometry.Keys.Count == 126,
+        "keyboard layout: a nameless controller's matrix rows are matched to the standard layout, every LED kept");
+    Check(Cap("a") is { Led: 64, X: 1.75, Y: 3.5, W: 1, OnGrid: true } && Cap("lshift") is { Led: 84, W: 2.25 } && Cap("space") is { Led: 108, W: 6.25 } && Cap("num7").Led == 59,
+        "keyboard layout: keys sit at their standard positions and widths");
+    Check(geometry.Keys.Count(k => k.OnGrid) == 104 && geometry.Keys.Where(k => !k.OnGrid).All(k => k.Y >= 6.5) && Math.Abs(geometry.Width - 22.5) < 1e-9,
+        "keyboard layout: the 22 LEDs with no key go on a strip below the 104 keys");
+    Check(DispCtrl.Linux.Lighting.KeyboardLayout.Find(generic, "left shift").SequenceEqual([84]) && DispCtrl.Linux.Lighting.KeyboardLayout.Find(generic, "F5").SequenceEqual([5])
+        && DispCtrl.Linux.Lighting.KeyboardLayout.Find(generic, "led 12").SequenceEqual([12]) && DispCtrl.Linux.Lighting.KeyboardLayout.Find(generic, "nonsense").Count == 0,
+        "keyboard layout: keys are found by name, label or LED number");
+
+    Check(DispCtrl.Linux.Lighting.KeyboardLayout.Build(generic).KeyAt(1.75 + 0.5, 3.5 + 0.5) is { Led: 64 } && geometry.KeyAt(-1, -1) is null && geometry.KeyAt(23, 3) is null,
+        "keyboard layout: the key under a point is found, and none between or outside keys");
+    var clock = System.Diagnostics.Stopwatch.StartNew();
+    int hits = 0;
+    for (int i = 0; i < 200_000; i++) if (geometry.KeyAt(i % 225 / 10.0, i % 60 / 10.0) is not null) hits++;
+    clock.Stop();
+    Console.WriteLine($"measured: 200000 key hit tests in {clock.Elapsed.TotalMilliseconds:F1} ms ({clock.Elapsed.TotalMilliseconds * 1000 / 200000:F2} us each), {hits} hits");
+    Check(clock.Elapsed.TotalMilliseconds < 500, "keyboard layout: hit testing is cheap enough for every pointer event of a drag");
+    clock.Restart();
+    for (int i = 0; i < 200; i++) DispCtrl.Linux.Lighting.KeyboardLayout.Build(generic);
+    Console.WriteLine($"measured: laying out 126 LEDs takes {clock.Elapsed.TotalMilliseconds / 200:F2} ms");
+
+    // A keyboard that names its LEDs, tenkeyless and ISO.
+    string[] named = ["Key: Escape", "Key: F1", "Key: `", "Key: 1", "Key: Tab", "Key: Q", "Key: Caps Lock", "Key: A", "Key: Left Shift", "Key: \\ (ISO)", "Key: Z",
+        "Key: Left Control", "Key: Space", "Key: Number Pad 7", "Key: Enter", "Key: # (ISO)", "Logo"];
+    var tkl = new DispCtrl.Linux.Lighting.RgbDevice(1, "Named", "", 5, 0, [], named.Length, named.Select(n => new DispCtrl.Linux.Lighting.RgbLed(n, 0)).ToList(), []);
+    var byName = DispCtrl.Linux.Lighting.KeyboardLayout.Build(tkl);
+    var shift = byName.Keys.Single(k => k.Id == "lshift");
+    var iso = byName.Keys.Single(k => k.Id == "iso<");
+    Check(byName.Source == "names" && shift is { W: 1.25 } && iso.X == shift.X + 1.25 && byName.Keys.Single(k => k.Label == "Logo") is { OnGrid: false } && byName.Keys.Single(k => k.Id == "num7").OnGrid,
+        "keyboard layout: names are placed on an ISO layout, an unknown LED goes below");
+    Check(byName.Keys.Where(k => k.OnGrid).Min(k => k.X) == 0 && byName.Keys.Where(k => k.OnGrid).Min(k => k.Y) == 0,
+        "keyboard layout: the empty edge of a partial layout is trimmed");
+    Check(DispCtrl.Linux.Lighting.KeyboardLayout.Canonical("Key: Number Pad Enter") == "numenter" && DispCtrl.Linux.Lighting.KeyboardLayout.Canonical("Right Fn") == "fn"
+        && DispCtrl.Linux.Lighting.KeyboardLayout.Canonical("Key: Pause/Break") == "pause" && DispCtrl.Linux.Lighting.KeyboardLayout.Canonical("Logo") is null,
+        "keyboard layout: OpenRGB's key names are understood case-insensitively");
+
+    // No names, no matrix: still a grid of LEDs rather than nothing.
+    var bare = new DispCtrl.Linux.Lighting.RgbDevice(2, "Bare", "", 5, 0, [], 20);
+    var grid = DispCtrl.Linux.Lighting.KeyboardLayout.Build(bare);
+    Check(grid.Keys.Count == 20 && grid.Keys.All(k => !k.OnGrid) && grid.Keys.Select(k => k.Led).Distinct().Count() == 20,
+        "keyboard layout: a device with nothing to go on is a plain grid");
+    Check(!new DispCtrl.Linux.Lighting.RgbDevice(3, "One", "", 19, 0, [], 1).HasPerKeyLeds && DispCtrl.Linux.Lighting.LightingControl.ParseKeys("a=red, left shift=#00FF00", out _) is [{ Name: "a" }, { Name: "left shift" }]
+        && DispCtrl.Linux.Lighting.LightingControl.ParseKeys("a=nope", out var bad) is null && bad is not null,
+        "keyboard layout: one backlight LED is not per-key; key specs are NAME=COLOUR");
+
+    // A device blob with names, a matrix and colours reads them all.
+    var blob = new MemoryStream();
+    var w = new BinaryWriter(blob);
+    void Str(string text) { var b = System.Text.Encoding.UTF8.GetBytes(text + "\0"); w.Write((ushort)b.Length); w.Write(b); }
+    w.Write(0u); w.Write(5);
+    Str("Pad"); Str("Maker"); Str("d"); Str("v"); Str("s"); Str("l");
+    w.Write((ushort)0); w.Write(0);
+    w.Write((ushort)1); Str("Keys"); w.Write(2); w.Write(4u); w.Write(4u); w.Write(4u);
+    w.Write((ushort)(8 + 2 * 3 * 4)); w.Write(2u); w.Write(3u);
+    foreach (var cell in new uint[] { 0, 1, uint.MaxValue, 2, 3, uint.MaxValue }) w.Write(cell);
+    w.Write((ushort)4); foreach (var led in new[] { "Key: A", "Key: B", "Key: C", "Key: D" }) { Str(led); w.Write(0u); }
+    w.Write((ushort)4); foreach (var c in new uint[] { 0xFF, 0xFF00, 0xFF0000, 0xFFFFFF }) w.Write(c);
+    w.Flush();
+    var parsed = DispCtrl.Linux.Lighting.OpenRgb.Parse(0, blob.ToArray(), 3);
+    Check(parsed.Leds![2].Name == "Key: C" && parsed.Zones![0] is { MatrixHeight: 2, MatrixWidth: 3, HasMatrix: true } z && z.Map[2] == uint.MaxValue && z.Map[3] == 2
+        && parsed.Colours!.SequenceEqual([0xFFu, 0xFF00u, 0xFF0000u, 0xFFFFFFu]),
+        "openrgb: LED names, the zone matrix and the colours held are read");
+}
+
+void LightingSetupChecks()
+{
+    (int Code, string Out, string Err) Run(params string[] args)
+    {
+        var o = new StringWriter();
+        var e = new StringWriter();
+        int code = CommandRunner.Run(args, new CommandContext(o, e, InEngine: false, () => []));
+        return (code, o.ToString(), e.ToString());
+    }
+    var root = Path.Combine(scratch, "rgbroot");
+    string Make(string path, bool exec = true)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, "#!/bin/sh\n");
+        File.SetUnixFileMode(path, exec ? UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute : UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        return path;
+    }
+    var home = Path.Combine(root, "home");
+    var data = Path.Combine(root, "data");
+    var bin = Path.Combine(root, "bin");
+    var roots = new DispCtrl.Linux.Lighting.OpenRgbRoots(bin, home, data, Path.Combine(root, "flatpak"), Path.Combine(root, "snapbin"));
+    Check(DispCtrl.Linux.Lighting.OpenRgbSetup.Find(roots) is null, "setup: nothing found on an empty machine");
+    var own = Make(DispCtrl.Linux.Lighting.OpenRgbSetup.OwnCopy(data));
+    Check(DispCtrl.Linux.Lighting.OpenRgbSetup.Find(roots) is { Kind: DispCtrl.Linux.Lighting.OpenRgbKind.AppImage } f1 && f1.Path == own, "setup: our own downloaded copy is found last");
+    Make(Path.Combine(root, "snapbin", "openrgb"));
+    Check(DispCtrl.Linux.Lighting.OpenRgbSetup.Find(roots)?.Kind == DispCtrl.Linux.Lighting.OpenRgbKind.Snap, "setup: a snap comes before our own copy");
+    Directory.CreateDirectory(Path.Combine(root, "flatpak", "app", "org.openrgb.OpenRGB"));
+    Make(Path.Combine(bin, "flatpak"));
+    Check(DispCtrl.Linux.Lighting.OpenRgbSetup.Find(roots)?.Kind == DispCtrl.Linux.Lighting.OpenRgbKind.Flatpak, "setup: Flatpak comes before a snap");
+    var appImage = Make(Path.Combine(home, ".local", "bin", "OpenRGB.AppImage"));
+    Check(DispCtrl.Linux.Lighting.OpenRgbSetup.Find(roots) is { Kind: DispCtrl.Linux.Lighting.OpenRgbKind.AppImage } f2 && f2.Path == appImage, "setup: ~/.local/bin's AppImage comes before Flatpak");
+    Make(Path.Combine(bin, "openrgb", "x"));
+    Directory.Delete(Path.Combine(bin, "openrgb"), true);
+    var onPath = Make(Path.Combine(bin, "openrgb"));
+    Check(DispCtrl.Linux.Lighting.OpenRgbSetup.Find(roots) is { Kind: DispCtrl.Linux.Lighting.OpenRgbKind.Binary } f3 && f3.Path == onPath, "setup: openrgb on PATH comes first");
+    File.SetUnixFileMode(onPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+    Check(DispCtrl.Linux.Lighting.OpenRgbSetup.Find(roots)?.Kind != DispCtrl.Linux.Lighting.OpenRgbKind.Binary, "setup: a file on PATH that is not executable is skipped");
+
+    var image = new DispCtrl.Linux.Lighting.OpenRgbInstall(DispCtrl.Linux.Lighting.OpenRgbKind.AppImage, "/x/OpenRGB.AppImage");
+    Check(DispCtrl.Linux.Lighting.OpenRgbSetup.ServerCommand(image, 6742).SequenceEqual(["/x/OpenRGB.AppImage", "--appimage-extract-and-run", "--server"]),
+        "setup: an AppImage runs headless with extract-and-run, never minimised");
+    Check(DispCtrl.Linux.Lighting.OpenRgbSetup.ServerCommand(new(DispCtrl.Linux.Lighting.OpenRgbKind.Flatpak, "flatpak"), 7000)
+        .SequenceEqual(["flatpak", "run", "org.openrgb.OpenRGB", "--server", "--server-port", "7000"]), "setup: Flatpak's command carries a non-default port");
+    var (program, args) = DispCtrl.Linux.Lighting.OpenRgbSetup.Detached(["/a b/openrgb", "--server"], setsid: true);
+    Check(program == "/bin/sh" && args[1].StartsWith("setsid \"$@\"", StringComparison.Ordinal) && args[^2] == "/a b/openrgb" && !args[1].Contains("a b"),
+        "setup: the detaching shell takes the command as arguments, not as script text");
+    Check(DispCtrl.Linux.Lighting.OpenRgbSetup.UdevCommand(image).StartsWith("sudo /x/OpenRGB.AppImage --appimage-extract-and-run --generate-udev-rules /etc/udev/rules.d/60-openrgb.rules && sudo udevadm", StringComparison.Ordinal),
+        "setup: the udev line is one command for the person to run as root");
+
+    var rules = Path.Combine(root, "rules");
+    Directory.CreateDirectory(rules);
+    bool before = DispCtrl.Linux.Lighting.OpenRgbSetup.UdevRulesInstalled(rules);
+    File.WriteAllText(Path.Combine(rules, "60-openrgb.rules"), "# rules");
+    Check(!before && DispCtrl.Linux.Lighting.OpenRgbSetup.UdevRulesInstalled(rules), "setup: the udev rules are noticed");
+
+    // Checksum: the right file installs and becomes executable; a different one is refused and deleted.
+    var asset = DispCtrl.Linux.Lighting.OpenRgbSetup.AssetFor(System.Runtime.InteropServices.Architecture.X64)!;
+    Check(asset.Url.StartsWith("https://", StringComparison.Ordinal) && asset.Sha256.Length == 64
+        && DispCtrl.Linux.Lighting.OpenRgbSetup.AssetFor(System.Runtime.InteropServices.Architecture.Arm64)!.Sha256 != asset.Sha256
+        && DispCtrl.Linux.Lighting.OpenRgbSetup.AssetFor(System.Runtime.InteropServices.Architecture.Wasm) is null, "setup: a pinned asset for each supported architecture");
+    var good = Path.Combine(root, "good.part");
+    File.WriteAllText(good, "pretend appimage");
+    var pinned = asset with { Sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData("pretend appimage"u8)).ToLowerInvariant() };
+    var target = Path.Combine(root, "installed", "OpenRGB.AppImage");
+    var ok = DispCtrl.Linux.Lighting.OpenRgbSetup.Install(good, pinned, target);
+    Check(ok.Ok && File.Exists(target) && !File.Exists(good) && (File.GetUnixFileMode(target) & UnixFileMode.UserExecute) != 0, "setup: a file matching its SHA-256 is installed executable");
+    var bad = Path.Combine(root, "bad.part");
+    File.WriteAllText(bad, "tampered");
+    var target2 = Path.Combine(root, "installed", "Other.AppImage");
+    var refused = DispCtrl.Linux.Lighting.OpenRgbSetup.Install(bad, pinned, target2);
+    Check(!refused.Ok && !File.Exists(target2) && !File.Exists(bad), "setup: a checksum mismatch is refused and the download deleted");
+
+    // The kernel fallback, on a fake /sys/class/leds.
+    var sys = Path.Combine(root, "sys");
+    string Led(string name, int max, int now, string? index = null)
+    {
+        var d = Path.Combine(sys, name);
+        Directory.CreateDirectory(d);
+        File.WriteAllText(Path.Combine(d, "max_brightness"), max.ToString());
+        File.WriteAllText(Path.Combine(d, "brightness"), now.ToString());
+        if (index is not null) { File.WriteAllText(Path.Combine(d, "multi_index"), index); File.WriteAllText(Path.Combine(d, "multi_intensity"), "0 0 0"); }
+        return d;
+    }
+    var mono = Led("asus::kbd_backlight", 3, 0);
+    var rgbLed = Led("tpacpi::kbd_backlight", 255, 10, "red green blue");
+    Led("input3::capslock", 1, 0);
+    DispCtrl.Linux.Lighting.SysfsLeds.Root = sys;
+    try
+    {
+        var found = DispCtrl.Linux.Lighting.SysfsLeds.Enumerate();
+        Check(found.Count == 2 && found.Single(l => l.Name == "asus::kbd_backlight") is { Colour: false, Max: 3 } && found.Single(l => l.Name == "tpacpi::kbd_backlight").Colour,
+            "leds: only keyboard backlights are listed, with whether they take a colour");
+        var problems = new List<string>(); var notes = new List<string>();
+        DispCtrl.Linux.Lighting.SysfsLeds.Apply("#FF0000", 0, problems, notes);
+        Check(problems.Count == 0 && File.ReadAllText(Path.Combine(mono, "brightness")) == "3" && notes.Any(n => n.Contains("one colour", StringComparison.Ordinal)),
+            "leds: a colour on a one-colour backlight lights it and says it has one colour");
+        File.WriteAllText(Path.Combine(mono, "brightness"), "2");
+        DispCtrl.Linux.Lighting.SysfsLeds.Apply("#00FF00", 0, problems, notes);
+        Check(File.ReadAllText(Path.Combine(mono, "brightness")) == "2", "leds: a colour never changes a level that is already on");
+        DispCtrl.Linux.Lighting.SysfsLeds.Apply("off", 0, problems, notes);
+        Check(File.ReadAllText(Path.Combine(mono, "brightness")) == "0", "leds: off writes 0");
+        DispCtrl.Linux.Lighting.SysfsLeds.Apply("#FF8000", 1, problems, notes);
+        Check(File.ReadAllText(Path.Combine(rgbLed, "multi_intensity")) == "255 128 0" && problems.Count == 0, "leds: a colour goes to multi_intensity in multi_index order");
+        DispCtrl.Linux.Lighting.SysfsLeds.Apply("mode:Rainbow", 0, problems, notes);
+        Check(problems.Count == 1 && problems[0].Contains("no effects", StringComparison.Ordinal), "leds: an effect is refused honestly");
+        problems.Clear();
+        DispCtrl.Linux.Lighting.SysfsLeds.Apply("#FFFFFF", 5, problems, notes);
+        Check(problems.Count == 1, "leds: a device that is not there is refused");
+
+        // Through the command: no OpenRGB (a port nothing listens on, autostart off), so the LEDs answer.
+        SettingsStore.Update(s => { s.Lighting.Port = 9; s.Lighting.AutoStart = false; });
+        File.WriteAllText(Path.Combine(mono, "brightness"), "0");
+        var list = Run("rgb");
+        var set = Run("rgb", "colour", "blue", "--device", "1");
+        Check(list.Code == CommandRunner.Done && list.Out.Contains("kernel", StringComparison.Ordinal) && set.Code == CommandRunner.Done
+            && File.ReadAllText(Path.Combine(mono, "brightness")) == "3" && set.Out.Contains("one colour", StringComparison.Ordinal),
+            "commands: lighting falls back to the kernel's keyboard backlight and says what it could do");
+        Check(Run("rgb", "autostart", "on").Code == CommandRunner.Done && SettingsStore.Load().Lighting.AutoStart, "commands: lighting.autoStart is switched on");
+        Check(Run("rgb", "autostart", "maybe").Code == CommandRunner.AskedWrongly, "commands: autostart takes on or off");
+        SettingsStore.Update(s => s.Lighting.AutoStart = false);
+        Check(!DispCtrl.Linux.Lighting.OpenRgbSetup.AutoStart(SettingsStore.Load().Lighting), "setup: autoStart off starts nothing");
+    }
+    finally { DispCtrl.Linux.Lighting.SysfsLeds.Root = "/sys/class/leds"; }
+}
+
 void Client()
 {
     var session = Environment.GetEnvironmentVariable("XDG_SESSION_TYPE");
@@ -791,4 +1059,120 @@ void EngineProcess()
     Check(termed.WaitForExit(10_000) && termed.ExitCode == 0 && !File.Exists(Runtime.SocketPath),
         "engine: SIGTERM (systemctl stop) ends it cleanly and removes its socket");
     File.Delete(SettingsStore.FilePath);
+}
+
+void InstanceChecks()
+{
+    // What a killed process leaves: a socket path nothing answers on.
+    var stale = Path.Combine(Runtime.Directory, "dispctrl-linux-gui.sock");
+    File.WriteAllText(stale, "");
+    Check(File.Exists(stale), "instance: a stale socket file is there to start with");
+    Check(Instance.TrySend(Instance.Window) == Instance.Outcome.NoInstance, "instance: a stale socket is no instance, so a start takes over");
+    Check(!Instance.IsRunning(), "instance: nothing holds the lock before the first listener");
+
+    var seen = new List<string>();
+    bool slow = false;
+    Instance.Listen(request =>
+    {
+        lock (seen) seen.Add(request);
+        if (slow) Thread.Sleep(2000);
+    });
+    Check(Instance.IsRunning(), "instance: the listener holds the lock while it lives");
+    Check(Instance.TrySend(Instance.Panel) == Instance.Outcome.Handled, "instance: a request is answered once handled");
+    lock (seen) Check(seen.SequenceEqual([Instance.Panel]), "instance: the handler got the request");
+
+    // A client that connects and says nothing must not stop later ones.
+    using (var silent = new System.Net.Sockets.Socket(System.Net.Sockets.AddressFamily.Unix, System.Net.Sockets.SocketType.Stream, System.Net.Sockets.ProtocolType.Unspecified))
+    {
+        silent.Connect(new System.Net.Sockets.UnixDomainSocketEndPoint(stale));
+        Check(Instance.TrySend(Instance.Window) == Instance.Outcome.Handled, "instance: a silent client does not hang the listener");
+    }
+
+    slow = true;
+    Check(Instance.TrySend(Instance.Window, TimeSpan.FromMilliseconds(400)) == Instance.Outcome.Unresponsive,
+        "instance: a blocked interface is reported, not taken for success");
+}
+
+void LoggingChecks()
+{
+    var logs = Path.Combine(scratch, "logs");
+    var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+    AppLog.Configure("check", echo: false);
+    (int Code, string Out, string Err) Run(params string[] args)
+    {
+        var o = new StringWriter();
+        var e = new StringWriter();
+        int code = CommandRunner.Run(args, CommandContext.Local(o, e));
+        return (code, o.ToString(), e.ToString());
+    }
+
+    AppLog.Info("check", $"opened {home}/secret.png for {Environment.UserName} on DELL P2723DE|22WB714");
+    AppLog.Error("check", "boom", new InvalidOperationException("stack me"));
+    AppLog.Debug("check", "below the minimum, dropped");
+    AppLog.Flush();
+    var text = File.ReadAllText(Path.Combine(logs, AppLog.FileName));
+    Check(text.Contains("INFO  check[", StringComparison.Ordinal) && text.Contains("check: opened", StringComparison.Ordinal), "log: a line carries level, process, component and time");
+    Check(!text.Contains(home + "/secret", StringComparison.Ordinal) && !text.Contains("22WB714", StringComparison.Ordinal)
+        && !text.Contains($"for {Environment.UserName} ", StringComparison.Ordinal), "log: home, account name and serial are redacted before writing");
+    Check(text.Contains("InvalidOperationException: stack me", StringComparison.Ordinal), "log: an exception is written in full");
+    Check(!text.Contains("below the minimum", StringComparison.Ordinal), "log: lines under the minimum level are dropped");
+
+    // Rotation: three files, none much over the cap.
+    AppLog.MaxBytes = 4000;
+    for (int i = 0; i < 200; i++) AppLog.Info("check", $"filler line {i} " + new string('x', 80));
+    AppLog.Flush();
+    AppLog.MaxBytes = 1_000_000;
+    var files = Directory.GetFiles(logs, AppLog.FileName + "*");
+    Check(files.Length == AppLog.Files && files.All(f => new FileInfo(f).Length < 5000), "log: rotation keeps three files under the cap");
+    Check(AppLog.Tail(3).Length == 3 && AppLog.Tail(3)[^1].Contains("filler line 199", StringComparison.Ordinal), "log: the tail is the newest lines");
+
+    // Many threads at once: nothing thrown, every line from the last one arrives.
+    Parallel.For(0, 8, t => { for (int i = 0; i < 50; i++) AppLog.Info("check", $"thread {t} line {i}"); });
+    AppLog.Flush();
+    Check(AppLog.Tail(400).Count(l => l.Contains("thread ", StringComparison.Ordinal)) >= 300, "log: concurrent writers lose nothing in practice");
+
+    // An unwritable folder (a file where the folder should be) loses lines, nothing else.
+    var blocker = Path.Combine(scratch, "not-a-folder");
+    File.WriteAllText(blocker, "");
+    Environment.SetEnvironmentVariable("DISPCTRL_LINUX_LOG_DIR", Path.Combine(blocker, "logs"));
+    bool threw = false;
+    try
+    {
+        AppLog.Error("check", "nowhere to go");
+        AppLog.Flush();
+        _ = AppLog.Tail(5);
+        _ = AppLog.ExistingFiles();
+    }
+    catch (Exception) { threw = true; }
+    Check(!threw, "log: an unwritable folder throws nothing");
+    Environment.SetEnvironmentVariable("DISPCTRL_LINUX_LOG_DIR", logs);
+
+    var huge = Enumerable.Range(0, 500).Select(i => $"2026-01-01T00:00:00.000+00:00 INFO  engine[1] c: line {i} with some & odd # chars %20 " + new string('y', 60)).ToArray();
+    var report = string.Join('\n', Enumerable.Range(0, 40).Select(i => $"[ok]  check {i} some diagnostics text & more"));
+    var issue = ProblemReport.IssueUrl("it \"broke\" & stopped", report, huge, out var whole);
+    Check(issue.Length <= ProblemReport.IssueLimit && !whole && issue.StartsWith(ProblemReport.Repository + "/issues/new?title=", StringComparison.Ordinal), "report: the issue address stays within the limit and says it is cut");
+    Check(Uri.UnescapeDataString(issue).Contains("report --save", StringComparison.Ordinal) && !Regex.IsMatch(issue, "%[^0-9A-F]|%.$"), "report: a cut issue points at --save and keeps every escape whole");
+    var small = ProblemReport.IssueUrl("", report, ["one log line"], out var smallWhole);
+    Check(smallWhole && Uri.UnescapeDataString(small).Contains("one log line", StringComparison.Ordinal), "report: a short log goes in whole");
+    var absurd = ProblemReport.IssueUrl(new string('w', 5000), new string('d', 40000), huge, out _);
+    Check(absurd.Length <= ProblemReport.IssueLimit, "report: even an enormous report fits the limit");
+
+    var mail = ProblemReport.MailUrl("no picture", report, huge, $"{home}/dispctrl-linux-report-x.txt", out var mailWhole);
+    Check(mail.StartsWith("mailto:hello@akileswar.com?subject=", StringComparison.Ordinal) && mail.Length <= ProblemReport.MailLimit && !mailWhole, "report: the mailto link is addressed, subjected and bounded");
+    var mailBody = Uri.UnescapeDataString(mail);
+    Check(mailBody.Contains("Please attach the full redacted log", StringComparison.Ordinal) && mailBody.Contains("~/dispctrl-linux-report-x.txt", StringComparison.Ordinal) && !mailBody.Contains(home + "/", StringComparison.Ordinal),
+        "report: the mail says to attach the saved file, by a redacted path");
+
+    // The commands: the bundle is written, redacted, and readable by its owner only.
+    var save = Path.Combine(scratch, "bundle.txt");
+    var ran = Run("report", "--save", save);
+    Check(ran.Code == 0 && File.Exists(save) && File.GetUnixFileMode(save) == (UnixFileMode.UserRead | UnixFileMode.UserWrite), "report: --save writes a private bundle");
+    Check(File.ReadAllText(save).Contains("---- log ----", StringComparison.Ordinal), "report: the bundle holds the log");
+    Check(Run("logs", "--path").Out.Trim() == Path.Combine(logs, AppLog.FileName), "logs: --path names the file");
+    Check(Run("logs", "--tail", "2").Out.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length == 2, "logs: --tail N prints N lines");
+    Check(Run("logs", "--tail", "0").Code == CommandRunner.AskedWrongly, "logs: a bad --tail is asked wrongly");
+    var urlRun = Run("report", "--url");
+    Check(urlRun.Code == 0 && urlRun.Out.Trim().StartsWith("https://", StringComparison.Ordinal) && urlRun.Out.Trim().Length <= ProblemReport.IssueLimit, "report: --url prints an address within the limit");
+    var mailRun = Run("report", "--mail-url", "--save", save);
+    Check(mailRun.Code == 0 && mailRun.Out.Trim().StartsWith("mailto:", StringComparison.Ordinal), "report: --mail-url prints the mailto link");
 }

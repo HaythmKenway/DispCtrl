@@ -155,6 +155,84 @@ public static unsafe class Desktop
             Desktop: desktop);
     }
 
+    /// <summary>The window types that are a part of the shell or of a window
+    /// rather than a window of their own: panels, and the popups an application
+    /// opens from its own window.</summary>
+    private static readonly string[] ShellTypes =
+    [
+        "_NET_WM_WINDOW_TYPE_DOCK", "_NET_WM_WINDOW_TYPE_DROPDOWN_MENU", "_NET_WM_WINDOW_TYPE_POPUP_MENU",
+        "_NET_WM_WINDOW_TYPE_MENU", "_NET_WM_WINDOW_TYPE_COMBO", "_NET_WM_WINDOW_TYPE_TOOLTIP",
+        "_NET_WM_WINDOW_TYPE_UTILITY", "_NET_WM_WINDOW_TYPE_DND",
+    ];
+
+    /// <summary>What a veil must leave clear besides the window in front: its
+    /// transient dialogs and popups, docks and panels that are X windows, and
+    /// this process's own windows (the quick panel). Visible frames, in root
+    /// coordinates; windows in <paramref name="ignore"/> (the veil itself) are skipped.</summary>
+    /// <remarks>GNOME draws its top bar and Ubuntu Dock inside the shell, as no X
+    /// window at all; they show only as the strip of each monitor outside its
+    /// work area, which <see cref="Monitors"/> reports and the caller adds.</remarks>
+    public static List<Rect> ClearOf(XConnection x, ulong front, ISet<ulong> ignore)
+    {
+        var holes = new List<Rect>();
+        if (VisibleFrame(x, front) is { } own) holes.Add(own);
+        int frontPid = (int)(x.Long(front, "_NET_WM_PID") ?? 0);
+        int ourPid = Environment.ProcessId;
+        var shell = ShellTypes.Select(x.Atom).ToHashSet();
+
+        var managed = x.Longs(x.Root, "_NET_CLIENT_LIST_STACKING") ?? x.Longs(x.Root, "_NET_CLIENT_LIST") ?? [];
+        foreach (long raw in managed)
+        {
+            ulong id = (ulong)raw;
+            if (id == front || ignore.Contains(id)) continue;
+            if (!Mapped(x, id, out _)) continue;
+            var state = x.Atoms(id, "_NET_WM_STATE");
+            if (state.Contains(x.Atom("_NET_WM_STATE_HIDDEN"))) continue;
+            bool related = TransientTo(x, id, front)
+                || x.Atoms(id, "_NET_WM_WINDOW_TYPE").Overlaps(shell)
+                || (int)(x.Long(id, "_NET_WM_PID") ?? 0) == ourPid;
+            if (related && VisibleFrame(x, id) is { } frame) holes.Add(frame);
+        }
+
+        // Popups, menus and panels that bypass the manager are children of the root.
+        if (Xlib.XQueryTree(x.Display, x.Root, out _, out _, out nint children, out uint count) != 0 && children != 0)
+        {
+            try
+            {
+                for (uint i = 0; i < count; i++)
+                {
+                    ulong id = ((ulong*)children)[i];
+                    if (id == front || ignore.Contains(id)) continue;
+                    if (!Mapped(x, id, out var attributes) || attributes.override_redirect == 0) continue;
+                    var types = x.Atoms(id, "_NET_WM_WINDOW_TYPE");
+                    int pid = (int)(x.Long(id, "_NET_WM_PID") ?? 0);
+                    bool ours = pid != 0 && (pid == frontPid || pid == ourPid);
+                    if (!ours && !types.Overlaps(shell)) continue;
+                    if (attributes.width <= 1 && attributes.height <= 1) continue;
+                    if (VisibleFrame(x, id, attributes) is { } frame) holes.Add(frame);
+                }
+            }
+            finally { Xlib.XFree(children); }
+        }
+        return holes;
+    }
+
+    private static bool Mapped(XConnection x, ulong id, out Xlib.XWindowAttributes attributes) =>
+        Xlib.XGetWindowAttributes(x.Display, id, out attributes) != 0 && attributes.map_state == Xlib.IsViewable;
+
+    /// <summary>Whether <paramref name="id"/> is a transient of <paramref name="front"/>,
+    /// directly or through other dialogs.</summary>
+    private static bool TransientTo(XConnection x, ulong id, ulong front)
+    {
+        for (int depth = 0; depth < 8; depth++)
+        {
+            if (x.Long(id, "WM_TRANSIENT_FOR") is not (long parent and not 0)) return false;
+            if ((ulong)parent == front) return true;
+            id = (ulong)parent;
+        }
+        return false;
+    }
+
     private static string? AppClass(XConnection x, ulong id)
     {
         // WM_CLASS is two NUL-separated strings: instance, then class.

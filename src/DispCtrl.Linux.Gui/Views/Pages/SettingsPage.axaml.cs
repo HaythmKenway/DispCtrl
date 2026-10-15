@@ -4,6 +4,7 @@ using Avalonia.Input.Platform;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using DispCtrl.Linux.Commands;
+using DispCtrl.Linux.Diagnostics;
 using DispCtrl.Linux.Distribution;
 using DispCtrl.Linux.Gui.Services;
 using Avalonia.Platform.Storage;
@@ -57,9 +58,26 @@ public partial class SettingsPage : UserControl
             Views.CardBuilder.Show(updateStatus, reply.ExitCode == 0 ? reply.Stdout.Trim().Split('\n')[^1] : CommandSender.Reason(reply));
         };
         var wall = new Button { Content = "Choose a picture…" };
+        var wallPath = new TextBox { PlaceholderText = "Or type the picture's path", MinWidth = 260 };
+        wallPath.KeyDown += async (_, e) =>
+        {
+            if (e.Key != Avalonia.Input.Key.Enter || string.IsNullOrWhiteSpace(wallPath.Text)) return;
+            await SetWallpaper(wallPath.Text.Trim().Trim('"').Replace("~/", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + "/"));
+        };
+        async Task SetWallpaper(string path)
+        {
+            var reply = await CommandSender.RunHereAsync(["wallpaper", path]);
+            wallStatus.Classes.Set("status", reply.ExitCode != 0);
+            Views.CardBuilder.Show(wallStatus, reply.ExitCode == 0 ? reply.Stdout.Trim() : CommandSender.Reason(reply));
+        }
         wall.Click += async (_, _) =>
         {
-            if (TopLevel.GetTopLevel(this)?.StorageProvider is not { } storage) return;
+            if (TopLevel.GetTopLevel(this)?.StorageProvider is not { } storage)
+            {
+                wallStatus.Classes.Set("status", true);
+                Views.CardBuilder.Show(wallStatus, "No file chooser is available here. Type the picture's path in the box and press Enter.");
+                return;
+            }
             IReadOnlyList<IStorageFile> files;
             try
             {
@@ -74,44 +92,84 @@ public partial class SettingsPage : UserControl
                 // The desktop's file chooser is a separate service (a portal);
                 // when it crashed mid-pick, the exception closed the whole window.
                 wallStatus.Classes.Set("status", true);
-                Views.CardBuilder.Show(wallStatus, $"The desktop's file chooser stopped answering ({ex.GetType().Name}). Try again; if it keeps failing, sign out and in again.");
+                Views.CardBuilder.Show(wallStatus, $"The desktop's file chooser stopped answering ({ex.GetType().Name}). Type the picture's path in the box and press Enter.");
                 return;
             }
             if (files.FirstOrDefault() is not { } file) return;
-            // Copied through the picker's own grant to a folder the desktop can
-            // read too: in the snap neither the engine nor GNOME may open the
-            // picture where it was chosen (the portal hands this window alone a
-            // path under /run/user/…/doc), so the path alone set nothing.
-            string? copy;
-            try { copy = await KeepWallpaper(file); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Views.CardBuilder.Show(wallStatus, ex.Message); return; }
-            var reply = await CommandSender.RunHereAsync(["wallpaper", copy]);
-            wallStatus.Classes.Set("status", reply.ExitCode != 0);
-            Views.CardBuilder.Show(wallStatus, reply.ExitCode == 0 ? reply.Stdout.Trim() : CommandSender.Reason(reply));
-        };
-        var wallpaper = Views.CardBuilder.Card(FluentAvalonia.UI.Controls.FASymbol.Image, "Wallpaper", "The desktop's picture (GNOME shows one on every display).", wall, out wallStatus);
-        var report = new Button { Content = "Report a problem…" };
-        report.Click += async (_, _) =>
-        {
-            report.IsEnabled = false;
-            var reply = await CommandSender.RunHereAsync(["report", "--url"]);
-            report.IsEnabled = true;
-            var url = reply.Stdout.Trim();
-            if (reply.ExitCode != 0 || !url.StartsWith("https://", StringComparison.Ordinal))
+            // A real path goes straight to the command, which keeps a copy where
+            // GNOME can read it; the portal's grant has no path to hand over, so
+            // that one is copied through the picker's own stream first.
+            try
             {
-                Views.CardBuilder.Show(reportStatus, CommandSender.Reason(reply));
+                var local = file.TryGetLocalPath();
+                await SetWallpaper(local is { Length: > 0 } && File.Exists(local) ? local : await KeepWallpaper(file));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                wallStatus.Classes.Set("status", true);
+                Views.CardBuilder.Show(wallStatus, $"{ex.Message} Type the picture's path in the box and press Enter.");
+            }
+        };
+        var wallControls = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { wallPath, wall } };
+        var wallpaper = Views.CardBuilder.Card(FluentAvalonia.UI.Controls.FASymbol.Image, "Wallpaper", "The desktop's picture (GNOME shows one on every display).", wallControls, out wallStatus);
+        void ReportStatus(string text, bool problem)
+        {
+            reportStatus.Classes.Set("status", problem);
+            Views.CardBuilder.Show(reportStatus, text);
+        }
+        Button Make(string text, string name)
+        {
+            var b = new Button { Content = text };
+            AutomationProperties.SetName(b, name);
+            return b;
+        }
+        // Each button shows its result under the card and sends nothing by itself:
+        // a browser or mail program opens for the person to read and send.
+        async Task Send(Button button, string[] command, string opened, string failed)
+        {
+            button.IsEnabled = false;
+            var reply = await CommandSender.RunHereAsync(command);
+            button.IsEnabled = true;
+            var url = reply.Stdout.Trim().Split('\n')[^1];
+            if (reply.ExitCode != 0 || !(url.StartsWith("https://", StringComparison.Ordinal) || url.StartsWith("mailto:", StringComparison.Ordinal)))
+            {
+                ReportStatus(CommandSender.Reason(reply), true);
                 return;
             }
             // Through the desktop's launcher (a portal in the snap), not the engine,
             // whose confinement may not open a browser.
-            bool opened = TopLevel.GetTopLevel(this)?.Launcher is { } launcher && await launcher.LaunchUriAsync(new Uri(url));
-            reportStatus.Classes.Set("status", !opened);
-            Views.CardBuilder.Show(reportStatus, opened
-                ? "Opened in your browser: read it, add what happened, then submit."
-                : "No browser could be opened. Run dispctrl-linux report in a terminal to see the report.");
+            bool launched = TopLevel.GetTopLevel(this)?.Launcher is { } launcher && await launcher.LaunchUriAsync(new Uri(url));
+            var note = reply.Stderr.Trim().Replace("dispctrl-linux: ", "", StringComparison.Ordinal);
+            ReportStatus(launched ? $"{opened}{(note.Length > 0 ? " " + note : "")}" : failed, !launched);
+        }
+        var report = Make("Open GitHub issue", "Open a GitHub issue");
+        report.Click += (_, _) => _ = Send(report, ["report", "--url"],
+            "Opened in your browser: read it, add what happened, then submit.",
+            "No browser could be opened. Run dispctrl-linux report in a terminal to see the report.");
+        var mail = Make("Email the log", "Email the log");
+        mail.Click += (_, _) => _ = Send(mail, ["report", "--mail-url"],
+            $"Opened a message to {ProblemReport.Email}: read it, then send it yourself.",
+            $"No mail program could be opened. Write to {ProblemReport.Email} and attach the saved report (Save report…).");
+        var saveReport = Make("Save report…", "Save the report");
+        saveReport.Click += async (_, _) =>
+        {
+            saveReport.IsEnabled = false;
+            var reply = await CommandSender.RunHereAsync(["report", "--save"]);
+            saveReport.IsEnabled = true;
+            ReportStatus(reply.ExitCode == 0 ? reply.Stdout.Trim() : CommandSender.Reason(reply), reply.ExitCode != 0);
         };
+        var openLogs = Make("Open log folder", "Open the log folder");
+        openLogs.Click += async (_, _) =>
+        {
+            var folder = AppLog.Directory;
+            try { Directory.CreateDirectory(folder); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            bool launched = TopLevel.GetTopLevel(this)?.Launcher is { } launcher && await launcher.LaunchUriAsync(new Uri(folder.TrimEnd('/') + "/"));
+            ReportStatus(launched ? $"Log folder: {Redact.Scrub(folder)}" : $"No file manager could be opened. The log is in {Redact.Scrub(folder)}.", !launched);
+        };
+        var reportButtons = new WrapPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Children = { report, mail, saveReport, openLogs } };
+        foreach (var b in reportButtons.Children) b.Margin = new Thickness(0, 0, 8, 8);
         var problem = Views.CardBuilder.Card(FluentAvalonia.UI.Controls.FASymbol.Alert, "Report a problem",
-            "Opens a GitHub issue with what DispCtrl can see here, serial numbers and your name taken out, for you to read before sending.", report, out reportStatus);
+            "Opens a GitHub issue or an email with what DispCtrl can see here and the end of its log, serial numbers and your name taken out, for you to read before sending. Save report… writes the whole log to a file to attach.", reportButtons, out reportStatus);
         Body.Children.InsertRange(at, [Views.CardBuilder.Section("Desktop and support"), wallpaper, updates, problem, Support()]);
     }
 
@@ -119,11 +177,7 @@ public partial class SettingsPage : UserControl
     /// the snap's own folder in the home directory, or DispCtrl's data folder.</summary>
     private static async Task<string> KeepWallpaper(IStorageFile file)
     {
-        var root = Environment.GetEnvironmentVariable("SNAP_USER_COMMON") is { Length: > 0 } common
-            ? common
-            : Path.Combine(Environment.GetEnvironmentVariable("XDG_DATA_HOME") is { Length: > 0 } data
-                ? data : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share"), "dispctrl-linux");
-        var folder = Path.Combine(root, "wallpapers");
+        var folder = Commands.CommandRunner.WallpaperFolder();
         Directory.CreateDirectory(folder);
         // One kept at a time: the desktop holds a copy's path, not the copy.
         foreach (var old in Directory.GetFiles(folder)) File.Delete(old);

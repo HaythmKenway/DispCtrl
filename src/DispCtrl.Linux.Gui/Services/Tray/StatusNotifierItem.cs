@@ -25,7 +25,10 @@ public sealed class StatusNotifierItem : IDisposable
     private const string ItemInterface = "org.kde.StatusNotifierItem";
     private const string MenuInterface = "com.canonical.dbusmenu";
 
-    private readonly DBusConnection _connection;
+    private const string WatcherName = "org.kde.StatusNotifierWatcher";
+
+    private DBusConnection _connection;
+    private readonly CancellationTokenSource _stop = new();
     private readonly Lock _lock = new();
     private readonly (int Width, int Height, byte[] Argb)[] _icons;
     private readonly string _name;
@@ -46,40 +49,147 @@ public sealed class StatusNotifierItem : IDisposable
         _icons = icons;
     }
 
-    /// <summary>Puts the icon in the tray; throws when there is no session bus
-    /// or nothing on it hosts a tray.</summary>
+    /// <summary>Puts the icon in the tray; throws when there is no session bus,
+    /// or nothing on it hosts a tray unless <paramref name="waitForHost"/> says to
+    /// wait for one.</summary>
     /// <param name="icons">The icon at one or more sizes, as ARGB32 in network
     /// byte order (what the specification asks for).</param>
-    public static async Task<StatusNotifierItem> StartAsync((int Width, int Height, byte[] Argb)[] icons)
+    /// <param name="waitForHost">The sign-in start: the shell's tray extension
+    /// may load after this process, and registering then is all that is needed.</param>
+    public static async Task<StatusNotifierItem> StartAsync((int Width, int Height, byte[] Argb)[] icons, bool waitForHost = false)
     {
         var address = DBusAddress.Session ?? throw new InvalidOperationException("no session bus");
-        var connection = new DBusConnection(address);
-        await connection.ConnectAsync();
         // org.kde.StatusNotifierItem-PID-N: the only names the snap may own for it.
         string name = $"org.kde.StatusNotifierItem-{Environment.ProcessId}-1";
-        var item = new StatusNotifierItem(connection, name, icons);
-        connection.AddMethodHandler(new Handler(ItemPath, item.HandleItem));
-        connection.AddMethodHandler(new Handler(MenuPath, item.HandleMenu));
-        await connection.RequestNameAsync(name, RequestNameOptions.Default);
-        await item.RegisterAsync();
+        var item = new StatusNotifierItem(await OpenAsync(address, name), name, icons);
+        item.Serve(item._connection);
+        try { await item.RegisterAsync(); }
+        catch (Exception ex) when (waitForHost && ex is not OutOfMemoryException)
+        {
+            Log.Write($"tray: no tray host yet ({ex.Message}); registering when one appears");
+        }
+        _ = item.SuperviseAsync(address);
         return item;
+    }
+
+    /// <summary>The icon was registered again, on a new connection or with a tray
+    /// host that came back: whoever builds the menu should do so again.</summary>
+    public event Action? Reregistered;
+
+    private static async Task<DBusConnection> OpenAsync(string address, string name)
+    {
+        var connection = new DBusConnection(address);
+        await connection.ConnectAsync();
+        await connection.RequestNameAsync(name, RequestNameOptions.Default);
+        return connection;
+    }
+
+    private void Serve(DBusConnection connection)
+    {
+        connection.AddMethodHandler(new Handler(ItemPath, HandleItem));
+        connection.AddMethodHandler(new Handler(MenuPath, HandleMenu));
+    }
+
+    /// <summary>Keeps the icon alive for the life of the process: registers it
+    /// again when the tray host restarts (the shell, or its AppIndicator
+    /// extension reloading, forgets every icon), and opens a new connection when
+    /// the bus one drops. Without this the icon stays on screen or goes, and
+    /// clicking it reaches nothing.</summary>
+    private async Task SuperviseAsync(string address)
+    {
+        while (!_stop.IsCancellationRequested)
+        {
+            var connection = _connection;
+            using var watching = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);
+            _ = WatchHostAsync(connection, watching.Token);
+            Exception? reason;
+            try { reason = await connection.DisconnectedAsync(); }
+            catch (Exception ex) when (ex is not OutOfMemoryException) { reason = ex; }
+            watching.Cancel();
+            if (_stop.IsCancellationRequested) return;
+            Log.Write($"tray: the bus connection dropped ({reason?.Message ?? "closed"}); reconnecting");
+
+            var delay = TimeSpan.FromSeconds(1);
+            while (!_stop.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(delay, _stop.Token);
+                    var next = await OpenAsync(address, _name);
+                    Serve(next);
+                    _connection = next;
+                    connection.Dispose();
+                    try { await RegisterAsync(); }
+                    catch (Exception ex) when (ex is not OutOfMemoryException) { Log.Write($"tray: not registered yet: {ex.Message}"); }
+                    Reregistered?.Invoke();
+                    Log.Write("tray: reconnected");
+                    break;
+                }
+                catch (OperationCanceledException) { return; }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    Log.Write($"tray: reconnecting failed: {ex.Message}");
+                    delay = TimeSpan.FromSeconds(Math.Min(delay.TotalSeconds * 2, 30));
+                }
+            }
+        }
+    }
+
+    /// <summary>Registers whenever a new process takes the watcher's name.</summary>
+    private async Task WatchHostAsync(DBusConnection connection, CancellationToken stop)
+    {
+        try
+        {
+            using var watcher = await connection.WatchNameOwnerAsync(WatcherName);
+            string? registeredWith = null;
+            while (!stop.IsCancellationRequested)
+            {
+                string owner = await watcher.WaitForOwnerAsync(stop);
+                if (owner != registeredWith)
+                {
+                    // The first owner seen is the one StartAsync registered with.
+                    if (registeredWith is not null) Log.Write("tray: the tray host changed; registering again");
+                    bool first = registeredWith is null;
+                    registeredWith = owner;
+                    if (!first)
+                    {
+                        await ReRegisterAsync();
+                        Reregistered?.Invoke();
+                    }
+                }
+                try { await Task.Delay(Timeout.Infinite, watcher.GetOwnerChangedCancellationToken(owner)).WaitAsync(stop); }
+                catch (OperationCanceledException) when (!stop.IsCancellationRequested) { await Task.Delay(100, stop); }
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { Log.Write($"tray: watching the tray host failed: {ex.Message}"); }
     }
 
     private async Task RegisterAsync()
     {
+        var connection = _connection;
         MessageBuffer Build()
         {
-            var w = _connection.GetMessageWriter();
+            var w = connection.GetMessageWriter();
             try
             {
-                w.WriteMethodCallHeader("org.kde.StatusNotifierWatcher", "/StatusNotifierWatcher", "org.kde.StatusNotifierWatcher",
+                w.WriteMethodCallHeader(WatcherName, "/StatusNotifierWatcher", WatcherName,
                     "RegisterStatusNotifierItem", "s", MessageFlags.None);
                 w.WriteString(_name);
                 return w.CreateMessage();
             }
             finally { w.Dispose(); }
         }
-        await _connection.CallMethodAsync(Build());
+        // A tray host that is there but stuck would otherwise hold this forever.
+        await connection.CallMethodAsync(Build()).WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    /// <summary>Registers again: a tray host that restarted has forgotten the
+    /// icon. A host that still knows it ignores the repeat.</summary>
+    public async Task ReRegisterAsync()
+    {
+        try { await RegisterAsync(); }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { Log.Write($"tray: register failed: {ex.Message}"); }
     }
 
     /// <summary>Replaces the whole menu and tells the tray it changed.</summary>
@@ -173,6 +283,7 @@ public sealed class StatusNotifierItem : IDisposable
         switch (member)
         {
             case "Activate":
+                Log.Write("tray: Activate received");
                 Post(() => Activated?.Invoke());
                 break;
             case "Scroll":
@@ -377,7 +488,12 @@ public sealed class StatusNotifierItem : IDisposable
 
     private void Click(Dictionary<int, TrayMenuItem> items, int id)
     {
-        if (items.TryGetValue(id, out var node) && node.Enabled && node.Click is { } click) Post(click);
+        if (items.TryGetValue(id, out var node) && node.Enabled && node.Click is { } click)
+        {
+            Log.Write($"tray: menu item '{node.Label}' clicked");
+            Post(click);
+        }
+        else Log.Write($"tray: menu click {id} ignored (unknown or disabled)");
     }
 
     private static void WriteMenuProperty(ref MessageWriter w, string property)
@@ -459,7 +575,7 @@ public sealed class StatusNotifierItem : IDisposable
             try { handle(context); }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
-                Trace.WriteLine($"tray: {context.Request.MemberAsString}: {ex.Message}");
+                Log.Write($"tray: {context.Request.MemberAsString}: {ex.Message}");
                 if (!context.ReplySent && !context.NoReplyExpected) context.ReplyError("org.freedesktop.DBus.Error.Failed", ex.Message);
             }
             return default;
@@ -504,5 +620,9 @@ public sealed class StatusNotifierItem : IDisposable
         </interface>
         """u8.ToArray();
 
-    public void Dispose() => _connection.Dispose();
+    public void Dispose()
+    {
+        _stop.Cancel();
+        _connection.Dispose();
+    }
 }

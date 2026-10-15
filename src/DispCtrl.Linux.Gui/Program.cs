@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using DispCtrl.Linux.Diagnostics;
 using DispCtrl.Linux.Gui.Services;
 
 namespace DispCtrl.Linux.Gui;
@@ -17,10 +18,38 @@ class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        // --open is the window, spelt out for a launcher or a shortcut that wants
+        // no doubt about it; it is also what a bare start does.
+        AppLog.Configure("gui", echo: true);
+        AppLog.InstallExceptionHooks();
         Request = args.Contains("--tray") ? Instance.Tray : args.Contains("--quick-panel") ? Instance.Panel : Instance.Window;
         // A process already running (the tray's, from sign-in) does it instead.
-        if (Instance.TrySend(Request)) return 0;
-        return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args, ShutdownMode.OnExplicitShutdown);
+        for (int attempt = 0; ; attempt++)
+        {
+            switch (Instance.TrySend(Request))
+            {
+                case Instance.Outcome.Handled: return 0;
+                case Instance.Outcome.Unresponsive:
+                    Log.Write($"the running DispCtrl did not answer the request '{Request}'; its interface is blocked");
+                    return 1;
+            }
+            // A process holding the lock but not yet listening is still starting:
+            // starting a second one beside it is what the lock exists to prevent.
+            if (attempt >= 10 || !Instance.IsRunning()) break;
+            Thread.Sleep(300);
+        }
+        Log.Write($"start {Commands.CommandRunner.Version}, request '{Request}'");
+        try { return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args, ShutdownMode.OnExplicitShutdown); }
+        catch (Exception ex)
+        {
+            AppLog.Error("gui", "the interface could not start or stopped", ex);
+            throw;
+        }
+        finally
+        {
+            Log.Write("exit");
+            AppLog.Flush();
+        }
     }
 
     // Avalonia configuration, don't remove; also used by visual designer.

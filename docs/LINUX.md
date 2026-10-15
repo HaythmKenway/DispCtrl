@@ -34,7 +34,7 @@ everything it does.
 | Pin on top, gather, move to a display, span | the window manager (EWMH) | an X11 session |
 | OLED care, monitor sleep | the gamma ramp after idle; DPMS | an X11 session and the engine |
 | Focus mode | a veil over all but the window in front | an X11 session with a compositor, and the engine |
-| RGB lighting | OpenRGB's SDK server | OpenRGB running, with its server on |
+| RGB lighting | OpenRGB's SDK server, else the kernel's keyboard backlight | OpenRGB (`rgb setup` fetches it) and its udev rules; none for the basic backlight |
 | Tray icon and quick panel | StatusNotifierItem | a tray: KDE, XFCE, Cinnamon, MATE, Budgie; GNOME with the AppIndicator extension (on in Ubuntu) |
 
 ## Install
@@ -253,8 +253,9 @@ minutes by default), then dims more (after 10), so a still picture does not
 stay lit at full strength; the first touch brings it back. It waits while a
 window is full screen or a media player says it is playing. **Rest now** dims
 at once until the next touch. **Focus mode** darkens everything but the window
-in front, on overlays clicks pass through; a full-screen window lifts it. It
-needs a compositor. **Monitor sleep** switches the displays off (DPMS) after a
+in front, on overlays clicks pass through; a full-screen window lifts it. The
+window's own dialogs and popups, the dock and top bar, and DispCtrl's own
+windows stay clear too. It needs a compositor. **Monitor sleep** switches the displays off (DPMS) after a
 while idle, unless keep awake holds them on.
 
 ```
@@ -330,18 +331,55 @@ dispctrl-linux placement span [--displays 1,2]
 ## Lighting
 
 Keyboards, mice, fans, LED strips and boards, through
-[OpenRGB](https://openrgb.org), which knows each maker's devices and holds the
-permissions they need. Start OpenRGB with its SDK server on (`openrgb
---server`, or Settings, SDK Server); DispCtrl talks to it on 127.0.0.1:6742.
+[OpenRGB](https://openrgb.org), which knows each maker's devices; DispCtrl talks
+to its SDK server on 127.0.0.1:6742 and does not embed any hardware driver.
+
+You do not have to install or start OpenRGB yourself. `rgb start` (or the
+Lighting page's Start lighting) finds one - `openrgb` on PATH,
+`~/.local/bin/OpenRGB.AppImage`, Flatpak, a snap, or DispCtrl's own copy - and
+starts it headless (`--server`; AppImages with `--appimage-extract-and-run`),
+detached so it outlives the command. With none installed, `rgb setup` downloads
+the official OpenRGB 1.0 AppImage for your architecture (x86-64 or ARM64) into
+`~/.local/share/dispctrl-linux/openrgb/`, checks it against a SHA-256 pinned in
+DispCtrl and refuses it on a mismatch, then starts it. Any lighting command
+(`rgb colour red`) starts an OpenRGB that is found but stopped, once, unless
+`rgb autostart off`; the engine does the same at sign-in, but only if you have
+already set lighting.
+
+USB devices need OpenRGB's udev rules. `rgb start`, `rgb setup` and `rgb udev`
+say when they are missing and print the one line to run as root; DispCtrl never
+runs sudo. From the snap, OpenRGB cannot be started (confinement keeps host
+programs and USB hardware out of reach): run `openrgb --server` in a terminal
+and the snap connects to it.
+
+Without OpenRGB, `rgb` falls back to the basic kernel path: a laptop's keyboard
+backlight in `/sys/class/leds/*kbd_backlight*`. A colour is set where the
+backlight has `multi_intensity`; otherwise only its brightness changes and
+`rgb` says so (many laptops, such as ASUS TUF's `asus::kbd_backlight`, have one
+colour and a few levels). It is written through sysfs, or logind when sysfs is
+not writable, and never to 0 except for `rgb off`. There are no effects on this path.
 Presets keep the lighting too; the ready-made Night dims it to amber and Movie
 turns it off.
 
 ```
 dispctrl-linux rgb                           devices and their effects
 dispctrl-linux rgb colour warm | #FF9329 [--device 2]
+dispctrl-linux rgb key a,s,d,f red [--device 1]   single keys: a, "left shift", F5, "led 12"
+dispctrl-linux rgb keys "esc=#00FF00,space=purple" | FILE    several keys at once, NAME=COLOUR
 dispctrl-linux rgb mode "Rainbow Wave"
 dispctrl-linux rgb off
+dispctrl-linux rgb start | setup | udev      start OpenRGB, download it, check the udev rules
+dispctrl-linux rgb autostart on|off
 ```
+
+A keyboard with a light for each key (`rgb` lists it as `per-key: 126 LEDs`)
+is also drawn on the Lighting page: click or drag across keys (Ctrl adds), pick
+a colour and press Apply; Select all, Whole row and the Gradient, Rainbow and
+Rows buttons colour many at once. Keys you do not name keep their colour. The
+keys are placed from the LED names OpenRGB gives them (ANSI or ISO, full-size,
+tenkeyless, 75% or 60%) or, for keyboards that only name LEDs "Keyboard LED 12",
+from the zone matrix; LEDs that are not keys (a logo, a light bar) sit on a
+strip below. Colours appear at once and are written in the background.
 
 ## Dark mode
 
@@ -510,6 +548,30 @@ desktop and `doctor` - with serial numbers, your name and home folder taken
 out; `report --open --what "..."` starts a GitHub issue with it for you to read
 before sending. `dispctrl-linux wallpaper PICTURE` sets the desktop's picture
 on GNOME, KDE and XFCE.
+
+### The log
+
+The engine, the window and the command line share one log:
+`~/.local/state/dispctrl-linux/logs/dispctrl-linux.log` (in the snap,
+`$SNAP_USER_COMMON/logs`), rotated at 1 MB across three files. Each line has a
+time, a level, the program (`engine`, `gui`, `cli`) and a component; the engine
+and window also echo to stderr, which the journal keeps. Home folder, account
+name and serial numbers are removed before a line is written, and logging never
+blocks or fails a command: a full disk or read-only folder only loses lines.
+`DISPCTRL_LINUX_LOG_LEVEL=debug` adds detail.
+
+```
+dispctrl-linux logs [--tail N] [--path] [--open]
+dispctrl-linux report --open     GitHub issue with the report and the log's end
+dispctrl-linux report --mail     email to hello@akileswar.com, opened for you to read and send
+dispctrl-linux report --save     the whole redacted report and log in ~/dispctrl-linux-report-*.txt
+```
+
+A link cannot carry an attachment and holds only the log's last lines, so when
+the log is longer the issue says so: save the report and drag the file into the
+issue, or attach it to the email. Settings > Report a problem has the same four
+buttons (Open GitHub issue, Email the log, Save report…, Open log folder).
+Nothing is sent for you.
 
 ## Building from source
 

@@ -14,8 +14,8 @@ public sealed class ControlRowViewModel : INotifyPropertyChanged
 {
     private readonly CommandSender _sender;
     private readonly int _display;
-    private double _value;
-    private int _selected;
+    private double _value, _confirmedValue;
+    private int _selected, _confirmedSelected;
     private string _status = "";
 
     /// <summary>Like the brightness rows, the value read from the monitor comes
@@ -32,6 +32,8 @@ public sealed class ControlRowViewModel : INotifyPropertyChanged
         Maximum = value.Maximum is > 0 ? value.Maximum.Value : 100;
         _value = value.Current;
         _selected = Values.IndexOf((byte)value.Current);
+        _confirmedValue = _value;
+        _confirmedSelected = _selected;
     }
 
     public byte Code { get; }
@@ -53,7 +55,12 @@ public sealed class ControlRowViewModel : INotifyPropertyChanged
             _value = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(ValueText));
-            Send(((int)Math.Round(value)).ToString(CultureInfo.InvariantCulture));
+            Send(((int)Math.Round(value)).ToString(CultureInfo.InvariantCulture), () => _confirmedValue = value, () =>
+            {
+                _value = _confirmedValue;
+                OnPropertyChanged(nameof(Value));
+                OnPropertyChanged(nameof(ValueText));
+            });
         }
     }
 
@@ -65,7 +72,11 @@ public sealed class ControlRowViewModel : INotifyPropertyChanged
             if (value == _selected || value < 0 || value >= Values.Count) return;
             _selected = value;
             OnPropertyChanged();
-            Send($"0x{Values[value]:X2}");
+            Send($"0x{Values[value]:X2}", () => _confirmedSelected = value, () =>
+            {
+                _selected = _confirmedSelected;
+                OnPropertyChanged(nameof(SelectedIndex));
+            });
         }
     }
 
@@ -77,10 +88,16 @@ public sealed class ControlRowViewModel : INotifyPropertyChanged
 
     public bool HasStatus => _status.Length > 0;
 
-    private void Send(string value) =>
+    // Optimistic: the control shows the new value at once and goes back to the
+    // last one the monitor took if the write is refused.
+    private void Send(string value, Action confirmed, Action rollBack) =>
         _sender.Post($"ddc:{_display}:{Code:X2}",
             ["monitor", _display.ToString(CultureInfo.InvariantCulture), "set", $"0x{Code:X2}", value],
-            error => Status = error ?? "");
+            error =>
+            {
+                Status = error ?? "";
+                if (error is null) confirmed(); else rollBack();
+            });
 
     private static string TitleOf(DdcFeature f) => f.Code switch
     {

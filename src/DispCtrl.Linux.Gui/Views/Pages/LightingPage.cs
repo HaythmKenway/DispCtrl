@@ -26,6 +26,9 @@ public sealed class LightingPage : UserControl
     private readonly StackPanel _controls = new();
     private readonly Border _setup;
     private readonly TextBlock _setupWhere = new() { Classes = { "caption" }, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _setupStatus = new() { Classes = { "caption" }, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
+    private readonly TextBlock _kernelNote = new() { Classes = { "caption" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+    private readonly Button _start = new() { Classes = { "accent" } };
 
     public LightingPage()
     {
@@ -102,9 +105,22 @@ public sealed class LightingPage : UserControl
         // Without OpenRGB nothing here can work: one card that says how to get
         // it, rather than controls that only answer with errors.
         _setup.IsVisible = devices is null;
-        _controls.IsVisible = devices is not null;
+        var kernel = devices is null ? SysfsLeds.Enumerate() : [];
+        _controls.IsVisible = devices is not null || kernel.Count > 0;
+        _start.Content = OpenRgbSetup.Find() is null && OpenRgbSetup.SnapLimit() is null ? "Set up lighting" : "Start lighting";
+        _start.IsEnabled = OpenRgbSetup.SnapLimit() is null;
+        _setupStatus.Text = OpenRgbSetup.SnapLimit() ?? _setupStatus.Text;
         _setupWhere.Text = $"DispCtrl looks for it at {settings.Host}:{settings.Port} (dispctrl-linux rgb server HOST:PORT to change).";
-        if (devices is null) return;
+        _kernelNote.IsVisible = kernel.Count > 0;
+        _kernelNote.Text = "OpenRGB is not running, so these are the keyboard backlights the kernel exposes: the basic path, with a colour only where the keyboard has one and otherwise its brightness. "
+            + "Setting up lighting adds every other keyboard, mouse, fan and strip, and their effects.";
+        if (devices is null)
+        {
+            _devices.Children.Add(_kernelNote);
+            foreach (var led in kernel)
+                _devices.Children.Add(Card(FASymbol.Keyboard, led.Name, led.Describe(), null, out _));
+            return;
+        }
         if (devices.Count == 0) _devices.Children.Add(Caption("OpenRGB is running and found no lighting devices."));
         foreach (var d in devices)
         {
@@ -116,7 +132,9 @@ public sealed class LightingPage : UserControl
                 if (effects.SelectedItem is string mode)
                     await Apply(status, "rgb", "mode", mode, "--device", device.ToString(CultureInfo.InvariantCulture));
             };
-            _devices.Children.Add(Card(Icon(d.Type), d.Name, $"{d.Vendor} {d.TypeName}, {d.LedCount} LEDs".Trim(), effects, out status));
+            // A light for each key: the keyboard itself, to colour key by key.
+            _devices.Children.Add(Card(Icon(d.Type), d.Name, $"{d.Vendor} {d.TypeName}, {d.LedCount} LEDs".Trim(), effects, out status,
+                d.HasPerKeyLeds ? new KeyboardEditor(d) : null));
         }
     }
 
@@ -137,9 +155,9 @@ public sealed class LightingPage : UserControl
         var steps = new StackPanel { Spacing = 6, Margin = new Thickness(0, 12, 0, 0) };
         foreach (var (n, text) in new[]
         {
-            ("1", "Install OpenRGB: from your distribution (sudo apt install openrgb, sudo dnf install openrgb) or Flathub."),
-            ("2", "Start its server: openrgb --server (headless, best at sign-in), or in its window Settings, SDK Server, Start server."),
-            ("3", "Come back and press Try again. Keep it running: DispCtrl sets the lighting through it."),
+            ("1", "Press Set up lighting: DispCtrl downloads the official OpenRGB (checked against a pinned SHA-256) if none is installed, and starts it headless."),
+            ("2", "Press Start lighting when OpenRGB is installed but stopped; DispCtrl also starts it by itself when a lighting command needs it."),
+            ("3", "For USB devices OpenRGB needs its udev rules: the status line shows the one command to run as root."),
         })
         {
             var row = new Grid { ColumnDefinitions = new ColumnDefinitions("28,*") };
@@ -157,15 +175,16 @@ public sealed class LightingPage : UserControl
             row.Children.Add(t);
             steps.Children.Add(row);
         }
-        var get = new Button { Content = "Get OpenRGB", Classes = { "accent" } };
+        _start.Click += async (_, _) => await StartLightingAsync();
+        var get = new Button { Content = "Get OpenRGB" };
         get.Click += async (_, _) =>
         {
             if (TopLevel.GetTopLevel(this)?.Launcher is { } launcher) await launcher.LaunchUriAsync(new Uri("https://openrgb.org"));
         };
         var retry = new Button { Content = "Try again" };
         retry.Click += async (_, _) => await LoadAsync();
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 14, 0, 0), Children = { get, retry } };
-        var body = new StackPanel { Children = { steps, buttons } };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 14, 0, 0), Children = { _start, get, retry } };
+        var body = new StackPanel { Children = { steps, buttons, _setupStatus } };
         body.Children.Insert(0, _setupWhere);
         var card = Card(FASymbol.ColorBackground, "Lighting needs OpenRGB",
             "OpenRGB knows the keyboards, mice, fans and strips of hundreds of makers. DispCtrl sets their colours through it once it is running.",
@@ -173,6 +192,31 @@ public sealed class LightingPage : UserControl
         card.Margin = new Thickness(0, 20, 0, 0);
         card.IsVisible = false;
         return card;
+    }
+
+    /// <summary>Starts (and, if there is none, first downloads) OpenRGB off the
+    /// UI thread, with the steps as status text; the download is about 37 MB.</summary>
+    private async Task StartLightingAsync()
+    {
+        _start.IsEnabled = false;
+        void Say(string text) => Avalonia.Threading.Dispatcher.UIThread.Post(() => _setupStatus.Text = text);
+        try
+        {
+            var settings = SettingsStore.Load().Lighting;
+            var message = await Task.Run(() =>
+            {
+                if (OpenRgbSetup.Find() is null)
+                {
+                    var got = OpenRgbSetup.Download(Say);
+                    if (!got.Ok) return got.Message;
+                }
+                var started = OpenRgbSetup.Start(settings, Say);
+                return started.Ok ? OpenRgbSetup.UdevAdvice(OpenRgbSetup.Find()) is { } udev ? started.Message + " " + udev : started.Message : started.Message;
+            });
+            _setupStatus.Text = message;
+        }
+        finally { _start.IsEnabled = OpenRgbSetup.SnapLimit() is null; }
+        await LoadAsync();
     }
 
     private static FASymbol Icon(int type) => type switch

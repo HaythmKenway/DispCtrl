@@ -14,6 +14,7 @@ public sealed class MonitorRowViewModel : INotifyPropertyChanged
     private readonly string _key;
     private readonly Func<double, string[]> _command;
     private double _value;
+    private double _confirmed;
     private string _status = string.Empty;
 
     /// <summary>
@@ -36,6 +37,7 @@ public sealed class MonitorRowViewModel : INotifyPropertyChanged
         _key = key;
         _command = command;
         _value = initialValue;
+        _confirmed = initialValue;
     }
 
     /// <summary>The target: one monitor, backlight or output's ramp.</summary>
@@ -66,7 +68,18 @@ public sealed class MonitorRowViewModel : INotifyPropertyChanged
             _value = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(ValueText));
-            _sender.Post(_key, _command(Math.Round(value)), error => Status = error ?? "");
+            // Optimistic: the slider already shows the new value. If the newest
+            // write is refused it goes back to the last one that took, rather
+            // than showing a level the hardware never reached.
+            double sent = value;
+            _sender.Post(_key, _command(Math.Round(value)), error =>
+            {
+                Status = error ?? "";
+                if (error is null) { _confirmed = sent; return; }
+                _value = _confirmed;
+                OnPropertyChanged(nameof(Value));
+                OnPropertyChanged(nameof(ValueText));
+            });
         }
     }
 

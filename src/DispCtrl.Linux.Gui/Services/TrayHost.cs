@@ -37,9 +37,16 @@ public sealed class TrayHost : IDisposable
         _quit = quit;
         _icon.Activated += () =>
         {
-            if (SettingsStore.Load().Tray.QuickPanel) _openPanel();
-            else _openWindow();
+            try
+            {
+                bool panel = SettingsStore.Load().Tray.QuickPanel;
+                Log.Write($"tray click: {(panel ? "quick panel" : "window")}");
+                if (panel) _openPanel();
+                else _openWindow();
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException) { Log.Write($"tray click failed: {ex}"); }
         };
+        _icon.Reregistered += () => Dispatcher.UIThread.Post(Rebuild);
         _icon.Scrolled += OnScroll;
 
         DeskActions.Changed += Rebuild;
@@ -54,9 +61,9 @@ public sealed class TrayHost : IDisposable
 
     /// <summary>Puts the icon in the tray; throws when there is no session bus
     /// or no tray to register with.</summary>
-    public static async Task<TrayHost> StartAsync(Action openWindow, Action<string> openPage, Action openPanel, Action quit)
+    public static async Task<TrayHost> StartAsync(Action openWindow, Action<string> openPage, Action openPanel, Action quit, bool waitForHost = false)
     {
-        var icon = await StatusNotifierItem.StartAsync(Icons());
+        var icon = await StatusNotifierItem.StartAsync(Icons(), waitForHost);
         return new TrayHost(icon, openWindow, openPage, openPanel, quit);
     }
 
@@ -130,6 +137,7 @@ public sealed class TrayHost : IDisposable
             _icon.SetMenu(Build(state));
             _icon.SetToolTip(Tooltip(state));
         }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { Log.Write($"tray menu rebuild failed: {ex.Message}"); }
         finally { Interlocked.Exchange(ref _rebuilding, 0); }
     }
 

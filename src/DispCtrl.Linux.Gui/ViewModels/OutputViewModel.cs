@@ -122,6 +122,11 @@ public sealed class OutputViewModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>Pixel density from the size the panel reports, or why there is none.</summary>
+    public string DensityText => DispCtrl.Linux.Arrangement.ArrangementEditor.PixelsPerInch(_output) is { } ppi
+        ? string.Create(CultureInfo.InvariantCulture, $"{ppi} pixels per inch, {DispCtrl.Linux.Arrangement.ArrangementEditor.Orientation(_output.Rotation).ToLowerInvariant()}")
+        : $"Size not reported by the display, {DispCtrl.Linux.Arrangement.ArrangementEditor.Orientation(_output.Rotation).ToLowerInvariant()}";
+
     public string ModeText => _output.RefreshHz > 0
         ? string.Create(CultureInfo.InvariantCulture, $"{_output.WidthPx} × {_output.HeightPx} at {_output.RefreshHz:0.##} Hz")
         : string.Create(CultureInfo.InvariantCulture, $"{_output.WidthPx} × {_output.HeightPx}");

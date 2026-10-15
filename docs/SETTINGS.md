@@ -289,3 +289,14 @@ Generated from the settings themselves; `DispCtrl.Control.Checks` fails when a s
 |---|---|---|---|
 | `/version` | 1 | number | Schema version, so a future format change can migrate rather than reset. |
 | `/monitors` | group | one per display | Per-monitor settings keyed on DisplayKey.ToToken(). |
+
+## Lighting (Linux)
+
+The Linux client keeps its own `settings.json` (see [DispCtrl for Linux](LINUX.md)); its lighting section is:
+
+| Setting | Default | Values | What it does |
+|---|---|---|---|
+| `/lighting/host` | 127.0.0.1 | text | Where OpenRGB's SDK server listens. |
+| `/lighting/port` | 6742 | number | The port of OpenRGB's SDK server. |
+| `/lighting/autoStart` | on | on or off | Start an OpenRGB found on this computer, headless, when a lighting command finds its server stopped, and at sign-in once lighting has been used. `dispctrl-linux rgb autostart on\|off`. |
+| `/lighting/last` | none | text | What was last set on every device (a colour, `off` or `mode:NAME`), which presets save. |

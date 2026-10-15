@@ -43,59 +43,39 @@ public static partial class CommandRunner
         }
     }
 
-    /// <summary><c>report</c>: what a problem report needs, with serials, the
-    /// account name and home folder removed; <c>--open</c> starts a GitHub
-    /// issue with it for the person to read before sending.</summary>
-    private static int ReportCommand(string[] args, CommandContext c)
-    {
-        if (!TrySplit(args, out var verbs, out var flags, c)) return AskedWrongly;
-        if (verbs.Length > 0) return Wrong(c, "report takes --what \"what happened\", --open, or --url (the issue's address only)");
-        var doctor = new StringWriter();
-        Doctor(c with { Out = doctor });
-        var text = new System.Text.StringBuilder();
-        text.AppendLine($"dispctrl-linux {Version}, {(Distro.InSnap ? "snap" : "package")}, {Distro.Family}, {RuntimeInformationText()}");
-        text.AppendLine($"session: {Environment.GetEnvironmentVariable("XDG_SESSION_TYPE")} / {Environment.GetEnvironmentVariable("XDG_CURRENT_DESKTOP")}");
-        text.AppendLine();
-        text.Append(doctor);
-        var report = Scrub(text.ToString());
-        string what = flags.GetValueOrDefault("--what") ?? "";
-        if (flags.ContainsKey("--url"))
-        {
-            // Only the issue's address: the window opens it itself, through the
-            // desktop's launcher, which a confined engine cannot reach.
-            c.Out.WriteLine(IssueUrl(what, report));
-            return Done;
-        }
-        c.Out.WriteLine(report);
-        if (!flags.ContainsKey("--open")) return Write(c.Out, "Nothing was sent. report --open --what \"...\" starts a GitHub issue with this, for you to read first.");
-        var url = IssueUrl(what, report);
-        try { Process.Start(new ProcessStartInfo("xdg-open", url) { UseShellExecute = false })?.Dispose(); }
-        catch (System.ComponentModel.Win32Exception) { c.Out.WriteLine(url); }
-        return Done;
-    }
-
-    private static string IssueUrl(string what, string report)
-    {
-        var body = $"**What happened**\n\n{(what.Length > 0 ? what : "(describe it here)")}\n\n**Diagnostics** (from dispctrl-linux report)\n\n```\n{report}\n```";
-        var url = $"{Repository}/issues/new?title={Uri.EscapeDataString(what.Length > 0 ? what : "Problem report")}&body={Uri.EscapeDataString(body)}";
-        // Browsers and GitHub refuse much longer addresses; the diagnostics are
-        // the tail, and lose their end first.
-        return url.Length > 7500 ? url[..7500] : url;
-    }
-
     private static string RuntimeInformationText() =>
         $"{System.Runtime.InteropServices.RuntimeInformation.OSArchitecture}".ToLowerInvariant();
 
-    /// <summary>Takes out what identifies the person or the hardware: the home
-    /// folder and account name, serial numbers, and DDC/CI bus paths.</summary>
-    internal static string Scrub(string text)
+    /// <summary>Takes out what identifies the person or the hardware; the
+    /// log goes through the same rules (<see cref="Diagnostics.Redact"/>).</summary>
+    internal static string Scrub(string text) => Diagnostics.Redact.Scrub(text);
+
+    /// <summary>Where a kept wallpaper lives: the snap's own folder in the home
+    /// directory, or DispCtrl's data folder.</summary>
+    public static string WallpaperFolder()
     {
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        if (home.Length > 1) text = text.Replace(home, "~", StringComparison.Ordinal);
-        var user = Environment.UserName;
-        if (user.Length > 2) text = Regex.Replace(text, $@"\b{Regex.Escape(user)}\b", "<user>");
-        text = Regex.Replace(text, @"(?<=\|)[^|\s]{4,}", "<serial>");
-        return text;
+        var root = Environment.GetEnvironmentVariable("SNAP_USER_COMMON") is { Length: > 0 } common
+            ? common
+            : Path.Combine(Environment.GetEnvironmentVariable("XDG_DATA_HOME") is { Length: > 0 } data
+                ? data : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share"), "dispctrl-linux");
+        return Path.Combine(root, "wallpapers");
+    }
+
+    /// <summary>The picture where GNOME can read it. In the snap a path chosen
+    /// elsewhere (a portal's /run/user/…/doc grant, /tmp, another snap's
+    /// folder) is not one GNOME can open, so it is copied into the wallpaper
+    /// folder; a picture already there is left alone.</summary>
+    public static string KeepPicture(string file)
+    {
+        if (!Distro.InSnap) return file;
+        var folder = WallpaperFolder();
+        if (Path.GetDirectoryName(file) == folder) return file;
+        Directory.CreateDirectory(folder);
+        // One kept at a time: the desktop holds a copy's path, not the copy.
+        foreach (var old in Directory.GetFiles(folder)) File.Delete(old);
+        var target = Path.Combine(folder, Path.GetFileName(file));
+        File.Copy(file, target, overwrite: true);
+        return target;
     }
 
     /// <summary><c>wallpaper FILE</c>: the desktop's picture. GNOME keeps one
@@ -105,12 +85,20 @@ public static partial class CommandRunner
         if (args.Length != 1) return Wrong(c, "wallpaper takes a picture's path");
         var file = Path.GetFullPath(args[0]);
         if (!File.Exists(file)) return Wrong(c, $"no picture at {file}");
-        var uri = new Uri(file).AbsoluteUri;
         if (Shell.TryWhich("gsettings") && Shell.Run("gsettings", ["get", "org.gnome.desktop.background", "picture-uri"], 3000).Ok)
         {
-            bool ok = Shell.Run("gsettings", ["set", "org.gnome.desktop.background", "picture-uri", uri], 5000).Ok;
+            string kept;
+            try { kept = KeepPicture(file); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return Refuse(c, $"the picture could not be kept where GNOME can read it: {ex.Message}"); }
+            var uri = new Uri(kept).AbsoluteUri;
+            var set = Shell.Run("gsettings", ["set", "org.gnome.desktop.background", "picture-uri", uri], 5000);
             Shell.Run("gsettings", ["set", "org.gnome.desktop.background", "picture-uri-dark", uri], 5000);
-            return ok ? Write(c.Out, "Wallpaper set (GNOME shows one picture on every display).") : Refuse(c, "GNOME refused the picture");
+            // "none" shows no picture at all, whatever the URI says.
+            if (Shell.Run("gsettings", ["get", "org.gnome.desktop.background", "picture-options"], 3000).Stdout.Trim() == "'none'")
+                Shell.Run("gsettings", ["set", "org.gnome.desktop.background", "picture-options", "zoom"], 5000);
+            Diagnostics.AppLog.Info("wallpaper", set.Ok ? "set through GNOME" : $"GNOME refused: {set.Stderr.Trim()}");
+            return set.Ok ? Write(c.Out, "Wallpaper set (GNOME shows one picture on every display).")
+                : Refuse(c, $"GNOME refused the picture{(set.Stderr.Trim() is { Length: > 0 } why ? $": {why}" : "")}");
         }
         if (Shell.TryWhich("plasma-apply-wallpaperimage"))
         {

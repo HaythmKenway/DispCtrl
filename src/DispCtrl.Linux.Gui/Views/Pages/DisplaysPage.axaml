@@ -14,6 +14,43 @@
         </Style>
     </UserControl.Styles>
 
+    <UserControl.Resources>
+        <DataTemplate x:Key="BrightnessRow" DataType="vm:MonitorRowViewModel">
+            <Border Classes="subcard">
+                <Grid Classes="cardgrid bare" ColumnDefinitions="0,*,Auto" RowDefinitions="Auto,Auto">
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Classes="title" Text="Brightness" />
+                        <TextBlock Classes="caption" Text="{Binding Subtitle}" />
+                        <TextBlock Classes="status" Text="{Binding Status}" IsVisible="{Binding HasStatus}" />
+                    </StackPanel>
+                    <Grid Classes="slider control" ColumnDefinitions="*,56">
+                        <Slider Minimum="{Binding Minimum}" Maximum="{Binding Maximum}"
+                                Value="{Binding Value, Mode=TwoWay}" VerticalAlignment="Center"
+                                AutomationProperties.Name="Brightness" />
+                        <TextBlock Text="{Binding ValueText}" />
+                    </Grid>
+                </Grid>
+            </Border>
+        </DataTemplate>
+        <DataTemplate x:Key="DimRow" DataType="vm:MonitorRowViewModel">
+            <Border Classes="subcard">
+                <Grid Classes="cardgrid bare" ColumnDefinitions="0,*,Auto" RowDefinitions="Auto,Auto">
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Classes="title" Text="Dim in software" />
+                        <TextBlock Classes="caption" Text="Below what the panel itself can do, through the gamma ramp." />
+                        <TextBlock Classes="status" Text="{Binding Status}" IsVisible="{Binding HasStatus}" />
+                    </StackPanel>
+                    <Grid Classes="slider control" ColumnDefinitions="*,56">
+                        <Slider Minimum="{Binding Minimum}" Maximum="{Binding Maximum}"
+                                Value="{Binding Value, Mode=TwoWay}" VerticalAlignment="Center"
+                                AutomationProperties.Name="Dim in software" />
+                        <TextBlock Text="{Binding ValueText}" />
+                    </Grid>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
     <Panel Name="Root">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
             <StackPanel Name="Body" Classes="page">
@@ -31,9 +68,17 @@
                     </Button>
                 </Grid>
 
+                <ProgressBar Name="ScanBar" IsIndeterminate="True" IsVisible="False" Margin="0,12,0,0"
+                             AutomationProperties.Name="Looking for displays" />
+
                 <Border Name="WaylandNotice" Classes="notice info" Margin="0,20,0,0" IsVisible="False">
                     <TextBlock TextWrapping="Wrap"
                                Text="A Wayland session arranges its displays itself, and only its own settings may move them. Brightness still works: see the Brightness page." />
+                </Border>
+
+                <Border Name="NoXrandrNotice" Classes="notice info" Margin="0,20,0,0" IsVisible="False">
+                    <TextBlock TextWrapping="Wrap"
+                               Text="No X server with RandR answers, so displays cannot be arranged or their modes changed from here. Brightness and night light do not need it." />
                 </Border>
 
                 <!-- The arrangement leads the page, as on Windows: it is the picture
@@ -44,7 +89,7 @@
                         <StackPanel Grid.Column="1">
                             <TextBlock Classes="title" Text="Arrange displays" />
                             <TextBlock Classes="caption"
-                                       Text="Drag a display to match where it sits on your desk. Nothing changes until you apply." />
+                                       Text="Drag a display to match where it sits on your desk, or choose one and use the arrow keys. Nothing changes until you apply, and you can go back for fifteen seconds after." />
                         </StackPanel>
                     </Grid>
                     <controls:ArrangeCanvas Name="ArrangeSurface" />
@@ -109,38 +154,13 @@
                                         </Grid>
                                     </Border>
 
-                                    <Border Classes="subcard" IsVisible="{Binding HasBrightness}">
-                                        <Grid Classes="cardgrid bare" ColumnDefinitions="0,*,Auto" RowDefinitions="Auto,Auto">
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                <TextBlock Classes="title" Text="Brightness" />
-                                                <TextBlock Classes="caption" Text="{Binding Brightness.Subtitle}" />
-                                                <TextBlock Classes="status" Text="{Binding Brightness.Status}"
-                                                           IsVisible="{Binding Brightness.HasStatus}" />
-                                            </StackPanel>
-                                            <Grid Classes="slider control" ColumnDefinitions="*,56">
-                                                <Slider Minimum="{Binding Brightness.Minimum}" Maximum="{Binding Brightness.Maximum}"
-                                                        Value="{Binding Brightness.Value, Mode=TwoWay}" VerticalAlignment="Center"
-                                                        AutomationProperties.Name="Brightness" />
-                                                <TextBlock Text="{Binding Brightness.ValueText}" />
-                                            </Grid>
-                                        </Grid>
-                                    </Border>
-
-                                    <Border Classes="subcard" IsVisible="{Binding HasDim}">
-                                        <Grid Classes="cardgrid bare" ColumnDefinitions="0,*,Auto" RowDefinitions="Auto,Auto">
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                <TextBlock Classes="title" Text="Dim in software" />
-                                                <TextBlock Classes="caption" Text="Below what the panel itself can do, through the gamma ramp." />
-                                                <TextBlock Classes="status" Text="{Binding Dim.Status}" IsVisible="{Binding Dim.HasStatus}" />
-                                            </StackPanel>
-                                            <Grid Classes="slider control" ColumnDefinitions="*,56">
-                                                <Slider Minimum="{Binding Dim.Minimum}" Maximum="{Binding Dim.Maximum}"
-                                                        Value="{Binding Dim.Value, Mode=TwoWay}" VerticalAlignment="Center"
-                                                        AutomationProperties.Name="Dim in software" />
-                                                <TextBlock Text="{Binding Dim.ValueText}" />
-                                            </Grid>
-                                        </Grid>
-                                    </Border>
+                                    <!-- The row is the content, not a binding path through it: a display without
+                                         a brightness or dimming control has a null row, and a path through
+                                         null logged a binding error per slider on every refresh. -->
+                                    <ContentControl Content="{Binding Brightness}" ContentTemplate="{StaticResource BrightnessRow}"
+                                                    HorizontalContentAlignment="Stretch" />
+                                    <ContentControl Content="{Binding Dim}" ContentTemplate="{StaticResource DimRow}"
+                                                    HorizontalContentAlignment="Stretch" />
 
                                     <Border Classes="subcard">
                                         <Grid Classes="cardgrid bare" ColumnDefinitions="0,*,Auto" RowDefinitions="Auto,Auto">

@@ -3,8 +3,8 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:ui="using:FluentAvalonia.UI.Controls"
-        mc:Ignorable="d" d:DesignWidth="1040" d:DesignHeight="760"
-        Width="1040" Height="760" MinWidth="380" MinHeight="420"
+        mc:Ignorable="d" d:DesignWidth="980" d:DesignHeight="720"
+        Width="980" Height="720" MinWidth="360" MinHeight="440"
         x:Class="DispCtrl.Linux.Gui.MainWindow"
         Title="DispCtrl"
         Icon="avares://dispctrl-linux-gui/Assets/dispctrl.png"
@@ -80,7 +80,13 @@
                             VerticalAlignment="Center" AutomationProperties.Name="How to start the engine" />
                 </Grid>
             </Border>
-            <ContentControl Name="PageHost" />
+            <!-- A short cross-fade between pages; switched off with the desktop's
+                 own animation setting (Motion). -->
+            <TransitioningContentControl Name="PageHost">
+                <TransitioningContentControl.PageTransition>
+                    <CrossFade Duration="0:0:0.14" />
+                </TransitioningContentControl.PageTransition>
+            </TransitioningContentControl>
         </DockPanel>
     </ui:FANavigationView>
 </Window>

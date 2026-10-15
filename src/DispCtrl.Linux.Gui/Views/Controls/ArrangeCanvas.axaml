@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="using:FluentAvalonia.UI.Controls"
+             xmlns:vm="using:DispCtrl.Linux.Gui.ViewModels"
              x:Class="DispCtrl.Linux.Gui.Views.Controls.ArrangeCanvas">
 
     <UserControl.Styles>
@@ -12,66 +13,239 @@
             <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
             <Setter Property="Opacity" Value="0.8" />
         </Style>
-        <Style Selector="Border.tile">
-            <Setter Property="CornerRadius" Value="6" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultSolidBrush}" />
-            <Setter Property="Background" Value="{DynamicResource ControlAltFillColorTertiaryBrush}" />
+        <!-- A tile glides to its place after a drop, a key press or a zoom, and
+             follows the pointer exactly while it is dragged. Switched off with
+             the desktop's own animation setting. -->
+        <Style Selector="Border.devicetile">
             <Setter Property="Cursor" Value="SizeAll" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Canvas.Left" Duration="0:0:0.16" Easing="CubicEaseOut" />
+                    <DoubleTransition Property="Canvas.Top" Duration="0:0:0.16" Easing="CubicEaseOut" />
+                    <DoubleTransition Property="Width" Duration="0:0:0.16" Easing="CubicEaseOut" />
+                    <DoubleTransition Property="Height" Duration="0:0:0.16" Easing="CubicEaseOut" />
+                </Transitions>
+            </Setter>
         </Style>
-        <Style Selector="Border.tile:pointerover">
-            <Setter Property="Background" Value="{DynamicResource ControlAltFillColorQuarternaryBrush}" />
+        <Style Selector="Border.devicetile.dragging">
+            <Setter Property="Transitions" Value="{x:Null}" />
+            <Setter Property="Opacity" Value="0.92" />
         </Style>
-        <Style Selector="Border.tile TextBlock">
+        <Style Selector="Window.reduced Border.devicetile">
+            <Setter Property="Transitions" Value="{x:Null}" />
+        </Style>
+        <Style Selector="Border.devicetile TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         </Style>
-        <Style Selector="Border.tile.primary">
+        <Style Selector="Border.devicetile.primary">
             <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
-            <Setter Property="BorderThickness" Value="0" />
         </Style>
-        <Style Selector="Border.tile.primary TextBlock">
+        <Style Selector="Border.devicetile.primary TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
         </Style>
-        <Style Selector="Border.tile.dragging">
-            <Setter Property="Opacity" Value="0.9" />
+        <Style Selector="Border.devicetile.primary.selected">
+            <Setter Property="BorderBrush" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+        </Style>
+        <Style Selector="Border.devicetile.mirrored">
+            <Setter Property="Opacity" Value="0.7" />
+            <Setter Property="Cursor" Value="Arrow" />
+        </Style>
+        <Style Selector="Border.upedge">
+            <Setter Property="Background" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="Opacity" Value="0.55" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+        <Style Selector="Border.devicetile.primary Border.upedge">
+            <Setter Property="Background" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+        </Style>
+        <Style Selector="Grid.inspectorrow > TextBlock.label">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        </Style>
+        <Style Selector="Grid.inspectorrow ComboBox">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Grid.inspectorrow NumericUpDown">
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Line.guide">
+            <Setter Property="Stroke" Value="{DynamicResource DispCtrlGuideBrush}" />
+            <Setter Property="StrokeThickness" Value="1" />
+            <Setter Property="StrokeDashArray" Value="4,3" />
+            <Setter Property="IsHitTestVisible" Value="False" />
         </Style>
     </UserControl.Styles>
+
+    <UserControl.Resources>
+        <!-- A slider and its readout, for the inspector's brightness and dimming. -->
+        <DataTemplate x:Key="InspectorSlider" DataType="vm:MonitorRowViewModel">
+            <Grid Classes="inspectorrow" ColumnDefinitions="*,48" RowDefinitions="Auto,Auto">
+                <Slider Grid.Row="1" Minimum="{Binding Minimum}" Maximum="{Binding Maximum}"
+                        Value="{Binding Value, Mode=TwoWay}" AutomationProperties.Name="{Binding Title}" />
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ValueText}" TextAlignment="Right"
+                           VerticalAlignment="Center" FontFeatures="+tnum" />
+                <TextBlock Grid.ColumnSpan="2" Classes="status" Text="{Binding Status}" IsVisible="{Binding HasStatus}" />
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
 
     <!-- The controls live inside the surface, the way Windows puts Identify and
          Apply inside its arrangement box: they are the diagram's own controls,
          not page furniture that happens to sit near it. -->
-    <Border CornerRadius="8" BorderThickness="1"
-            Background="{DynamicResource LayerFillColorDefaultBrush}"
-            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-        <Grid RowDefinitions="*,Auto" Margin="12">
-            <!-- Transparent, not unset: a panel with no brush is not hit-testable
-                 where it is empty. ClipToBounds keeps a tile dragged past the
-                 edge from drawing over the page. -->
-            <Canvas Name="Surface" Background="Transparent" ClipToBounds="True" Height="260" />
-
-            <Grid Grid.Row="1" Name="Footer" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Margin="0,8,0,0">
-                <TextBlock Name="Hint" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="12"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                <WrapPanel Name="Buttons" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right"
-                           ItemSpacing="8" LineSpacing="8">
-                    <ToggleButton Name="ResolutionToggle" Click="OnResolutionToggled"
-                                  ToolTip.Tip="Size each display by its resolution, as most display settings do. Off: by its real size."
-                                  AutomationProperties.Name="Arrange by resolution">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
+    <Grid Name="Frame" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+        <Border Name="CanvasBox" Classes="surface">
+            <Grid RowDefinitions="Auto,*,Auto,Auto">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <Button Name="UndoButton" Click="OnUndo" IsEnabled="False" Padding="8,6"
+                                ToolTip.Tip="Undo the last move (Ctrl+Z)" AutomationProperties.Name="Undo">
+                            <ui:FASymbolIcon Symbol="Undo" FontSize="14" />
+                        </Button>
+                        <Button Name="RevertButton" Click="OnRevert" IsEnabled="False" Padding="8,6"
+                                ToolTip.Tip="Discard every move that is not applied yet" AutomationProperties.Name="Revert arrangement">
+                            <ui:FASymbolIcon Symbol="Cancel" FontSize="14" />
+                        </Button>
+                        <Button Name="FitButton" Click="OnFit" Padding="8,6"
+                                ToolTip.Tip="Fit every display in view (0)" AutomationProperties.Name="Zoom to fit">
                             <ui:FASymbolIcon Symbol="FullScreen" FontSize="14" />
-                            <TextBlock Text="By resolution" />
-                        </StackPanel>
-                    </ToggleButton>
-                    <Button Content="Identify" Click="OnIdentify"
-                            ToolTip.Tip="Show each display's number on it for three seconds; changes nothing"
-                            AutomationProperties.Name="Identify" />
-                    <Button Name="ResetButton" Content="Reset" Click="OnReset"
-                            ToolTip.Tip="Arrange the displays side by side with their top edges aligned"
-                            AutomationProperties.Name="Reset arrangement" />
-                    <Button Name="ApplyButton" Content="Apply" Classes="accent" IsEnabled="False" Click="OnApply"
-                            AutomationProperties.Name="Apply arrangement" />
-                </WrapPanel>
+                        </Button>
+                        <Button Name="ZoomOutButton" Click="OnZoomOut" Padding="8,6"
+                                ToolTip.Tip="Zoom out (-)" AutomationProperties.Name="Zoom out">
+                            <ui:FASymbolIcon Symbol="ZoomOut" FontSize="14" />
+                        </Button>
+                        <Button Name="ZoomInButton" Click="OnZoomIn" Padding="8,6"
+                                ToolTip.Tip="Zoom in (+)" AutomationProperties.Name="Zoom in">
+                            <ui:FASymbolIcon Symbol="ZoomIn" FontSize="14" />
+                        </Button>
+                    </StackPanel>
+                    <WrapPanel Grid.Column="2" Name="Buttons" Orientation="Horizontal" HorizontalAlignment="Right"
+                               ItemSpacing="8" LineSpacing="8">
+                        <ToggleButton Name="ResolutionToggle" Click="OnResolutionToggled"
+                                      ToolTip.Tip="Size each display by its resolution, as most display settings do. Off: by its real size."
+                                      AutomationProperties.Name="Arrange by resolution">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <ui:FASymbolIcon Symbol="Ruler" FontSize="14" />
+                                <TextBlock Name="ResolutionLabel" Text="By resolution" />
+                            </StackPanel>
+                        </ToggleButton>
+                        <Button Name="ResetButton" Click="OnReset" AutomationProperties.Name="Reset arrangement"
+                                ToolTip.Tip="Arrange the displays side by side with their top edges aligned">
+                            <TextBlock Text="Side by side" />
+                        </Button>
+                        <Button Click="OnIdentify" AutomationProperties.Name="Identify"
+                                ToolTip.Tip="Show each display's number on it for three seconds; changes nothing">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <ui:FASymbolIcon Symbol="Target" FontSize="14" />
+                                <TextBlock Text="Identify" />
+                            </StackPanel>
+                        </Button>
+                    </WrapPanel>
+                </Grid>
+
+                <!-- Transparent, not unset: a panel with no brush is not hit-testable
+                     where it is empty. ClipToBounds keeps a tile dragged past the
+                     edge from drawing over the page. -->
+                <Panel Grid.Row="1" Margin="0,10,0,0">
+                    <Canvas Name="Surface" Background="Transparent" ClipToBounds="True" Height="280" Focusable="True"
+                            AutomationProperties.Name="Display arrangement" />
+                    <StackPanel Name="Placeholder" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10"
+                                IsVisible="False" IsHitTestVisible="False">
+                        <ui:FAProgressRing Name="PlaceholderRing" Width="28" Height="28" IsIndeterminate="True" />
+                        <TextBlock Name="PlaceholderText" TextAlignment="Center" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </Panel>
+
+                <Border Name="NoteBox" Grid.Row="2" Classes="notice info" Margin="0,8,0,0" Padding="12,8" IsVisible="False">
+                    <TextBlock Name="Note" TextWrapping="Wrap" FontSize="12" />
+                </Border>
+
+                <Grid Grid.Row="3" Name="Footer" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Margin="0,8,0,0">
+                    <TextBlock Name="Hint" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="12"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <Button Name="ApplyButton" Grid.Column="1" Content="Apply" Classes="accent" IsEnabled="False" Click="OnApply"
+                            Margin="12,0,0,0" AutomationProperties.Name="Apply arrangement" />
+                </Grid>
             </Grid>
-        </Grid>
-    </Border>
+        </Border>
+
+        <!-- The inspector: the chosen display's own settings, in place. It is
+             filled when a tile is chosen and updated, never rebuilt, so the
+             sliders keep their place while the desk refreshes. -->
+        <Border Name="Inspector" Grid.Column="1" Classes="surface" Width="300" Margin="12,0,0,0">
+            <Panel>
+                <StackPanel Name="InspectorEmpty" VerticalAlignment="Center" Spacing="6">
+                    <ui:FASymbolIcon Symbol="Target" FontSize="24" HorizontalAlignment="Center" Opacity="0.6" />
+                    <TextBlock Name="InspectorEmptyText" Text="Choose a display to see and change its settings."
+                               TextAlignment="Center" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+
+                <ScrollViewer Name="InspectorScroll" HorizontalScrollBarVisibility="Disabled" IsVisible="False">
+                    <StackPanel Name="InspectorBody" Spacing="10" x:DataType="vm:OutputViewModel" DataContext="{x:Null}">
+                        <StackPanel Spacing="2">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Classes="title" FontSize="16" FontWeight="SemiBold" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                                <Border Classes="chip" IsVisible="{Binding IsPrimary}" VerticalAlignment="Center">
+                                    <TextBlock Classes="badge" Text="Main" />
+                                </Border>
+                            </StackPanel>
+                            <TextBlock Classes="caption" Text="{Binding Details}" />
+                            <TextBlock Classes="caption" Text="{Binding DensityText}" />
+                        </StackPanel>
+
+                        <Grid Classes="inspectorrow" ColumnDefinitions="96,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+                            <TextBlock Classes="label" Text="Resolution" />
+                            <ComboBox Grid.Column="1" ItemsSource="{Binding Resolutions}" SelectedIndex="{Binding ResolutionIndex, Mode=TwoWay}"
+                                      IsEnabled="{Binding HasModes}" AutomationProperties.Name="Resolution" />
+                            <TextBlock Grid.Row="1" Classes="label" Text="Refresh rate" />
+                            <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding RefreshRates}" SelectedIndex="{Binding RefreshIndex, Mode=TwoWay}"
+                                      IsEnabled="{Binding HasModes}" AutomationProperties.Name="Refresh rate" />
+                            <TextBlock Grid.Row="2" Classes="label" Text="Orientation" />
+                            <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{x:Static vm:OutputViewModel.Orientations}"
+                                      SelectedIndex="{Binding OrientationIndex, Mode=TwoWay}" AutomationProperties.Name="Orientation" />
+                        </Grid>
+                        <TextBlock Classes="caption" Text="A change of resolution, refresh rate or orientation is undone after 15 seconds unless you keep it." Margin="0" />
+
+                        <Grid Classes="inspectorrow" ColumnDefinitions="96,*,*" ColumnSpacing="8">
+                            <TextBlock Classes="label" Text="Position" />
+                            <NumericUpDown Name="PosX" Grid.Column="1" Increment="1" FormatString="0" ShowButtonSpinner="False"
+                                           AutomationProperties.Name="Position X" ToolTip.Tip="Position X, in pixels" />
+                            <NumericUpDown Name="PosY" Grid.Column="2" Increment="1" FormatString="0" ShowButtonSpinner="False"
+                                           AutomationProperties.Name="Position Y" ToolTip.Tip="Position Y, in pixels" />
+                        </Grid>
+                        <TextBlock Name="PositionStatus" Classes="status" IsVisible="False" Margin="0" />
+
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Name="MainText" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            <Button Name="MakeMainButton" Grid.Column="1" Content="Make main" Click="OnMakeMain"
+                                    AutomationProperties.Name="Make this my main display" />
+                        </Grid>
+
+                        <StackPanel Spacing="4">
+                            <TextBlock Classes="title" Text="Brightness" />
+                            <ContentControl Content="{Binding Brightness}" ContentTemplate="{StaticResource InspectorSlider}"
+                                            HorizontalContentAlignment="Stretch" />
+                            <TextBlock Name="BrightnessNone" Classes="caption" TextWrapping="Wrap" Margin="0"
+                                       Text="No brightness control reaches this display. A monitor needs DDC/CI switched on in its own menu." />
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Classes="title" Text="Dim in software" />
+                            <ContentControl Content="{Binding Dim}" ContentTemplate="{StaticResource InspectorSlider}"
+                                            HorizontalContentAlignment="Stretch" />
+                            <TextBlock Name="DimNone" Classes="caption" TextWrapping="Wrap" Margin="0"
+                                       Text="Dimming needs gamma ramps, which this session does not offer." />
+                        </StackPanel>
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="title" Text="Night light" />
+                            <TextBlock Classes="caption" TextWrapping="Wrap" Margin="0"
+                                       Text="Night light warms every display together, so it is set once, not per display." />
+                            <HyperlinkButton Content="Open Brightness" Click="OnOpenBrightness" Padding="0,4" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Panel>
+        </Border>
+    </Grid>
 </UserControl>

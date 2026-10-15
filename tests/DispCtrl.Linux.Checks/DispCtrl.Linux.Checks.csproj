@@ -11,4 +11,10 @@
     <!-- Built alongside, so the engine can be started as a real process. -->
     <ProjectReference Include="../../src/DispCtrl.Linux/DispCtrl.Linux.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- The window process's single-instance hand-off, compiled in rather than
+         referenced: the GUI project drags Avalonia in, and this needs none. -->
+    <Compile Include="../../src/DispCtrl.Linux.Gui/Services/Instance.cs" Link="Gui/Instance.cs" />
+    <Compile Include="../../src/DispCtrl.Linux.Gui/Services/Log.cs" Link="Gui/Log.cs" />
+  </ItemGroup>
 </Project>

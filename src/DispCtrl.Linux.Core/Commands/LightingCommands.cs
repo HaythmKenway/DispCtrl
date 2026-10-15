@@ -23,13 +23,15 @@ public static partial class CommandRunner
             case [] or ["list"]:
                 try
                 {
-                    using var rgb = LightingControl.Connect(settings);
+                    using var rgb = LightingControl.ConnectOrStart(settings);
                     var devices = rgb.Devices();
+                    if (devices.Count == 0 && ListKernelLeds(c, "OpenRGB is running and found no lighting devices")) return Done;
                     if (devices.Count == 0) c.Out.WriteLine("OpenRGB is running and found no lighting devices.");
                     foreach (var dev in devices)
                     {
                         string active = dev.ActiveMode >= 0 && dev.ActiveMode < dev.Modes.Count ? dev.Modes[dev.ActiveMode].Name : "?";
                         c.Out.WriteLine($"{dev.Index + 1,2}  {dev.Name} ({dev.TypeName}, {dev.LedCount} LEDs), effect: {active}");
+                        if (dev.HasPerKeyLeds) c.Out.WriteLine($"      per-key: {dev.LedCount} LEDs (rgb key NAME COLOUR --device {dev.Index + 1})");
                         c.Out.WriteLine($"      effects: {string.Join(", ", dev.Modes.Select(m => m.Name))}");
                     }
                     if (settings.Last is { } last) c.Out.WriteLine($"\nlast set     {last}");
@@ -37,16 +39,72 @@ public static partial class CommandRunner
                 }
                 catch (Exception ex) when (ex is SocketException or IOException or AggregateException)
                 {
+                    if (ListKernelLeds(c, "OpenRGB is not running")) return Done;
                     return Refuse(c, LightingControl.Unreachable(settings));
                 }
             case ["colour" or "color", var colour]:
                 if (!LightingControl.TryColour(colour, out _)) return Wrong(c, $"'{colour}' is not a colour: #RRGGBB or {string.Join(", ", LightingControl.Named.Keys)}");
-                return Report(LightingControl.Apply(colour.StartsWith('#') ? colour.ToUpperInvariant() : LightingControl.Named.GetValueOrDefault(colour, "#" + colour.ToUpperInvariant()), device),
+                return ReportResult(LightingControl.ApplyDetailed(colour.StartsWith('#') ? colour.ToUpperInvariant() : LightingControl.Named.GetValueOrDefault(colour, "#" + colour.ToUpperInvariant()), device),
                     $"Lighting {colour}.", c);
+            case ["key" or "keys", .. var rest] when rest.Length >= 1:
+            {
+                List<(string Name, (byte R, byte G, byte B) Colour)>? entries;
+                if (verbs[0] == "key")
+                {
+                    if (rest.Length < 2) return Wrong(c, "rgb key takes NAME[,NAME...] COLOUR, such as: rgb key a,s,d,f red");
+                    if (!LightingControl.TryColour(rest[^1], out var colour)) return Wrong(c, $"'{rest[^1]}' is not a colour: #RRGGBB or {string.Join(", ", LightingControl.Named.Keys)}");
+                    entries = string.Join(' ', rest[..^1]).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(n => (n, colour)).ToList();
+                }
+                else
+                {
+                    var spec = string.Join(' ', rest);
+                    if (rest.Length == 1 && File.Exists(rest[0])) spec = File.ReadAllText(rest[0]);
+                    entries = LightingControl.ParseKeys(spec, out var why);
+                    if (entries is null) return Wrong(c, why!);
+                }
+                return Report(LightingControl.ApplyKeys(entries, device), $"{entries.Count} key{(entries.Count == 1 ? "" : "s")} set.", c);
+            }
             case ["off"]:
-                return Report(LightingControl.Apply("off", device), "Lighting off.", c);
+                return ReportResult(LightingControl.ApplyDetailed("off", device), "Lighting off.", c);
             case ["mode" or "effect", .. var name] when name.Length > 0:
-                return Report(LightingControl.Apply("mode:" + string.Join(' ', name), device), $"Effect: {string.Join(' ', name)}.", c);
+                return ReportResult(LightingControl.ApplyDetailed("mode:" + string.Join(' ', name), device), $"Effect: {string.Join(' ', name)}.", c);
+            case ["start"]:
+            {
+                var started = OpenRgbSetup.Start(settings, m => c.Out.WriteLine(m));
+                if (!started.Ok) return Refuse(c, started.Message);
+                c.Out.WriteLine(started.Message);
+                if (OpenRgbSetup.UdevAdvice(OpenRgbSetup.Find()) is { } advice) c.Out.WriteLine(advice);
+                return Done;
+            }
+            case ["setup"]:
+            {
+                var install = OpenRgbSetup.Find();
+                if (install is null)
+                {
+                    var got = OpenRgbSetup.Download(m => c.Out.WriteLine(m));
+                    if (!got.Ok) return Refuse(c, got.Message);
+                    c.Out.WriteLine(got.Message);
+                }
+                else c.Out.WriteLine($"Found {install.Describe()}.");
+                var started = OpenRgbSetup.Start(settings, m => c.Out.WriteLine(m));
+                if (!started.Ok) return Refuse(c, started.Message);
+                c.Out.WriteLine(started.Message);
+                if (OpenRgbSetup.UdevAdvice(OpenRgbSetup.Find()) is { } advice) c.Out.WriteLine(advice);
+                return Done;
+            }
+            case ["udev"]:
+            {
+                var install = OpenRgbSetup.Find();
+                if (Distribution.Distro.InSnap) return Refuse(c, OpenRgbSetup.SnapLimit()!);
+                if (install is null) return Refuse(c, "no OpenRGB found: dispctrl-linux rgb setup downloads the official one");
+                c.Out.WriteLine(OpenRgbSetup.UdevRulesInstalled() ? "OpenRGB's udev rules are installed (60-openrgb.rules)." : "OpenRGB's udev rules are not installed. As root, once (DispCtrl never runs sudo):");
+                if (!OpenRgbSetup.UdevRulesInstalled()) c.Out.WriteLine("  " + OpenRgbSetup.UdevCommand(install));
+                return Done;
+            }
+            case ["autostart", var onOff] when onOff is "on" or "off":
+                SettingsStore.Update(s => s.Lighting.AutoStart = onOff == "on");
+                c.Out.WriteLine($"Starting OpenRGB by itself: {onOff}.");
+                return Done;
             case ["server", var address]:
             {
                 var parts = address.Split(':');
@@ -58,14 +116,26 @@ public static partial class CommandRunner
                 return Done;
             }
             default:
-                return Wrong(c, "rgb takes list, colour COLOUR, off, mode NAME or server HOST[:PORT], and --device N");
+                return Wrong(c, "rgb takes list, colour COLOUR, key NAMES COLOUR, keys NAME=COLOUR,... | FILE, off, mode NAME or server HOST[:PORT], and --device N");
         }
 
-        static int Report(List<string> problems, string done, CommandContext c)
+        static int Report(List<string> problems, string done, CommandContext c) => ReportResult(new LightingControl.Result(problems, []), done, c);
+
+        static int ReportResult(LightingControl.Result result, string done, CommandContext c)
         {
-            foreach (var p in problems) c.Err.WriteLine($"dispctrl-linux: {p}");
-            if (problems.Count == 0) c.Out.WriteLine(done);
-            return problems.Count == 0 ? Done : Refused;
+            foreach (var p in result.Problems) c.Err.WriteLine($"dispctrl-linux: {p}");
+            if (result.Problems.Count == 0) c.Out.WriteLine(done);
+            foreach (var n in result.Notes) c.Out.WriteLine($"note: {n}");
+            return result.Problems.Count == 0 ? Done : Refused;
+        }
+
+        static bool ListKernelLeds(CommandContext c, string why)
+        {
+            var leds = SysfsLeds.Enumerate();
+            if (leds.Count == 0) return false;
+            c.Out.WriteLine($"{why}: these are the keyboard backlights the kernel exposes (the basic path; dispctrl-linux rgb setup adds every other device and effects).");
+            for (int i = 0; i < leds.Count; i++) c.Out.WriteLine($"{i + 1,2}  {leds[i].Describe()}");
+            return true;
         }
     }
 }

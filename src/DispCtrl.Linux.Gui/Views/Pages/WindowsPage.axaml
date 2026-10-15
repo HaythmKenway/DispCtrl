@@ -59,6 +59,7 @@
                     </Border>
                     <Border Classes="card">
                         <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                            <ui:FASymbolIcon Classes="cardicon" Symbol="ViewAll" />
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                 <TextBlock Classes="title" Text="Space between windows" />
                                 <TextBlock Classes="caption" Text="Between snapped windows, and between them and the screen's edges." />

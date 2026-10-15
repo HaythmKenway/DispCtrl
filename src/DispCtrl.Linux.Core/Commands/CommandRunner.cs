@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Reflection;
+using DispCtrl.Linux.Diagnostics;
 using DispCtrl.Linux.Distribution;
 using DispCtrl.Linux.Engine;
 using DispCtrl.Linux.Hardware;
@@ -70,7 +71,7 @@ public static partial class CommandRunner
         "tray", "unison", "pin", "placement", "features", "rgb", "lighting", "oled", "focus", "monitor-sleep", "roomlight", "wallpaper", "version",
     };
 
-    private static readonly HashSet<string> BareFlags = new(StringComparer.Ordinal) { "--all", "--local", "--json", "--open", "--url" };
+    private static readonly HashSet<string> BareFlags = new(StringComparer.Ordinal) { "--all", "--local", "--json", "--open", "--url", "--mail", "--mail-url", "--path" };
 
     public static string Version =>
         typeof(CommandRunner).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0]
@@ -105,6 +106,7 @@ public static partial class CommandRunner
                 "roomlight" or "room-light" => RoomLightCommand(args[1..], context),
                 "update" => UpdateCommand(args[1..], context),
                 "report" => ReportCommand(args[1..], context),
+                "logs" => LogsCommand(args[1..], context),
                 "wallpaper" => WallpaperCommand(args[1..], context),
                 "triggers" => TriggersCommand(args[1..], context),
                 "placement" => PlacementCommand(args[1..], context),
@@ -122,11 +124,13 @@ public static partial class CommandRunner
         }
         catch (IOException ex)
         {
+            AppLog.Warn("command", $"'{args[0]}' failed: {ex.Message}");
             context.Err.WriteLine($"dispctrl-linux: {ex.Message}");
             return Refused;
         }
         catch (UnauthorizedAccessException ex)
         {
+            AppLog.Warn("command", $"'{args[0]}' failed: {ex.Message}");
             context.Err.WriteLine($"dispctrl-linux: {ex.Message}");
             return Refused;
         }
@@ -192,8 +196,15 @@ public static partial class CommandRunner
 
           rgb [list]                               keyboard, mouse, fan and strip lighting, through OpenRGB's SDK server
           rgb colour <#RRGGBB|name> [--device N]   one colour (warm, white, red, blue, purple ...)
+          rgb key <NAME[,NAME...]> <colour> [--device N]   light single keys: a, "left shift", F5, "led 12" (keyboards with a light per key)
+          rgb keys <NAME=COLOUR,...|FILE> [--device N]     several keys at once; a file holds one NAME=COLOUR per line
           rgb off | rgb mode <effect> [--device N] off, or one of the device's own effects (Rainbow Wave ...)
           rgb server HOST[:PORT]                   where OpenRGB listens (127.0.0.1:6742)
+          rgb start                                start OpenRGB's server headless (found on PATH, ~/.local/bin, Flatpak, snap or our own copy)
+          rgb setup                                download the official OpenRGB AppImage (SHA-256 checked) if none is found, then start it
+          rgb udev                                 whether OpenRGB's udev rules are installed, and the one-line root command if not
+          rgb autostart on|off                     start OpenRGB by itself when a lighting command finds it stopped (on)
+          (without OpenRGB, a laptop's keyboard backlight in /sys/class/leds is used: colour where it has one, else brightness)
 
           features [list]                          named steps: commands, wait MS, run PROGRAM
           features add NAME "STEP; STEP; ..."      e.g. features add Late "nightlight 80; dim 0.6 --all"
@@ -240,7 +251,10 @@ public static partial class CommandRunner
           hotkeys remove | on | off <keys|N>       hotkeys reset: the defaults
           wallpaper <picture>                      the desktop's picture (GNOME, KDE, XFCE)
           update [check]                           whether a newer release is out (one request, nothing downloaded)
-          report [--what "..."] [--open]           diagnostics for a problem report, serials and your name removed
+          report [--what "..."] [--open]           diagnostics and the log's end for a problem report, serials and your name removed
+          report --url | --mail | --mail-url       the GitHub issue's address; an email to the author (opened for you to read and send)
+          report --save [FILE]                     the whole redacted report and log in a file to attach (default: your home folder)
+          logs [--tail N] [--path] [--open]        the last lines of the log, where it is kept, or its folder opened
           engine [run] | status | stop             the resident engine (docs/LINUX.md)
           version
 
@@ -650,12 +664,16 @@ public static partial class CommandRunner
 
     private static int Wrong(CommandContext c, string message)
     {
+        AppLog.Debug("command", $"asked wrongly: {message}");
         c.Err.WriteLine($"dispctrl-linux: {message}");
         return AskedWrongly;
     }
 
     private static int Refuse(CommandContext c, string message)
     {
+        // Every hardware refusal passes through here, so the log keeps the reason
+        // a command did nothing.
+        AppLog.Warn("command", $"refused: {message}");
         c.Err.WriteLine($"dispctrl-linux: {message}");
         return Refused;
     }

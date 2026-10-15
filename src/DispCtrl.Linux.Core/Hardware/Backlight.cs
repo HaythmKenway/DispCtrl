@@ -46,6 +46,9 @@ public static class Backlight
             error = $"no backlight device '{deviceName}'";
             return false;
         }
+        // Raw 0 switches an OLED or amdgpu panel off completely, and nothing
+        // but a keypress or a reboot brings it back. 1% is the dimmest written.
+        value = Math.Max(value, MinimumRaw(Enumerate().First(b => b.Name == deviceName).Max));
         var path = Path.Combine(Root, deviceName, "brightness");
         try
         {
@@ -57,6 +60,7 @@ public static class Backlight
             // The usual case: sysfs is root's. logind lets the active session's
             // own user set it, with no udev rule or group membership.
             if (TrySetThroughLogind(deviceName, value, out var logindError)) return true;
+            Diagnostics.AppLog.Warn("backlight", $"{deviceName}: sysfs write denied and logind refused: {logindError}");
             error = $"permission denied writing {path}, and logind refused too ({logindError}). "
                 + "Install the backlight udev rule and join the video group (docs/LINUX.md, \"Backlight\"), or run from the active local session.";
             return false;
@@ -67,6 +71,8 @@ public static class Backlight
             return false;
         }
     }
+
+    internal static int MinimumRaw(int max) => Math.Max(1, (int)Math.Round(max * 0.01));
 
     /// <summary>logind's <c>Session.SetBrightness</c> (systemd 243 and later,
     /// and elogind on distributions without systemd), through whichever D-Bus

@@ -12,15 +12,37 @@ public sealed record RgbMode(int Index, string Name, int Value, uint Flags, uint
     public const uint ColorModeNone = 0, ColorModePerLed = 1, ColorModeSpecific = 2;
 }
 
-/// <summary>A keyboard, mouse, fan hub, LED strip or other RGB device OpenRGB controls.</summary>
-public sealed record RgbDevice(int Index, string Name, string Vendor, int Type, int ActiveMode, IReadOnlyList<RgbMode> Modes, int LedCount)
+/// <summary>One LED of a device, by the name its driver gives it ("Key: A").</summary>
+public sealed record RgbLed(string Name, uint Value);
+
+/// <summary>A group of a device's LEDs. <paramref name="Map"/>, when the driver
+/// supplies one, is <paramref name="MatrixHeight"/> rows of
+/// <paramref name="MatrixWidth"/> cells, each the zone's LED index at that
+/// place, or <see cref="NoLed"/> where there is none.</summary>
+public sealed record RgbZone(string Name, int Type, int LedsMin, int LedsMax, int LedsCount, int MatrixHeight, int MatrixWidth, uint[] Map)
 {
+    public const uint NoLed = 0xFFFFFFFF;
+    public bool HasMatrix => MatrixHeight > 0 && MatrixWidth > 0 && Map.Length == MatrixHeight * MatrixWidth;
+}
+
+/// <summary>A keyboard, mouse, fan hub, LED strip or other RGB device OpenRGB controls.</summary>
+/// <remarks>
+/// <paramref name="Leds"/>, <paramref name="Zones"/> and <paramref name="Colours"/>
+/// (each LED's colour as OpenRGB last knew it, red in the low byte) are empty
+/// for a device built without them.
+/// </remarks>
+public sealed record RgbDevice(int Index, string Name, string Vendor, int Type, int ActiveMode, IReadOnlyList<RgbMode> Modes, int LedCount,
+    IReadOnlyList<RgbLed>? Leds = null, IReadOnlyList<RgbZone>? Zones = null, IReadOnlyList<uint>? Colours = null)
+{
+    /// <summary>A keyboard, keypad or laptop keyboard with enough LEDs to light key by key; one backlight LED is a colour only.</summary>
+    public bool HasPerKeyLeds => LedCount > 8 && Type is 5 or 18 or 19;
+
     /// <summary>OpenRGB's device types, by number.</summary>
     public string TypeName => Type switch
     {
         0 => "motherboard", 1 => "memory", 2 => "graphics card", 3 => "cooler", 4 => "LED strip", 5 => "keyboard",
         6 => "mouse", 7 => "mouse mat", 8 => "headset", 9 => "headset stand", 10 => "gamepad", 11 => "light", 12 => "speaker",
-        13 => "virtual", 14 => "storage", 15 => "case", 16 => "microphone", 17 => "accessory", 18 => "keypad",
+        13 => "virtual", 14 => "storage", 15 => "case", 16 => "microphone", 17 => "accessory", 18 => "keypad", 19 => "laptop",
         _ => "device",
     };
 }
@@ -79,6 +101,13 @@ public sealed class OpenRgb : IDisposable
         Send(0, SetClientName, Encoding.UTF8.GetBytes("DispCtrl\0"));
     }
 
+    /// <summary>One device, read afresh: its colours are what OpenRGB holds now.</summary>
+    public RgbDevice Device(int index)
+    {
+        Send((uint)index, RequestControllerData, _protocol > 0 ? U32(_protocol) : []);
+        return Parse(index, Receive(RequestControllerData), _protocol);
+    }
+
     public IReadOnlyList<RgbDevice> Devices()
     {
         Send(0, RequestControllerCount, []);
@@ -86,16 +115,31 @@ public sealed class OpenRgb : IDisposable
         var devices = new List<RgbDevice>();
         for (int i = 0; i < count; i++)
         {
-            Send((uint)i, RequestControllerData, _protocol > 0 ? U32(_protocol) : []);
-            devices.Add(Parse(i, Receive(RequestControllerData), _protocol));
+            devices.Add(Device(i));
         }
         return devices;
     }
 
     /// <summary>Every LED of the device one colour, in its direct (custom) mode.</summary>
+    /// <remarks>
+    /// The server's SetCustomMode only flips its own record of the active mode;
+    /// the device is told nothing, so a keyboard running a hardware effect (or
+    /// a mode the server merely believed it was in) ignores the colours that
+    /// follow. The mode is therefore sent in full (UpdateMode) before the LEDs,
+    /// which makes the device switch to it and take its brightness.
+    /// </remarks>
     public void SetColour(RgbDevice device, byte r, byte g, byte b)
     {
-        Send((uint)device.Index, SetCustomMode, []);
+        var mode = CustomMode(device);
+        if (mode is not null && mode.ColorMode != RgbMode.ColorModePerLed)
+        {
+            SetMode(device, mode, (r, g, b));
+            return;
+        }
+        if (mode is not null)
+            Send((uint)device.Index, UpdateMode, SerializeMode(mode with { Brightness = mode.BrightnessMax > 0 ? mode.BrightnessMax : mode.Brightness }, _protocol));
+        else
+            Send((uint)device.Index, SetCustomMode, []);
         var body = new byte[4 + 2 + device.LedCount * 4];
         BinaryPrimitives.WriteUInt32LittleEndian(body, (uint)body.Length);
         BinaryPrimitives.WriteUInt16LittleEndian(body.AsSpan(4), (ushort)device.LedCount);
@@ -106,6 +150,47 @@ public sealed class OpenRgb : IDisposable
             body[8 + i * 4] = b;
         }
         Send((uint)device.Index, UpdateLeds, body);
+    }
+
+    /// <summary>Sets individual LEDs (by their index on the device) to their own
+    /// colours, in a mode that takes one colour per LED; the others keep the
+    /// colour OpenRGB holds for them.</summary>
+    /// <remarks>
+    /// The device is read again first: the colours <paramref name="device"/>
+    /// carries may be older than another program's change. A device whose modes
+    /// all take one colour at most (or none) cannot light key by key, which is
+    /// said rather than shown as a colour on every key.
+    /// </remarks>
+    public void SetLeds(RgbDevice device, IReadOnlyDictionary<int, (byte R, byte G, byte B)> colours)
+    {
+        var mode = device.Modes.FirstOrDefault(m => m.Name is "Direct" or "Custom" && m.ColorMode == RgbMode.ColorModePerLed)
+            ?? device.Modes.FirstOrDefault(m => m.ColorMode == RgbMode.ColorModePerLed)
+            ?? throw new IOException($"{device.Name} has no effect that takes a colour for each LED");
+        var current = Device(device.Index).Colours ?? [];
+        var body = new byte[4 + 2 + device.LedCount * 4];
+        BinaryPrimitives.WriteUInt32LittleEndian(body, (uint)body.Length);
+        BinaryPrimitives.WriteUInt16LittleEndian(body.AsSpan(4), (ushort)device.LedCount);
+        for (int i = 0; i < device.LedCount; i++)
+        {
+            uint packed = i < current.Count ? current[i] : 0;
+            if (colours.TryGetValue(i, out var c)) packed = Pack(c.R, c.G, c.B);
+            BinaryPrimitives.WriteUInt32LittleEndian(body.AsSpan(6 + i * 4), packed);
+        }
+        Send((uint)device.Index, UpdateMode, SerializeMode(mode with { Brightness = mode.BrightnessMax > 0 ? mode.BrightnessMax : mode.Brightness }, _protocol));
+        Send((uint)device.Index, UpdateLeds, body);
+    }
+
+    /// <summary>The mode OpenRGB's own SetCustomMode would pick: Direct, Custom
+    /// or Static, whichever the device has first and takes a colour.</summary>
+    private static RgbMode? CustomMode(RgbDevice device)
+    {
+        foreach (var name in new[] { "Direct", "Custom", "Static" })
+        {
+            var mode = device.Modes.FirstOrDefault(m => m.Name == name
+                && (m.ColorMode == RgbMode.ColorModePerLed || m.ColorMode == RgbMode.ColorModeSpecific));
+            if (mode is not null) return mode;
+        }
+        return null;
     }
 
     /// <summary>Switches the device to one of its own effects; a colour, when
@@ -152,13 +237,25 @@ public sealed class OpenRgb : IDisposable
                 speed, brightness, direction, colorMode, colors));
         }
         int zoneCount = r.U16();
+        var zones = new List<RgbZone>();
         for (int z = 0; z < zoneCount; z++)
         {
-            r.Str();
-            r.I32();
-            r.U32(); r.U32(); r.U32();      // leds min, max, count
+            string zoneName = r.Str();
+            int zoneType = r.I32();
+            int ledsMin = (int)r.U32(), ledsMax = (int)r.U32(), ledsCount = (int)r.U32();
             int matrix = r.U16();
-            r.Skip(matrix);
+            int height = 0, width = 0;
+            uint[] map = [];
+            if (matrix >= 8)
+            {
+                // The size counts its own two header words: height, width, then the cells.
+                height = (int)r.U32();
+                width = (int)r.U32();
+                map = new uint[(matrix - 8) / 4];
+                for (int k = 0; k < map.Length; k++) map[k] = r.U32();
+            }
+            else r.Skip(matrix);
+            zones.Add(new RgbZone(zoneName, zoneType, ledsMin, ledsMax, ledsCount, height, width, map));
             if (protocol >= 4)
             {
                 int segments = r.U16();
@@ -166,8 +263,15 @@ public sealed class OpenRgb : IDisposable
             }
         }
         int ledCount = r.U16();
-        for (int l = 0; l < ledCount; l++) { r.Str(); r.U32(); }
-        return new RgbDevice(index, name, vendor, type, active, modes, ledCount);
+        var leds = new List<RgbLed>();
+        for (int l = 0; l < ledCount; l++) leds.Add(new RgbLed(r.Str(), r.U32()));
+        var current = new List<uint>();
+        if (r.Remaining >= 2)
+        {
+            int n = r.U16();
+            for (int k = 0; k < n && r.Remaining >= 4; k++) current.Add(r.U32());
+        }
+        return new RgbDevice(index, name, vendor, type, active, modes, ledCount, leds, zones, current);
     }
 
     internal static byte[] SerializeMode(RgbMode mode, uint protocol)
@@ -245,6 +349,7 @@ public sealed class OpenRgb : IDisposable
         public uint U32() { var v = BinaryPrimitives.ReadUInt32LittleEndian(_data[_at..]); _at += 4; return v; }
         public int I32() { var v = BinaryPrimitives.ReadInt32LittleEndian(_data[_at..]); _at += 4; return v; }
         public ushort U16() { var v = BinaryPrimitives.ReadUInt16LittleEndian(_data[_at..]); _at += 2; return v; }
+        public int Remaining => _data.Length - _at;
         public void Skip(int n) => _at += n;
 
         public string Str()
