@@ -27,7 +27,7 @@ from a window, a tray icon with a quick panel, and a scriptable command line.
 - **Screen care**: keep awake, Stay active (a one-pixel nudge after 55 seconds still), OLED care, Focus mode, monitor sleep, turning the displays off.
 - **Every display together**: unison brightness, each display in its own range, and room light from the ambient light sensor.
 - **Automation**: hotkeys for any command, features (named steps) and triggers; presets that apply when a desk connects or an app is in front.
-- **RGB lighting** for keyboards, mice, fans and strips, through OpenRGB.
+- **RGB lighting** for keyboards, mice, fans and strips, through OpenRGB: per-key colours on a drawn keyboard, saved colour sets, and a fix for colours that show in the wrong order.
 - **Window tools**: pin on top, gather, move a window to another display, span.
 - **Snap layouts and Snap Assist**: drag a window to the top centre, or press Super+Z.
 - **A tray icon and quick panel** with all of it one click away, and `dispctrl-linux` for scripts.
@@ -54,6 +54,8 @@ sudo dnf install dispctrl-linux
 ```
 
 openSUSE and the key's fingerprint are in [the install guide](docs/LINUX.md#from-the-apt-or-dnf-repository).
+
+Install one way only: the snap, the packages and the tarball refuse to sit side by side.
 
 The snap cannot reach monitors over DDC/CI under strict confinement. For an external monitor's own brightness and controls, build the `.deb`, `.rpm` or tarball (below; with .NET inside, for x86-64 and 64-bit ARM); they will be attached to this repository's releases from the first one. [Install](docs/LINUX.md#install) has the details.
 
