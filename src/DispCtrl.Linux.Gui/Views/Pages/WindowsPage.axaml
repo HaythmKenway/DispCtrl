@@ -4,7 +4,7 @@
              x:Class="DispCtrl.Linux.Gui.Views.Pages.WindowsPage">
     <Panel Name="Root">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Classes="page">
+            <StackPanel Name="Body" Classes="page">
                 <TextBlock Classes="pagetitle" Text="Windows" />
                 <TextBlock Classes="pagesubtitle"
                            Text="Snap layouts and Snap Assist, as on Windows 11: Windows has them built in, so DispCtrl for Windows leaves them to it." />

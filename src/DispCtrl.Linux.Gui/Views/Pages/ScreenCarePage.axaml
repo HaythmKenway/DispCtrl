@@ -4,7 +4,7 @@
              x:Class="DispCtrl.Linux.Gui.Views.Pages.ScreenCarePage">
     <Panel Name="Root">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Classes="page">
+            <StackPanel Name="Body" Classes="page">
                 <TextBlock Classes="pagetitle" Text="Screen care" />
                 <TextBlock Classes="pagesubtitle"
                            Text="Keep the computer awake, keep apps seeing you there, and turn the displays off." />

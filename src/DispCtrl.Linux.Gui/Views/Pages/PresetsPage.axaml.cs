@@ -78,6 +78,13 @@ public partial class PresetsPage : UserControl
         if (sender is MenuItem { Tag: string name }) await Run(null, ListStatus, ["preset", "save", name]);
     }
 
+    private async void OnDesk(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string name }) return;
+        bool on = SettingsStore.Load().Presets.FirstOrDefault(p => p.Name == name)?.Desk != true;
+        await Run(null, ListStatus, ["preset", "desk", name, on ? "on" : "off"]);
+    }
+
     private async void OnDelete(object? sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem { Tag: string name }) return;

@@ -12,7 +12,7 @@
     </UserControl.Styles>
     <Panel Name="Root">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Classes="page">
+            <StackPanel Name="Body" Classes="page">
                 <TextBlock Classes="pagetitle" Text="Settings" />
                 <TextBlock Classes="pagesubtitle" Text="The engine that keeps your settings applied, and where they are kept." />
 

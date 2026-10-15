@@ -92,12 +92,31 @@ public sealed unsafe class Overlay : IDisposable
 
     /// <summary>Draws a frame: <paramref name="draw"/> paints onto a cleared
     /// offscreen canvas in this overlay's coordinates, which is then shown.</summary>
-    public void Paint(Action<Canvas> draw)
+    public void Paint(Action<Canvas> draw) => Paint(draw, fadeIn: false);
+
+    /// <summary>As <see cref="Paint(Action{Canvas})"/>; with
+    /// <paramref name="fadeIn"/> the frame comes up over about 80 ms, as
+    /// Windows 11's flyouts do, rather than snapping on.</summary>
+    public void Paint(Action<Canvas> draw, bool fadeIn)
     {
         using var buffer = Canvas.Image(Bounds.Width, Bounds.Height);
         buffer.Clear();
         draw(buffer);
         using var screen = Canvas.OnXlib(_x.Display, Window, _visual, Bounds.Width, Bounds.Height);
+        if (fadeIn && !_mapped)
+        {
+            using var blank = Canvas.Image(Bounds.Width, Bounds.Height);
+            blank.Clear();
+            screen.Blit(blank);
+            Xlib.XMapRaised(_x.Display, Window);
+            _mapped = true;
+            foreach (var alpha in new[] { 0.3, 0.55, 0.8 })
+            {
+                screen.Blit(buffer, alpha);
+                _x.Flush();
+                Thread.Sleep(16);
+            }
+        }
         screen.Blit(buffer);
         if (!_mapped)
         {

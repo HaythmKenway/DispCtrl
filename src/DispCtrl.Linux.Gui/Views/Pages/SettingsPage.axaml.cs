@@ -4,6 +4,7 @@ using Avalonia.Interactivity;
 using DispCtrl.Linux.Commands;
 using DispCtrl.Linux.Distribution;
 using DispCtrl.Linux.Gui.Services;
+using Avalonia.Platform.Storage;
 using DispCtrl.Linux.Settings;
 
 namespace DispCtrl.Linux.Gui.Views.Pages;
@@ -34,6 +35,42 @@ public partial class SettingsPage : UserControl
             if (on && Application.Current is App app) app.EnsureTray();
         };
         TrayClick.SelectionChanged += (_, _) => _ = DeskActions.RunAsync("tray", "click", TrayClick.SelectedIndex == 1 ? "window" : "panel");
+        AddSupport();
+    }
+
+    /// <summary>Updates, the wallpaper and a problem report.</summary>
+    private void AddSupport()
+    {
+        int at = Body.Children.IndexOf(Body.Children.OfType<TextBlock>().First(t => t.Text == "About"));
+        TextBlock updateStatus = null!, reportStatus = null!, wallStatus = null!;
+        var check = new Button { Content = "Check now" };
+        var updates = Views.CardBuilder.Card(FluentAvalonia.UI.Controls.FASymbol.Refresh, "Updates",
+            Distro.InSnap ? "The Snap Store updates DispCtrl by itself." : "One request to this project's releases; nothing is downloaded.", check, out updateStatus);
+        check.Click += async (_, _) =>
+        {
+            check.IsEnabled = false;
+            var reply = await CommandSender.RunAsync(["update"]);
+            check.IsEnabled = true;
+            updateStatus.Classes.Set("status", reply.ExitCode != 0);
+            Views.CardBuilder.Show(updateStatus, reply.ExitCode == 0 ? reply.Stdout.Trim().Split('\n')[^1] : CommandSender.Reason(reply));
+        };
+        var wall = new Button { Content = "Choose a picture…" };
+        wall.Click += async (_, _) =>
+        {
+            if (TopLevel.GetTopLevel(this)?.StorageProvider is not { } storage) return;
+            var files = await storage.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions
+            {
+                Title = "Wallpaper",
+                FileTypeFilter = [Avalonia.Platform.Storage.FilePickerFileTypes.ImageAll],
+            });
+            if (files.FirstOrDefault()?.TryGetLocalPath() is { } path) Views.CardBuilder.Show(wallStatus, await DeskActions.RunAsync("wallpaper", path));
+        };
+        var wallpaper = Views.CardBuilder.Card(FluentAvalonia.UI.Controls.FASymbol.Image, "Wallpaper", "The desktop's picture (GNOME shows one on every display).", wall, out wallStatus);
+        var report = new Button { Content = "Report a problem…" };
+        report.Click += async (_, _) => Views.CardBuilder.Show(reportStatus, await DeskActions.RunAsync("report", "--open"));
+        var problem = Views.CardBuilder.Card(FluentAvalonia.UI.Controls.FASymbol.Alert, "Report a problem",
+            "Opens a GitHub issue with what DispCtrl can see here, serial numbers and your name taken out, for you to read before sending.", report, out reportStatus);
+        Body.Children.InsertRange(at, [Views.CardBuilder.Section("Desktop and support"), wallpaper, updates, problem]);
     }
 
     private bool? _running;

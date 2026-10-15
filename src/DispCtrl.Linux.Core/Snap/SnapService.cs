@@ -404,7 +404,12 @@ public sealed unsafe class SnapService : IDisposable
         if (overlay is null) return;
 
         ZoneRef? hover = null;
-        void Draw() => overlay.Paint(c => SnapPainter.Panel(c, panel, hover, _settings.Gap, _theme, monitor.Bounds));
+        bool first = true;
+        void Draw()
+        {
+            overlay.Paint(c => SnapPainter.Panel(c, panel, hover, _settings.Gap, _theme, monitor.Bounds), fadeIn: first);
+            first = false;
+        }
         Draw();
         if (!overlay.Grab())
         {
@@ -497,7 +502,12 @@ public sealed unsafe class SnapService : IDisposable
             if (candidates.Count == 0) break;
             var zone = panel.Target(new ZoneRef(filled.Layout, zoneIndex), _settings.Gap);
             int? hover = null;
-            void Draw() => overlay.Paint(c => SnapPainter.Assist(c, zone, candidates, hover, _theme, monitor.Bounds, pictures.Draw));
+            bool first = true;
+            void Draw()
+            {
+                overlay.Paint(c => SnapPainter.Assist(c, zone, candidates, hover, _theme, monitor.Bounds, pictures.Draw), fadeIn: first);
+                first = false;
+            }
             Draw();
             if (!overlay.Grab()) break;
 

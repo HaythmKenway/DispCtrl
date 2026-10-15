@@ -1,3 +1,5 @@
+using Avalonia.Controls.Primitives;
+using DispCtrl.Linux.Gui.Views;
 using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Threading;
@@ -18,6 +20,7 @@ public partial class WindowsPage : UserControl
     public WindowsPage()
     {
         InitializeComponent();
+        AddWindowTools();
         PageWidth.Track(this, Root);
 
         SnapSwitch.IsCheckedChanged += (_, _) => SendSnap(["snap", SnapSwitch.IsChecked == true ? "on" : "off"]);
@@ -99,5 +102,51 @@ public partial class WindowsPage : UserControl
     {
         block.Text = text ?? "";
         block.IsVisible = !string.IsNullOrEmpty(text);
+    }
+
+    private readonly StackPanel _windows = Views.CardBuilder.List();
+
+    /// <summary>The open windows, each with pin and move, and gather: the
+    /// Windows app's window tools.</summary>
+    private void AddWindowTools()
+    {
+        Body.Children.Add(Views.CardBuilder.Section("Window tools"));
+        TextBlock status = null!;
+        var gather = new Button { Content = "Gather here" };
+        gather.Click += async (_, _) => { CardBuilder.Show(status, await Services.DeskActions.RunAsync("placement", "gather", "--to", "pointer")); await LoadWindowsAsync(); };
+        Body.Children.Add(Views.CardBuilder.Card(FluentAvalonia.UI.Controls.FASymbol.ViewAll, "Gather every window",
+            "Onto the display the pointer is on. Ctrl+Alt+G does it from anywhere.", gather, out status));
+        TextBlock unpinStatus = null!;
+        var unpin = new Button { Content = "Unpin all" };
+        unpin.Click += async (_, _) => { CardBuilder.Show(unpinStatus, await Services.DeskActions.RunAsync("pin", "off", "--all")); await LoadWindowsAsync(); };
+        Body.Children.Add(Views.CardBuilder.Card(FluentAvalonia.UI.Controls.FASymbol.Pin, "Windows on top",
+            "A pinned window stays above the others. Ctrl+Alt+P pins or unpins the one in front.", unpin, out unpinStatus));
+        Body.Children.Add(Views.CardBuilder.Section("Open windows"));
+        Body.Children.Add(_windows);
+        AttachedToVisualTree += (_, _) => _ = LoadWindowsAsync();
+    }
+
+    private async Task LoadWindowsAsync()
+    {
+        var list = await Task.Run(() =>
+        {
+            using var x = X11.XConnection.Open();
+            return x is null ? null : X11.Desktop.Windows(x, includeMinimized: false).Where(w => w.AppClass != "dispctrl-linux").ToList();
+        });
+        _windows.Children.Clear();
+        if (list is null) { _windows.Children.Add(Views.CardBuilder.Caption("No X display: window tools need an X11 session.")); return; }
+        foreach (var w in list.Take(30))
+        {
+            string id = $"0x{w.Id:x}";
+            TextBlock status = null!;
+            var pin = new ToggleButton { Content = w.Above ? "Pinned" : "Pin", IsChecked = w.Above };
+            pin.Click += async (_, _) => { CardBuilder.Show(status, await Services.DeskActions.RunAsync("pin", pin.IsChecked == true ? "on" : "off", "--window", id)); pin.Content = pin.IsChecked == true ? "Pinned" : "Pin"; };
+            var move = new Button { Content = "Next display" };
+            move.Click += async (_, _) => CardBuilder.Show(status, await Services.DeskActions.RunAsync("placement", "move", "--window", id, "--to", "next"));
+            var span = new Button { Content = "Span" };
+            span.Click += async (_, _) => CardBuilder.Show(status, await Services.DeskActions.RunAsync("placement", "span", "--window", id));
+            var row = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { pin, move, span } };
+            _windows.Children.Add(Views.CardBuilder.Card(null, string.IsNullOrWhiteSpace(w.Title) ? w.AppClass ?? id : w.Title, w.AppClass, row, out status));
+        }
     }
 }

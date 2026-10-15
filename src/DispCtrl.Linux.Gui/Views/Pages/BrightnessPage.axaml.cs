@@ -47,8 +47,41 @@ public partial class BrightnessPage : UserControl
 
         LoadNightLight();
         _ = LoadThemeAsync();
+        AddUnison();
         AttachedToVisualTree += (_, _) => { _desk.Changed += Refresh; Refresh(); _ = LoadThemeAsync(); };
         DetachedFromVisualTree += (_, _) => _desk.Changed -= Refresh;
+    }
+
+    private bool _unisonReady;
+
+    /// <summary>Unison and room light, after the theme: built in code, as the
+    /// newer pages are.</summary>
+    private void AddUnison()
+    {
+        var s = SettingsStore.Load();
+        int at = Body.Children.IndexOf(Body.Children.OfType<TextBlock>().First(t => t.Text == "Dim in software"));
+        var cards = new List<Control> { Views.CardBuilder.Section("Every display together") };
+        TextBlock status = null!;
+        var unison = Views.CardBuilder.Switch(s.Unison.Enabled);
+        unison.IsCheckedChanged += (_, _) => { if (_unisonReady) _desk.Sender.Post("unison-on", ["unison", unison.IsChecked == true ? "on" : "off"], e => Views.CardBuilder.Show(status, e)); };
+        cards.Add(Views.CardBuilder.Card(FluentAvalonia.UI.Controls.FASymbol.WeatherSunny, "Unison",
+            "One level for every display, each within its own range (dispctrl-linux unison range). The brightness hotkeys and the tray's wheel move it.", unison, out status));
+        TextBlock levelStatus = null!;
+        cards.Add(Views.CardBuilder.Card(null, "Level", null, Views.CardBuilder.Slider(0, 100, s.Unison.Level, v => $"{Math.Round(v)}%",
+            v => { if (_unisonReady) _desk.Sender.Post("unison", ["unison", ((int)v).ToString(CultureInfo.InvariantCulture)], e => Views.CardBuilder.Show(levelStatus, e)); }, "Unison level"), out levelStatus));
+        TextBlock roomStatus = null!;
+        var room = Views.CardBuilder.Switch(s.RoomLight.Enabled);
+        room.IsCheckedChanged += async (_, _) =>
+        {
+            if (!_unisonReady) return;
+            var reply = await CommandSender.RunAsync(["roomlight", room.IsChecked == true ? "on" : "off"]);
+            var sensor = reply.Stdout.Split('\n').FirstOrDefault(l => l.StartsWith("sensor", StringComparison.Ordinal))?[13..];
+            Views.CardBuilder.Show(roomStatus, reply.ExitCode != 0 ? CommandSender.Reason(reply) : room.IsChecked == true && sensor is not null && !sensor.Contains("lux", StringComparison.Ordinal) ? sensor : null);
+        };
+        cards.Add(Views.CardBuilder.Card(FluentAvalonia.UI.Controls.FASymbol.WeatherPartlyCloudyDay, "Follow the room's light",
+            $"Unison follows the ambient light sensor, from {s.RoomLight.Min}% in the dark to {s.RoomLight.Max}% in bright light (iio-sensor-proxy).", room, out roomStatus));
+        Body.Children.InsertRange(at, cards);
+        _unisonReady = true;
     }
 
     private bool _themeReady;

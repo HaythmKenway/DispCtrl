@@ -35,6 +35,8 @@ public partial class QuickPanel : Window
         AwakeTile.IsCheckedChanged += (_, _) => Toggle(AwakeTile, on => DeskActions.Awake(on ? "on" : "off"));
         StayActiveTile.IsCheckedChanged += (_, _) => Toggle(StayActiveTile, on => DeskActions.StayActive(on));
         SnapTile.IsCheckedChanged += (_, _) => Toggle(SnapTile, on => DeskActions.Snap(on));
+        FocusTile.IsCheckedChanged += (_, _) => Toggle(FocusTile, on => DeskActions.RunAsync("focus", on ? "on" : "off"));
+        OledTile.IsCheckedChanged += (_, _) => Toggle(OledTile, on => DeskActions.RunAsync("oled", on ? "on" : "off"));
         StrengthSlider.PropertyChanged += (_, e) =>
         {
             if (e.Property != RangeBase.ValueProperty) return;
@@ -43,10 +45,10 @@ public partial class QuickPanel : Window
             if (_ready) Desk.Current.Sender.Post("nightlight", ["nightlight", strength.ToString(CultureInfo.InvariantCulture)], Show);
         };
 
-        // Clicking anywhere else closes it, as Windows' own panel does.
-        Deactivated += (_, _) => Close();
-        KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Escape) Close(); };
-        Opened += async (_, _) => await LoadAsync();
+        // Clicking anywhere else hides it, as Windows' own panel does. Hidden,
+        // not closed: building it again took most of a second on each click.
+        Deactivated += (_, _) => Hide();
+        KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Escape) Hide(); };
     }
 
     /// <summary>Opens beside the pointer, which is on the tray icon: below it
@@ -67,6 +69,7 @@ public partial class QuickPanel : Window
         }
         Show();
         Activate();
+        _ = LoadAsync();
     }
 
     private static (int X, int Y) Pointer()
@@ -89,6 +92,8 @@ public partial class QuickPanel : Window
         AwakeLabel.Text = awake && s.Settings.Awake.Until is { } until ? $"Awake to {until:HH:mm}" : "Keep awake";
         StayActiveTile.IsChecked = s.Settings.Awake.StayActive;
         SnapTile.IsChecked = s.Settings.Snap.Enabled;
+        FocusTile.IsChecked = s.Settings.Focus.Enabled;
+        OledTile.IsChecked = s.Settings.OledCare.Enabled;
         StrengthSlider.Value = s.Settings.NightLight.Strength;
         StrengthSlider.IsEnabled = s.NightLightAvailable;
 
@@ -96,7 +101,7 @@ public partial class QuickPanel : Window
             : Desk.Current.Brightness.Count == 0 ? "No display's own brightness can be set here." : "";
         BrightnessEmpty.IsVisible = BrightnessEmpty.Text.Length > 0;
 
-        var connected = await Task.Run(() => XRandR.IsAvailable ? XRandR.Query().Where(o => o.Connected).ToList() : []);
+        var connected = s.Connected;
         ProjectSection.IsVisible = connected.Count >= 2;
         InternalButton.IsVisible = ExternalButton.IsVisible = connected.Any(o => DisplayPlans.IsBuiltIn(o.Name));
 
@@ -135,16 +140,22 @@ public partial class QuickPanel : Window
 
     private void OnOpen(object? sender, RoutedEventArgs e)
     {
-        Close();
+        Hide();
         _openWindow();
     }
 
-    private void OnClose(object? sender, RoutedEventArgs e) => Close();
+    private void OnClose(object? sender, RoutedEventArgs e) => Hide();
 
     private async void OnDisplaysOff(object? sender, RoutedEventArgs e)
     {
-        Close();
+        Hide();
         await DeskActions.DisplaysOff();
+    }
+
+    private async void OnRest(object? sender, RoutedEventArgs e)
+    {
+        Hide();
+        Show(await DeskActions.RunAsync("oled", "rest"));
     }
 
     private void OnIdentify(object? sender, RoutedEventArgs e) => DeskActions.Identify();

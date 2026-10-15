@@ -8,11 +8,16 @@ namespace DispCtrl.Linux.Graphics;
 public sealed record DesktopTheme(bool Dark, Rgba Accent, string Font)
 {
     public Rgba PanelBackground => Dark ? Rgba.Hex("#2c2c2c", 0.97) : Rgba.Hex("#fafafa", 0.97);
-    public Rgba PanelBorder => Dark ? new Rgba(1, 1, 1, 0.10) : new Rgba(0, 0, 0, 0.12);
+    public Rgba PanelBorder => Dark ? new Rgba(1, 1, 1, 0.07) : new Rgba(0, 0, 0, 0.07);
     public Rgba TileBackground => Dark ? new Rgba(0, 0, 0, 0.22) : new Rgba(0, 0, 0, 0.04);
-    public Rgba TileBorder => Dark ? new Rgba(1, 1, 1, 0.08) : new Rgba(0, 0, 0, 0.08);
-    public Rgba ZoneFill => Dark ? new Rgba(1, 1, 1, 0.14) : new Rgba(0, 0, 0, 0.10);
-    public Rgba ZoneBorder => Dark ? new Rgba(1, 1, 1, 0.22) : new Rgba(0, 0, 0, 0.20);
+    public Rgba TileBorder => Dark ? new Rgba(1, 1, 1, 0.05) : new Rgba(0, 0, 0, 0.05);
+    public Rgba ZoneFill => Dark ? new Rgba(1, 1, 1, 0.12) : new Rgba(0, 0, 0, 0.08);
+    public Rgba ZoneBorder => Dark ? new Rgba(1, 1, 1, 0.10) : new Rgba(0, 0, 0, 0.09);
+
+    /// <summary>Snap Assist's backdrop: Windows 11 draws it as acrylic, a
+    /// translucent wash the desktop shows through; cairo has no blur, so a
+    /// lighter, more transparent fill stands in for it.</summary>
+    public Rgba AssistBackdrop => Dark ? Rgba.Hex("#202020", 0.66) : Rgba.Hex("#f3f3f3", 0.62);
     public Rgba Text => Dark ? new Rgba(1, 1, 1, 0.92) : new Rgba(0, 0, 0, 0.88);
     public Rgba SecondaryText => Dark ? new Rgba(1, 1, 1, 0.62) : new Rgba(0, 0, 0, 0.58);
     public Rgba CardBackground => Dark ? Rgba.Hex("#3a3a3a") : Rgba.Hex("#ffffff");

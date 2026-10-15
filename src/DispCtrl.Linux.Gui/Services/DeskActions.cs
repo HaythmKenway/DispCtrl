@@ -59,8 +59,13 @@ public static class DeskActions
     public static Task<string?> StopEngine() => RunAsync("engine", "stop");
 
     /// <summary>The state the menu and panel show, read in one go off the UI thread.</summary>
-    public sealed record State(LinuxSettings Settings, bool? Dark, bool Engine, bool NightLightAvailable);
+    /// <param name="Connected">Connected outputs, for the display mode choices.</param>
+    public sealed record State(LinuxSettings Settings, bool? Dark, bool Engine, bool NightLightAvailable, IReadOnlyList<XRandROutput> Connected);
 
+    /// <summary>Everything the menu and panel show, off the UI thread: the theme
+    /// is a gsettings call and the outputs an X round trip, and on the UI thread
+    /// they held up every click on the tray icon.</summary>
     public static Task<State> ReadAsync() => Task.Run(() =>
-        new State(SettingsStore.Load(), Session.DarkMode.Read(), EngineClient.IsRunning(), GammaRamp.IsAvailable(out _)));
+        new State(SettingsStore.Load(), Session.DarkMode.Read(), EngineClient.IsRunning(), GammaRamp.IsAvailable(out _),
+            XRandR.IsAvailable ? XRandR.Query().Where(o => o.Connected).ToList() : []));
 }

@@ -67,6 +67,15 @@
                     <ToggleButton Name="SnapTile" Classes="tile" AutomationProperties.Name="Snap layouts">
                         <StackPanel><ui:FASymbolIcon Symbol="DockLeft" FontSize="18" /><TextBlock Classes="tilelabel" Text="Snap layouts" /></StackPanel>
                     </ToggleButton>
+                    <ToggleButton Name="FocusTile" Classes="tile" AutomationProperties.Name="Focus mode">
+                        <StackPanel><ui:FASymbolIcon Symbol="FullScreenMaximize" FontSize="18" /><TextBlock Classes="tilelabel" Text="Focus" /></StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Name="OledTile" Classes="tile" AutomationProperties.Name="OLED care">
+                        <StackPanel><ui:FASymbolIcon Symbol="WeatherSunnyLow" FontSize="18" /><TextBlock Classes="tilelabel" Text="OLED care" /></StackPanel>
+                    </ToggleButton>
+                    <Button Classes="tile" Click="OnRest" AutomationProperties.Name="Rest the displays">
+                        <StackPanel><ui:FASymbolIcon Symbol="WeatherMoon" FontSize="18" /><TextBlock Classes="tilelabel" Text="Rest now" /></StackPanel>
+                    </Button>
                     <Button Classes="tile" Click="OnDisplaysOff" AutomationProperties.Name="Turn off displays">
                         <StackPanel><ui:FASymbolIcon Symbol="FullScreenMinimize" FontSize="18" /><TextBlock Classes="tilelabel" Text="Displays off" /></StackPanel>
                     </Button>

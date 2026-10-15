@@ -60,7 +60,7 @@ public static class FeatureRunner
     }
 
     /// <summary>Words, with double quotes holding spaces: <c>preset apply "Late night"</c>.</summary>
-    internal static List<string> Split(string text)
+    public static List<string> Split(string text)
     {
         var words = new List<string>();
         var current = new System.Text.StringBuilder();

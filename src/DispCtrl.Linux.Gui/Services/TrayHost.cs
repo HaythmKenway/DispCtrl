@@ -154,6 +154,16 @@ public sealed class TrayHost : IDisposable
 
         // Brightness: each display's own, in steps.
         var brightness = new TrayMenuItem("Brightness");
+        var every = new TrayMenuItem(s.Settings.Unison.Enabled ? "Every display (unison)" : "Every display");
+        foreach (int pct in new[] { 100, 75, 50, 25, 10 })
+        {
+            string level = pct.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            every.Add(s.Settings.Unison.Enabled
+                ? Radio($"{pct}%", s.Settings.Unison.Level == pct, () => _ = DeskActions.RunAsync("unison", level))
+                : new TrayMenuItem($"{pct}%", () => _ = DeskActions.RunAsync("brightness", level, "--all")));
+        }
+        brightness.Add(every);
+        brightness.Add(TrayMenuItem.Separator());
         foreach (var row in Desk.Current.Brightness.Where(r => r.IsInteractive))
         {
             var steps = new TrayMenuItem(row.Title);
@@ -190,11 +200,14 @@ public sealed class TrayHost : IDisposable
         awakeMenu.Add(Check("Keep the displays on", a.KeepDisplaysOn, () => _ = DeskActions.RunAsync("awake", "displays", a.KeepDisplaysOn ? "off" : "on")));
         menu.Add(awakeMenu);
         menu.Add(Check("Stay active", a.StayActive, () => _ = DeskActions.StayActive(!a.StayActive)));
+        menu.Add(Check("Focus mode", s.Settings.Focus.Enabled, () => _ = DeskActions.RunAsync("focus", "toggle")));
+        menu.Add(Check("OLED care", s.Settings.OledCare.Enabled, () => _ = DeskActions.RunAsync("oled", "toggle")));
+        menu.Add(new TrayMenuItem("Rest the displays now", () => _ = DeskActions.RunAsync("oled", "rest")) { Enabled = s.Engine });
         menu.Add(new TrayMenuItem("Turn off displays", () => _ = DeskActions.DisplaysOff()));
         menu.Add(TrayMenuItem.Separator());
 
         // Display mode, only where there is a choice to make.
-        var connected = Hardware.XRandR.IsAvailable ? Hardware.XRandR.Query().Where(o => o.Connected).ToList() : [];
+        var connected = s.Connected;
         if (connected.Count >= 2)
         {
             var project = new TrayMenuItem("Display mode")
@@ -218,6 +231,14 @@ public sealed class TrayHost : IDisposable
         if (s.Settings.Presets.Count > 0) presets.Add(TrayMenuItem.Separator());
         presets.Add(new TrayMenuItem("Save the desk as a preset…", () => _openPage("presets")));
         menu.Add(presets);
+
+        var lighting = new TrayMenuItem("Lighting");
+        foreach (var (label, colour) in new[] { ("Warm", "warm"), ("White", "white"), ("Red", "red"), ("Blue", "blue"), ("Purple", "purple") })
+            lighting.Add(Radio(label, string.Equals(s.Settings.Lighting.Last, Lighting.LightingControl.Named[colour], StringComparison.OrdinalIgnoreCase),
+                () => _ = DeskActions.RunAsync("rgb", "colour", colour)));
+        lighting.Add(TrayMenuItem.Separator());
+        lighting.Add(Radio("Off", s.Settings.Lighting.Last == "off", () => _ = DeskActions.RunAsync("rgb", "off")));
+        menu.Add(lighting);
 
         menu.Add(Check("Snap layouts", s.Settings.Snap.Enabled, () => _ = DeskActions.Snap(!s.Settings.Snap.Enabled)));
         menu.Add(new TrayMenuItem("Restore (night light off, no dimming)", () => _ = DeskActions.Restore()));

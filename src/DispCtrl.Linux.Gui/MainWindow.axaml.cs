@@ -47,6 +47,8 @@ public partial class MainWindow : Window
                 "brightness" => new BrightnessPage(),
                 "care" => new ScreenCarePage(),
                 "presets" => new PresetsPage(),
+                "lighting" => new LightingPage(),
+                "automation" => new AutomationPage(),
                 "windows" => new WindowsPage(),
                 "settings" => new SettingsPage(),
                 _ => new DisplaysPage(),

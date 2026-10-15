@@ -67,13 +67,18 @@ public partial class App : Application
     {
         if (_trayStarting || _tray is not null) return;
         _trayStarting = true;
-        try { _tray = await TrayHost.StartAsync(OpenWindow, OpenPage, OpenPanel, Quit); }
+        try
+        {
+            _tray = await TrayHost.StartAsync(OpenWindow, OpenPage, OpenPanel, Quit);
+            // Built now, while nobody waits: the first click shows it at once.
+            Dispatcher.UIThread.Post(CreatePanel, DispatcherPriority.Background);
+        }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             // No session bus or no tray host: the window still works without it.
             System.Diagnostics.Trace.WriteLine($"tray: {ex.Message}");
             _tray = null;
-            if (Program.Request == Instance.Tray && _window is null && _panel is null) _desktop?.Shutdown();
+            if (Program.Request == Instance.Tray && _window is null && _panel?.IsVisible != true) _desktop?.Shutdown();
         }
         finally { _trayStarting = false; }
     }
@@ -86,7 +91,7 @@ public partial class App : Application
             _window.Closed += (_, _) =>
             {
                 _window = null;
-                if (_tray is null && !_trayStarting) _desktop?.Shutdown();
+                if (_tray is null && !_trayStarting && _panel?.IsVisible != true) _desktop?.Shutdown();
             };
             if (_desktop is not null) _desktop.MainWindow = _window;
             _window.Show();
@@ -101,22 +106,40 @@ public partial class App : Application
         _window?.Show(tag);
     }
 
+    /// <summary>Shows the quick panel, or hides it when it is open: one panel
+    /// for the life of the process, built ahead of the first click.</summary>
     public void OpenPanel()
     {
-        if (_panel is not null) { _panel.Close(); return; }
-        _panel = new QuickPanel(OpenWindow);
-        _panel.Closed += (_, _) =>
-        {
-            _panel = null;
-            if (_tray is null && !_trayStarting && _window is null) _desktop?.Shutdown();
-        };
+        CreatePanel();
+        if (_panel!.IsVisible) { _panel.Hide(); return; }
+        // The click on the icon that hid the panel (it lost focus) arrives
+        // here a moment later: it means close, not open again.
+        if (DateTime.UtcNow - _panelHidden < TimeSpan.FromMilliseconds(400)) return;
         _panel.ShowNearPointer();
     }
+
+    /// <summary>Builds the panel without showing it.</summary>
+    private void CreatePanel()
+    {
+        if (_panel is null)
+        {
+            _panel = new QuickPanel(OpenWindow);
+            _panel.PropertyChanged += (_, e) =>
+            {
+                if (e.Property != Avalonia.Visual.IsVisibleProperty || _panel.IsVisible) return;
+                _panelHidden = DateTime.UtcNow;
+                // Opened on its own (--quick-panel), with no tray or window to stay for.
+                if (_tray is null && !_trayStarting && _window is null) _desktop?.Shutdown();
+            };
+        }
+    }
+
+    private DateTime _panelHidden;
 
     private void Quit()
     {
         _tray?.Dispose();
         _tray = null;
-        if (_window is null && _panel is null) _desktop?.Shutdown();
+        if (_window is null && _panel?.IsVisible != true) _desktop?.Shutdown();
     }
 }

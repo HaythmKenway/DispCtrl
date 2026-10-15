@@ -158,12 +158,13 @@ parts:
       export DOTNET_ROOT="$sdk" PATH="$sdk:$PATH" NUGET_PACKAGES="$CRAFT_PART_BUILD/.nuget"
 
       # Both into one folder, sharing one runtime, as package.sh does;
-      # ReadyToRun for the command line, which starts on every command.
+      # ReadyToRun for both: the command line starts on every command, and the
+      # window's first click on the tray icon waited for its code to compile.
       lib="$CRAFT_PART_INSTALL/lib"
       dotnet publish src/DispCtrl.Linux/DispCtrl.Linux.csproj -c Release -r "$rid" \
         --self-contained true -p:PublishReadyToRun=true -p:Version="$version" -o "$lib" -v q --nologo
       dotnet publish src/DispCtrl.Linux.Gui/DispCtrl.Linux.Gui.csproj -c Release -r "$rid" \
-        --self-contained true -p:Version="$version" -o "$lib" -v q --nologo
+        --self-contained true -p:PublishReadyToRun=true -p:Version="$version" -o "$lib" -v q --nologo
       # The tracing provider links liblttng-ust, which nothing here uses.
       rm -f "$lib"/*.pdb "$lib/libcoreclrtraceptprovider.so"
       find "$lib" -type f -exec chmod 0644 {} +

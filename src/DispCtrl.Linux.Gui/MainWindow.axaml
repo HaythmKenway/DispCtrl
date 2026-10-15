@@ -43,6 +43,16 @@
                     <ui:FASymbolIconSource Symbol="DockLeft" />
                 </ui:FANavigationViewItem.IconSource>
             </ui:FANavigationViewItem>
+            <ui:FANavigationViewItem Content="Lighting" Tag="lighting" AutomationProperties.Name="Lighting">
+                <ui:FANavigationViewItem.IconSource>
+                    <ui:FASymbolIconSource Symbol="ColorBackground" />
+                </ui:FANavigationViewItem.IconSource>
+            </ui:FANavigationViewItem>
+            <ui:FANavigationViewItem Content="Automation" Tag="automation" AutomationProperties.Name="Automation">
+                <ui:FANavigationViewItem.IconSource>
+                    <ui:FASymbolIconSource Symbol="Keyboard" />
+                </ui:FANavigationViewItem.IconSource>
+            </ui:FANavigationViewItem>
             <ui:FANavigationViewItem Content="Presets" Tag="presets" AutomationProperties.Name="Presets">
                 <ui:FANavigationViewItem.IconSource>
                     <ui:FASymbolIconSource Symbol="Bookmarks" />

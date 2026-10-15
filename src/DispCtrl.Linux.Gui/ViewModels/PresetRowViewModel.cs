@@ -22,9 +22,14 @@ public sealed class PresetRowViewModel(Preset preset, string? mismatch)
         ? about
         : Preset.Outputs.Count == 0 || !Preset.Holds(PresetParts.Layout)
         ? "Holds no layout"
-        : mismatch is null ? "Matches the displays attached" : $"Not this desk: {mismatch}";
+        : (mismatch is null ? "Matches the displays attached" : $"Not this desk: {mismatch}") + (Preset.Desk ? " · applies when its displays connect" : "");
 
     public bool Fits => mismatch is null;
+
+    public string DeskText => Preset.Desk ? "Stop applying it when its displays connect" : "Apply it when its displays connect";
+
+    /// <summary>Only a preset that holds a layout can recognise a desk.</summary>
+    public bool CanBeDesk => Preset.Outputs.Any(o => o.Enabled);
 
     public static string Label(string part) => part switch
     {

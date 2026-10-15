@@ -11,7 +11,9 @@ public sealed record AssistCandidate(ulong Id, string Title, string? App, Rect F
 /// the checks look at.</summary>
 public static class SnapPainter
 {
-    private const double PanelRadius = 12, TileRadius = 6, ZoneRadius = 4, PreviewRadius = 10, CardRadius = 8;
+    // Windows 11's radii: 8 for the flyout, 4 inside it, larger for the
+    // Snap Assist surface and its cards, which float on soft shadows.
+    private const double PanelRadius = 12, TileRadius = 6, ZoneRadius = 4, PreviewRadius = 12, CardRadius = 10, AssistRadius = 16;
 
     /// <summary>The bar at the top while a window is dragged.</summary>
     public static void Handle(Canvas c, SnapPanel panel, DesktopTheme theme, Rect origin)
@@ -30,13 +32,13 @@ public static class SnapPainter
         if (hover is { } preview)
         {
             var target = Local(panel.Target(preview, gap), origin);
-            c.RoundedRect(target.X + 4, target.Y + 4, target.Width - 8, target.Height - 8, PreviewRadius);
-            c.FillPreserve(theme.Accent.WithAlpha(0.22));
-            c.Stroke(theme.Accent.WithAlpha(0.85), 2);
+            c.RoundedRect(target.X + 6, target.Y + 6, target.Width - 12, target.Height - 12, PreviewRadius);
+            c.FillPreserve(theme.Accent.WithAlpha(0.16));
+            c.Stroke(theme.Accent.WithAlpha(0.45), 1.5);
         }
 
         var p = Local(panel.Bounds, origin);
-        c.Shadow(p.X, p.Y, p.Width, p.Height, PanelRadius, 14, theme.ShadowAlpha);
+        c.Shadow(p.X, p.Y, p.Width, p.Height, PanelRadius, 18, theme.ShadowAlpha * 0.8);
         c.RoundedRect(p.X + 0.5, p.Y + 0.5, p.Width - 1, p.Height - 1, PanelRadius);
         c.FillPreserve(theme.PanelBackground);
         c.Stroke(theme.PanelBorder, 1);
@@ -46,16 +48,16 @@ public static class SnapPainter
             var tile = Local(panel.Tiles[l], origin);
             bool tileLit = hover is { } h && h.Layout == l;
             c.RoundedRect(tile.X + 0.5, tile.Y + 0.5, tile.Width - 1, tile.Height - 1, TileRadius);
-            c.FillPreserve(theme.TileBackground);
-            c.Stroke(tileLit ? theme.Accent.WithAlpha(0.6) : theme.TileBorder, 1);
+            c.FillPreserve(tileLit ? theme.Accent.WithAlpha(0.08) : theme.TileBackground);
+            c.Stroke(tileLit ? theme.Accent.WithAlpha(0.35) : theme.TileBorder, 1);
             for (int z = 0; z < panel.Layouts[l].Zones.Count; z++)
             {
                 var zone = new ZoneRef(l, z);
                 var r = Local(panel.ZoneInTile(zone), origin);
                 bool lit = hover == zone;
                 c.RoundedRect(r.X + 0.5, r.Y + 0.5, r.Width - 1, r.Height - 1, ZoneRadius);
-                c.FillPreserve(lit ? theme.Accent : theme.ZoneFill);
-                c.Stroke(lit ? theme.Accent : theme.ZoneBorder, 1);
+                c.FillPreserve(lit ? theme.Accent.WithAlpha(0.9) : theme.ZoneFill);
+                c.Stroke(lit ? theme.Accent.WithAlpha(0.9) : theme.ZoneBorder, 1);
             }
         }
     }
@@ -67,13 +69,14 @@ public static class SnapPainter
         Action<Canvas, AssistCandidate, Rect>? picture)
     {
         var z = Local(zone, origin);
-        c.RoundedRect(z.X + 4, z.Y + 4, z.Width - 8, z.Height - 8, PanelRadius);
-        c.FillPreserve(theme.PanelBackground.WithAlpha(0.90));
+        c.Shadow(z.X + 6, z.Y + 6, z.Width - 12, z.Height - 12, AssistRadius, 20, theme.ShadowAlpha * 0.6);
+        c.RoundedRect(z.X + 6, z.Y + 6, z.Width - 12, z.Height - 12, AssistRadius);
+        c.FillPreserve(theme.AssistBackdrop);
         c.Stroke(theme.PanelBorder, 1);
 
         c.Text("Choose a window for this space", z.X + AssistGrid.Margin, z.Y + AssistGrid.Margin,
-            z.Width - 2 * AssistGrid.Margin, theme.Text, $"{FontFamily(theme.Font)} 15px", semibold: true);
-        c.Text("Esc, or a click elsewhere, leaves it empty", z.X + AssistGrid.Margin, z.Y + AssistGrid.Margin + 24,
+            z.Width - 2 * AssistGrid.Margin, theme.Text, $"{FontFamily(theme.Font)} 14px");
+        c.Text("Esc, or a click elsewhere, leaves it empty", z.X + AssistGrid.Margin, z.Y + AssistGrid.Margin + 22,
             z.Width - 2 * AssistGrid.Margin, theme.SecondaryText, theme.Font);
 
         var cards = AssistGrid.Cards(zone, candidates.Count, AssistGrid.AspectOf(candidates));
@@ -84,17 +87,20 @@ public static class SnapPainter
             var thumb = new Rect(card.X, card.Y, card.Width, card.Height - AssistGrid.TitleHeight);
             if (lit)
             {
-                c.RoundedRect(card.X - 6, card.Y - 6, card.Width + 12, card.Height + 12, CardRadius + 4);
-                c.Fill(theme.Accent.WithAlpha(0.28));
+                // A soft lift under the pointer, as Windows draws it: a light
+                // wash, not a hard outline.
+                c.RoundedRect(card.X - 8, card.Y - 8, card.Width + 16, card.Height + 16, CardRadius + 6);
+                c.Fill(theme.Accent.WithAlpha(0.14));
             }
+            c.Shadow(thumb.X, thumb.Y, thumb.Width, thumb.Height, CardRadius, lit ? 12 : 8, theme.ShadowAlpha * (lit ? 0.8 : 0.5));
             c.RoundedRect(thumb.X, thumb.Y, thumb.Width, thumb.Height, CardRadius);
             c.Fill(theme.CardBackground);
             if (picture is not null) picture(c, candidates[i], thumb);
             else Initial(c, candidates[i], thumb, theme);
             c.RoundedRect(thumb.X + 0.5, thumb.Y + 0.5, thumb.Width - 1, thumb.Height - 1, CardRadius);
-            c.Stroke(lit ? theme.Accent : theme.ZoneBorder, lit ? 2 : 1);
+            c.Stroke(lit ? theme.Accent.WithAlpha(0.7) : theme.PanelBorder, lit ? 1.5 : 1);
             c.Text(candidates[i].Title.Length > 0 ? candidates[i].Title : candidates[i].App ?? "Window",
-                card.X, thumb.Bottom + 7, card.Width, theme.Text, theme.Font, centre: true);
+                card.X, thumb.Bottom + 7, card.Width, lit ? theme.Text : theme.SecondaryText, theme.Font, centre: true);
         }
     }
 

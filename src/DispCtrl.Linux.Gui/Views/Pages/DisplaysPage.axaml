@@ -16,7 +16,7 @@
 
     <Panel Name="Root">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Classes="page">
+            <StackPanel Name="Body" Classes="page">
 
                 <Grid ColumnDefinitions="*,Auto">
                     <StackPanel>

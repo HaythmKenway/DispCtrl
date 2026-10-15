@@ -89,6 +89,7 @@
                                             <Button.Flyout>
                                                 <MenuFlyout Placement="BottomEdgeAlignedRight">
                                                     <MenuItem Header="Save the desk into it" Click="OnUpdate" Tag="{Binding Name}" />
+                                                    <MenuItem Header="{Binding DeskText}" Click="OnDesk" Tag="{Binding Name}" IsEnabled="{Binding CanBeDesk}" />
                                                     <MenuItem Header="Rename…" Click="OnRename" Tag="{Binding Name}" />
                                                     <MenuItem Header="Delete" Click="OnDelete" Tag="{Binding Name}" />
                                                 </MenuFlyout>

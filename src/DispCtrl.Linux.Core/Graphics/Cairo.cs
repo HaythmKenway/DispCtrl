@@ -90,13 +90,14 @@ public sealed class Canvas : IDisposable
 
     /// <summary>Copies <paramref name="source"/> over this canvas in one paint:
     /// frames are drawn offscreen first, so a window never shows half of one.</summary>
-    public void Blit(Canvas source)
+    public void Blit(Canvas source, double alpha = 1)
     {
         Cairo.cairo_surface_flush(source._surface);
         Cairo.cairo_save(_cr);
         Cairo.cairo_set_operator(_cr, Cairo.OperatorSource);
         Cairo.cairo_set_source_surface(_cr, source._surface, 0, 0);
-        Cairo.cairo_paint(_cr);
+        if (alpha >= 1) Cairo.cairo_paint(_cr);
+        else Cairo.cairo_paint_with_alpha(_cr, alpha);
         Cairo.cairo_restore(_cr);
         Cairo.cairo_surface_flush(_surface);
     }

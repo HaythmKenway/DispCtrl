@@ -36,7 +36,7 @@ publish() { # rid -> $work/<rid>/lib
   dotnet publish "$repo/src/DispCtrl.Linux/DispCtrl.Linux.csproj" -c Release -r "$rid" \
     --self-contained true -p:PublishReadyToRun=true -p:Version="$version" -o "$lib" -v q --nologo
   dotnet publish "$repo/src/DispCtrl.Linux.Gui/DispCtrl.Linux.Gui.csproj" -c Release -r "$rid" \
-    --self-contained true -p:Version="$version" -o "$lib" -v q --nologo
+    --self-contained true -p:PublishReadyToRun=true -p:Version="$version" -o "$lib" -v q --nologo
   # .pdb files are for debugging. The tracing provider links liblttng-ust,
   # which few systems have and nothing here uses (the runtime loads it only
   # when present); left in, an .rpm's dependency scan would require it.
