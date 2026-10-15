@@ -631,6 +631,9 @@ void MajorReleaseChecks()
         && SettingsStore.Load().OledCare is { Enabled: true, IdleMinutes: 5, DimPercent: 40 }, "commands: OLED care is set");
     Check(Run("oled", "--dim", "99").Code == CommandRunner.AskedWrongly, "commands: OLED care's dimming is held to its range");
     Check(Run("focus", "on", "--dim", "5").Code == CommandRunner.AskedWrongly, "commands: focus's dimming is held to its range");
+    // A port nothing listens on: the machine running the checks may have
+    // OpenRGB's server up (this desk does), and it must not be reached.
+    SettingsStore.Update(s => s.Lighting.Port = 9);
     Check(Run("rgb").Code == CommandRunner.Refused && Run("rgb").Err.Contains("OpenRGB", StringComparison.Ordinal),
         "commands: lighting without OpenRGB running says what to start");
     Check(Run("rgb", "colour", "chartreuse-ish").Code == CommandRunner.AskedWrongly, "commands: a colour that is not one is asked wrongly");
