@@ -339,12 +339,9 @@ public sealed unsafe class SnapService : IDisposable
                 _log($"snap: {ShortcutProblem}");
                 return;
             }
-            var exe = Environment.ProcessPath ?? "dispctrl-linux";
-            var command = $"\"{exe}\" snap pick";
-            // GNOME runs it without this process's environment: a build that
-            // needs a .NET found through DOTNET_ROOT would not start there.
-            if (Environment.GetEnvironmentVariable("DOTNET_ROOT") is { Length: > 0 } root)
-                command = $"env DOTNET_ROOT=\"{root}\" {command}";
+            // GNOME runs it without this process's environment, and in the
+            // snap the revision's own path is gone after a refresh.
+            var command = GnomeShortcuts.CommandLine("snap pick");
             if (GnomeShortcuts.Set(GnomeId, "DispCtrl: snap layouts", command, accelerator) is { } error)
             {
                 ShortcutProblem = error;

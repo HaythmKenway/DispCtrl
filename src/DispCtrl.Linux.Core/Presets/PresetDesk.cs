@@ -27,16 +27,18 @@ public static class PresetDesk
     [
         Template("Day", "Bright, neutral colour, light theme.", 80, nightLight: 0, dark: false, picture: "Standard"),
         Template("Evening", "Dimmer and a little warm, dark theme.", 55, nightLight: 40, dark: true),
-        Template("Night", "Low brightness, strong warmth, dark theme.", 25, nightLight: 75, dark: true),
+        Template("Night", "Low brightness, strong warmth, dark theme, dim amber lighting.", 25, nightLight: 75, dark: true, lighting: "#401800"),
         Template("Reading", "Comfortable brightness, slightly warm, light theme.", 60, nightLight: 25, dark: false),
-        Template("Movie", "Bright, neutral colour, dark theme, the monitors' movie mode.", 90, nightLight: 0, dark: true, picture: "Movie"),
+        Template("Movie", "Bright, neutral colour, dark theme, the monitors' movie mode, lighting off.", 90, nightLight: 0, dark: true, picture: "Movie", lighting: "off"),
         Template("Gaming", "Full brightness, neutral colour, the monitors' game mode.", 100, nightLight: 0, picture: "Game"),
         Template("Power saver", "Low brightness and nothing else.", 35),
     ];
 
-    private static Preset Template(string name, string description, int brightness, int? nightLight = null, bool? dark = null, string? picture = null)
+    private static Preset Template(string name, string description, int brightness, int? nightLight = null, bool? dark = null, string? picture = null,
+        string? lighting = null)
     {
         var skip = new List<string> { PresetParts.Layout };
+        if (lighting is null) skip.Add(PresetParts.Lighting);
         if (nightLight is null) skip.Add(PresetParts.NightLight);
         if (dark is null) skip.Add(PresetParts.Theme);
         if (picture is null) skip.Add(PresetParts.Controls);
@@ -53,6 +55,7 @@ public static class PresetDesk
             KeepSchedule = true,
             Dark = dark,
             PictureMode = picture,
+            Lighting = lighting,
         };
     }
 
@@ -98,6 +101,9 @@ public static class PresetDesk
         }
 
         if (preset.Holds(PresetParts.Theme)) preset.Dark = DarkMode.Read();
+        // What DispCtrl last set: OpenRGB cannot be asked what a device shows
+        // in its own effects.
+        if (preset.Holds(PresetParts.Lighting)) preset.Lighting = settings.Lighting.Last;
 
         if (preset.Holds(PresetParts.Controls))
         {
@@ -214,6 +220,9 @@ public static class PresetDesk
         if (preset.Holds(PresetParts.Theme) && preset.Dark is bool dark && DarkMode.Read() != dark && !DarkMode.Set(dark, out var themeError))
             problems.Add($"theme: {themeError}");
 
+        if (preset.Holds(PresetParts.Lighting) && preset.Lighting is { } light)
+            problems.AddRange(Lighting.LightingControl.Apply(light).Select(p => $"lighting: {p}"));
+
         if (preset.Holds(PresetParts.Controls))
         {
             foreach (var group in preset.Controls.GroupBy(c => c.Monitor))
@@ -256,6 +265,14 @@ public static class PresetDesk
         if (!plan.Any(p => p.Enabled)) return "it would leave no display lit";
         return null;
     }
+
+    /// <summary>Whether exactly the preset's displays are connected now: each
+    /// output it holds, with the same monitor, and no other. What a desk
+    /// profile waits for.</summary>
+    public static bool FitsExactly(Preset preset, IReadOnlyDictionary<string, string?> connected) =>
+        preset.Outputs.Count > 0
+        && preset.Outputs.Count == connected.Count
+        && preset.Outputs.All(o => connected.TryGetValue(o.Name, out var model) && (o.Model is null || model is null || o.Model == model));
 
     /// <summary>Why the preset's displays are not the ones attached now; null
     /// when every display it lit is connected with the same monitor.</summary>

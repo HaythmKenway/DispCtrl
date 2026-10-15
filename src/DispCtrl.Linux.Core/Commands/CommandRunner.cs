@@ -44,6 +44,15 @@ public interface IEngineHooks
 
     /// <summary>The inhibitors keep awake holds, and Stay active's state.</summary>
     string AwakeStatus();
+
+    /// <summary>Which hotkeys are held, and any refused.</summary>
+    string HotkeyStatus();
+
+    /// <summary>OLED care's second stage now, until the next touch.</summary>
+    void OledRest();
+
+    /// <summary>Why Focus mode cannot draw here; null when it can.</summary>
+    string? FocusProblem();
 }
 
 /// <summary>Every <c>dispctrl-linux</c> command. Exit codes follow
@@ -51,6 +60,15 @@ public interface IEngineHooks
 public static partial class CommandRunner
 {
     public const int Done = 0, Refused = 1, AskedWrongly = 2;
+
+    /// <summary>Every command's first word, for checking a hotkey's or a
+    /// feature's steps before they are saved.</summary>
+    internal static readonly HashSet<string> Verbs = new(StringComparer.Ordinal)
+    {
+        "displays", "display", "status", "brightness", "dim", "nightlight", "night-light", "restore", "windows", "snap",
+        "awake", "stayactive", "stay-active", "displays-off", "darkmode", "dark-mode", "monitor", "input", "preset", "presets",
+        "tray", "unison", "pin", "placement", "features", "rgb", "lighting", "oled", "focus", "monitor-sleep", "roomlight", "wallpaper", "version",
+    };
 
     private static readonly HashSet<string> BareFlags = new(StringComparer.Ordinal) { "--all", "--local", "--json" };
 
@@ -76,6 +94,20 @@ public static partial class CommandRunner
                 "windows" => WindowsCommand(args[1..], context),
                 "snap" => SnapCommand(args[1..], context),
                 "awake" => AwakeCommand(args[1..], context),
+                "unison" => UnisonCommand(args[1..], context),
+                "pin" => PinCommand(args[1..], context),
+                "hotkeys" => HotkeysCommand(args[1..], context),
+                "features" => FeaturesCommand(args[1..], context),
+                "rgb" or "lighting" => RgbCommand(args[1..], context),
+                "oled" => OledCommand(args[1..], context),
+                "focus" => FocusCommand(args[1..], context),
+                "monitor-sleep" => MonitorSleepCommand(args[1..], context),
+                "roomlight" or "room-light" => RoomLightCommand(args[1..], context),
+                "update" => UpdateCommand(args[1..], context),
+                "report" => ReportCommand(args[1..], context),
+                "wallpaper" => WallpaperCommand(args[1..], context),
+                "triggers" => TriggersCommand(args[1..], context),
+                "placement" => PlacementCommand(args[1..], context),
                 "stayactive" or "stay-active" => StayActive(args[1..], context),
                 "displays-off" => DisplaysOff(args[1..], context),
                 "darkmode" or "dark-mode" => DarkModeCommand(args[1..], context),
@@ -109,11 +141,18 @@ public static partial class CommandRunner
 
           brightness <0-100> --ddc <n>             a DDC/CI monitor's own brightness (ddcutil display number)
           brightness <0-100> --backlight <name>    a built-in panel's backlight (/sys/class/backlight)
+          brightness <0-100> --all                 every display's own brightness
+          brightness up | down [step]              every display, 5% a step (through unison when it is on)
+          unison [on | off | <0-100>]              one level for every display, each within its own range
+          unison up | down [step]
+          unison range <display> <min> <max>       a display's own lowest and highest (unison lists the names)
+          unison include | exclude <display>
+          roomlight [on | off] [--min N --max N]   unison follows the ambient light sensor (iio-sensor-proxy)
           dim <0.1-1> --output <name> | --all      software dimming through the output's gamma ramp
           dim off [--output <name> | --all]        no software dimming
 
           nightlight                               night light now and its settings
-          nightlight on | off                      switch it
+          nightlight on | off | toggle             switch it
           nightlight <0-100>                       strength (6500 K at 0 to 1900 K at 100), and on
           nightlight --from HH:MM --to HH:MM       follow a schedule (the engine applies it)
           nightlight --schedule off                warm whenever it is on
@@ -128,19 +167,42 @@ public static partial class CommandRunner
                                                    a listed value by name (picture-mode movie). Never resets or power
           input <n> [<source>]                     the input sources it lists, or switch to one (input 1 HDMI-1)
 
-          awake [on | off]                         keep the computer awake (the engine holds it)
+          awake [on | off | toggle]                keep the computer awake (the engine holds it)
           awake for 30m | 2h | 1h30m               for a while
           awake until HH:MM                        until a time
           awake displays on|off                    also keep the displays on and the screen unlocked
-          stayactive on|off                        nudge the pointer a pixel after 55 s still (a mouse jiggler)
+          stayactive on|off|toggle                 nudge the pointer a pixel after 55 s still (a mouse jiggler)
           displays-off                             every display off now; any key or the mouse wakes them
+          oled [on | off | toggle | rest]          OLED care: dim when idle, in two stages; rest dims now
+               [--idle-minutes N --dim N --second-stage on|off --second-minutes N --second-dim N]
+               [--pause-fullscreen on|off --pause-media on|off]
+          focus [on | off | toggle] [--dim 10-90]  dim everything but the window in front
+          monitor-sleep [on | off] [--minutes N]   the displays off after a while idle
 
           preset [list]                            saved desks, and whether each fits the displays attached
-          preset save NAME [--skip PARTS]          the desk now: layout, brightness, nightlight, theme, controls
+          preset save NAME [--skip PARTS]          the desk now: layout, brightness, nightlight, theme, controls, lighting
           preset apply NAME                        put it back
           preset show NAME | delete NAME | rename OLD NEW
           preset set NAME --skip PARTS|none        the parts it leaves alone
           preset suggested | add NAME | add all    ready-made ones: Day, Evening, Night, Reading, Movie, Gaming ...
+          preset desk NAME on|off                  apply by itself when exactly its displays connect
+          preset rule add APP PRESET [--then previous|keep|PRESET] [--delay S]   while an app is in front
+          preset rule [list] | remove N
+          preset launch NAME PROGRAM [ARGS] [--keep]   apply, run, put the desk back when it ends
+
+          rgb [list]                               keyboard, mouse, fan and strip lighting, through OpenRGB's SDK server
+          rgb colour <#RRGGBB|name> [--device N]   one colour (warm, white, red, blue, purple ...)
+          rgb off | rgb mode <effect> [--device N] off, or one of the device's own effects (Rainbow Wave ...)
+          rgb server HOST[:PORT]                   where OpenRGB listens (127.0.0.1:6742)
+
+          features [list]                          named steps: commands, wait MS, run PROGRAM
+          features add NAME "STEP; STEP; ..."      e.g. features add Late "nightlight 80; dim 0.6 --all"
+          features run NAME [--dry-run] | remove NAME
+          triggers [list]                          when something happens, run a feature (the engine watches)
+          triggers add EVENT FEATURE [--match X] [--minutes N]   display-connected, display-disconnected,
+                                                   app-in-front, app-left, idle, back, locked, unlocked,
+                                                   on-battery, on-power, resumed, at-time (--match 22:30)
+          triggers remove | on | off N
 
           display [list]                           each lit output: main, mode, position, size
           display set --output <name> --x <n> --y <n>   move one output (others stay; the desktop is
@@ -156,6 +218,11 @@ public static partial class CommandRunner
           display only <output>                    that display alone
 
           windows                                  the open windows, front first, with their ids
+          pin [on | off | toggle] [--window <id>]  keep a window above the others (the one in front by default)
+          pin list | pin off --all
+          placement gather [--to N|pointer|active] every window onto one display
+          placement move [--window <id>] [--to next|previous|N]   a window onto another display
+          placement span [--window <id>] [--displays 1,2]          a window across displays
           snap                                     Snap layouts and Snap Assist: state and settings
           snap on | off                            switch them (drag to the top, the shortcut, Assist)
           snap shortcut <keys> | none              the shortcut, e.g. Super+Z or Ctrl+Alt+S
@@ -166,6 +233,14 @@ public static partial class CommandRunner
           snap layouts                             the layouts each display offers
           tray [on | off]                          the tray icon (kept by dispctrl-linux-gui --tray)
           tray click panel | window                what a left click on it opens
+          tray show                                open the quick panel
+
+          hotkeys [list]                           global shortcuts and the command each runs (the engine holds them)
+          hotkeys add <keys> <command...>          e.g. hotkeys add Ctrl+Alt+M preset apply Movie
+          hotkeys remove | on | off <keys|N>       hotkeys reset: the defaults
+          wallpaper <picture>                      the desktop's picture (GNOME, KDE, XFCE)
+          update [check]                           whether a newer release is out (one request, nothing downloaded)
+          report [--what "..."] [--open]           diagnostics for a problem report, serials and your name removed
           engine [run] | status | stop             the resident engine (docs/LINUX.md)
           version
 
@@ -318,7 +393,8 @@ public static partial class CommandRunner
 
     private static int Brightness(string[] args, CommandContext c)
     {
-        if (args.Length == 0) return Wrong(c, "brightness needs a value and --ddc <n> or --backlight <name>");
+        if (args.Length == 0) return Wrong(c, "brightness needs a value and --ddc <n>, --backlight <name> or --all; or up|down");
+        if (args[0] is "up" or "down" || args.Skip(1).SequenceEqual(["--all"])) return BrightnessAll(args.Where(a => a != "--all").ToArray(), c);
         string value = args[0];
         if (!TryFlags(args[1..], c, out var flags)) return AskedWrongly;
 
@@ -352,7 +428,7 @@ public static partial class CommandRunner
             return Done;
         }
 
-        return Wrong(c, "brightness needs --ddc <n> or --backlight <name>");
+        return Wrong(c, "brightness needs --ddc <n>, --backlight <name> or --all");
     }
 
     private static int Dim(string[] args, CommandContext c)
@@ -411,6 +487,7 @@ public static partial class CommandRunner
         {
             case "on" or "true": enable = true; rest = args[1..]; break;
             case "off" or "false": enable = false; rest = args[1..]; break;
+            case "toggle": enable = !SettingsStore.Load().NightLight.Enabled; rest = args[1..]; break;
             default:
                 if (!args[0].StartsWith("--", StringComparison.Ordinal))
                 {
@@ -452,7 +529,10 @@ public static partial class CommandRunner
         if ((from ?? curFrom) == (to ?? curTo))
             return Wrong(c, "the schedule cannot start and end at the same time");
 
-        if (!GammaRamp.IsAvailable(out var reason) && enable == true)
+        bool wayland = GammaRamp.OnWayland;
+        if (wayland && !Session.DesktopNightLight.Available)
+            return Refuse(c, "on Wayland night light goes through the desktop's own (GNOME's or KDE's), and this desktop is neither");
+        if (!wayland && !GammaRamp.IsAvailable(out var reason) && enable == true)
             return Refuse(c, $"cannot warm the screen: {reason}");
 
         var saved = SettingsStore.Update(s =>
@@ -463,6 +543,14 @@ public static partial class CommandRunner
             if (from is TimeOnly fr) s.NightLight.From = Schedule.Format(fr);
             if (to is TimeOnly tt) s.NightLight.To = Schedule.Format(tt);
         });
+        if (wayland)
+        {
+            // The compositor owns the ramps: the desktop's own night light it is.
+            if (Session.DesktopNightLight.Apply(saved.NightLight) is { } refused) return Refuse(c, refused);
+            WriteNightLight(c.Out, saved, now, engine: true);
+            c.Out.WriteLine("through      the desktop's own night light (Wayland)");
+            return Done;
+        }
         if (ReportRamps(c) is { } failed) return failed;
 
         bool engine = c.InEngine || EngineClient.IsRunning();

@@ -34,8 +34,8 @@ public static partial class CommandRunner
         {
             case [] or ["status"]:
                 return SnapStatus(c);
-            case ["on" or "true"] or ["off" or "false"]:
-                bool on = args[0] is "on" or "true";
+            case ["on" or "true"] or ["off" or "false"] or ["toggle"]:
+                bool on = args[0] == "toggle" ? !SettingsStore.Load().Snap.Enabled : args[0] is "on" or "true";
                 SettingsStore.Update(s => s.Snap.Enabled = on);
                 c.Out.WriteLine(on ? "Snap layouts on." : "Snap layouts off.");
                 return EngineNote(c);

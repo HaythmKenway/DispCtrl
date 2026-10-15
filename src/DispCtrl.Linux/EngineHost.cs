@@ -38,6 +38,19 @@ internal sealed class EngineHost : IEngineHooks
     private Inhibitor? _inhibitor;
     private bool _inhibitDisplays;
     private PointerNudge? _nudge;
+    private Hotkeys.HotkeyService? _hotkeys;
+    private Automation.SessionEvents? _events;
+    private double _care = 1;
+    private bool _sleptOnce;
+    private X11.FocusOverlay? _focus;
+    private Session.RoomLight? _roomLight;
+    private string? _roomLightProblem;
+    private double? _lux;
+    private int _lastRoomLevel = -1;
+    private readonly HashSet<int> _idleFired = [];
+    private string? _lastDesk;
+    private (AppRule Rule, Preset? Before)? _ruleHeld;
+    private CancellationTokenSource? _rulePending;
     private bool? _darkWanted;
 
     public static int Run()
@@ -106,6 +119,10 @@ internal sealed class EngineHost : IEngineHooks
             lock (_snapGate) { _snap?.Dispose(); _snap = null; }
             _inhibitor?.Dispose();
             _nudge?.Dispose();
+            _hotkeys?.Dispose();
+            _events?.Dispose();
+            _focus?.Dispose();
+            _roomLight?.Dispose();
             RampApplier.Release(_owned);
             _owned.Clear();
             Runtime.SaveOwnedRamps(_owned);
@@ -207,7 +224,7 @@ internal sealed class EngineHost : IEngineHooks
 
     private IReadOnlyList<RampChange> ApplyRampsLocked()
     {
-        var changes = RampApplier.Apply(SettingsStore.Load(), TimeOnly.FromDateTime(DateTime.Now), _owned);
+        var changes = RampApplier.Apply(SettingsStore.Load(), TimeOnly.FromDateTime(DateTime.Now), _owned, _care);
         Runtime.SaveOwnedRamps(_owned);
         _lastPass = DateTime.Now;
         foreach (var c in changes) LogChange(c);
@@ -231,6 +248,9 @@ internal sealed class EngineHost : IEngineHooks
                 UpdateSnap(settings.Snap);
                 settings = UpdateAwake(settings);
                 UpdateDarkMode(settings);
+                UpdateHotkeys(settings);
+                UpdateEvents(settings);
+                UpdateRoomLight(settings);
             }
             catch (Exception ex)
             {
@@ -383,6 +403,263 @@ internal sealed class EngineHost : IEngineHooks
             else Log($"dark mode: {error}");
         }
     }
+
+    /// <summary>The hotkeys follow settings once there is a desktop to hold
+    /// them on: GNOME's shortcuts or an X display.</summary>
+    private void UpdateHotkeys(LinuxSettings settings)
+    {
+        if (_hotkeys is null)
+        {
+            // A desktop session first, GNOME or not: GNOME's shortcuts are its
+            // real settings, and an engine with no display (the checks') must
+            // never write them.
+            if (!(GammaRamp.OnWayland && X11.GnomeShortcuts.Available))
+            {
+                using var probe = X11.XConnection.Open();
+                if (probe is null) return;
+            }
+            _hotkeys = new Hotkeys.HotkeyService(RunHotkey, Log);
+        }
+        _hotkeys.Apply(settings.Hotkeys ?? []);
+    }
+
+    /// <summary>A grabbed key's command, run here as a client's would be.</summary>
+    private void RunHotkey(string[] args)
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+        _gate.Wait();
+        try
+        {
+            int code = CommandRunner.Run(args, new CommandContext(output, error, InEngine: true, ApplyRampsLocked) { Engine = this });
+            if (code != CommandRunner.Done) Log($"hotkey '{string.Join(' ', args)}': {error.ToString().Trim()}");
+        }
+        catch (Exception ex) { Log($"hotkey '{string.Join(' ', args)}' failed: {ex.Message}"); }
+        finally { _gate.Release(); }
+    }
+
+    /// <summary>Watches the session once anything needs it: a trigger, a desk
+    /// profile or an app rule.</summary>
+    private void UpdateEvents(LinuxSettings settings)
+    {
+        UpdateFocus(settings);
+        bool wanted = settings.Triggers.Any(t => t.Enabled) || settings.AppRules.Any(r => r.Enabled) || settings.Presets.Any(p => p.Desk)
+            || settings.OledCare.Enabled || settings.MonitorSleep.Enabled;
+        if (!wanted) { _events?.Dispose(); _events = null; return; }
+        if (_events is not null) return;
+        using (var probe = X11.XConnection.Open()) if (probe is null) return;
+        _events = new Automation.SessionEvents(e => ThreadPool.QueueUserWorkItem(_ => OnSessionEvent(e)), Log);
+        _events.Start();
+    }
+
+    private void OnSessionEvent(Automation.SessionEvent e)
+    {
+        var settings = SettingsStore.Load();
+        if (e.Name != "idle") Log($"event: {e.Name}{(e.Subject is null ? "" : $" {e.Subject}")}");
+
+        if (e.Name == "back")
+        {
+            _idleFired.Clear();
+            _sleptOnce = false;
+            SetCare(1);
+        }
+        if (e.Name == "idle") IdleCare(settings, e.Idle);
+        for (int i = 0; i < settings.Triggers.Count; i++)
+        {
+            var t = settings.Triggers[i];
+            if (!t.Enabled || t.Event != e.Name) continue;
+            if (e.Name == "idle")
+            {
+                if (e.Idle < TimeSpan.FromMinutes(t.Minutes) || !_idleFired.Add(i)) continue;
+            }
+            else if (!string.IsNullOrEmpty(t.Match) && !(e.Subject ?? "").Contains(t.Match, StringComparison.OrdinalIgnoreCase)) continue;
+            RunFeature(settings, t.Feature);
+        }
+
+        if (e.Name is "display-connected" or "display-disconnected") DeskProfile(settings);
+        if (e.Name == "app-in-front") AppArrived(settings, e.Subject!);
+        if (e.Name == "app-left") AppLeft(e.Subject!);
+    }
+
+    /// <summary>OLED care's stages and monitor sleep, from how long nothing has
+    /// been touched; paused while a window is full screen or media plays.</summary>
+    private void IdleCare(LinuxSettings settings, TimeSpan idle)
+    {
+        var o = settings.OledCare;
+        if (o.Enabled)
+        {
+            bool paused = (o.PauseFullscreen && _events?.FrontFullscreen == true) || (o.PauseMedia && _events?.MediaPlaying() == true);
+            double care = paused ? 1
+                : o.SecondStage && idle >= TimeSpan.FromMinutes(o.SecondMinutes) ? 1 - o.SecondDimPercent / 100.0
+                : idle >= TimeSpan.FromMinutes(o.IdleMinutes) ? 1 - o.DimPercent / 100.0
+                : 1;
+            if (_care < 1 && care == 1 && !paused) care = _care; // a rest holds until the next touch
+            SetCare(care);
+        }
+        var sleep = settings.MonitorSleep;
+        bool displaysHeld = settings.Awake.ActiveAt(DateTimeOffset.Now) && settings.Awake.KeepDisplaysOn;
+        if (sleep.Enabled && !_sleptOnce && !displaysHeld && idle >= TimeSpan.FromMinutes(sleep.Minutes))
+        {
+            _sleptOnce = true;
+            Log("monitor sleep: displays off");
+            if (!Session.DisplayPower.TurnOff(out var error)) Log($"monitor sleep: {error}");
+        }
+    }
+
+    private void SetCare(double care)
+    {
+        if (Math.Abs(care - _care) < 0.001) return;
+        _care = care;
+        Log(care >= 1 ? "oled care: back to normal" : $"oled care: {Math.Round((1 - care) * 100)}% dimmer");
+        _gate.Wait();
+        try { ApplyRampsLocked(); }
+        finally { _gate.Release(); }
+    }
+
+    /// <summary>Rest now: OLED care's second stage until the next touch, the
+    /// watcher's "back" undoing it. Runs inside a command, holding the gate.</summary>
+    public void OledRest()
+    {
+        var o = SettingsStore.Load().OledCare;
+        _care = 1 - o.SecondDimPercent / 100.0;
+        ApplyRampsLocked();
+        if (_events is null)
+        {
+            using var probe = X11.XConnection.Open();
+            if (probe is not null) { _events = new Automation.SessionEvents(e => ThreadPool.QueueUserWorkItem(_ => OnSessionEvent(e)), Log); _events.Start(); }
+        }
+    }
+
+    private void UpdateFocus(LinuxSettings settings)
+    {
+        if (!settings.Focus.Enabled || GammaRamp.OnWayland)
+        {
+            if (_focus is not null) { _focus.Dispose(); _focus = null; }
+            return;
+        }
+        if (_focus is { Running: true }) { _focus.DimPercent = settings.Focus.DimPercent; return; }
+        if (_focus?.Problem is not null) return;
+        using (var probe = X11.XConnection.Open()) if (probe is null) return;
+        _focus = new X11.FocusOverlay(settings.Focus.DimPercent, Log);
+        _focus.Start();
+    }
+
+    /// <summary>Room light on each pass: unison moves when the light, smoothed,
+    /// asks for at least three points more or less, so a passing shadow does
+    /// not make the displays pump.</summary>
+    private void UpdateRoomLight(LinuxSettings settings)
+    {
+        if (!settings.RoomLight.Enabled)
+        {
+            _roomLight?.Dispose();
+            _roomLight = null;
+            _roomLightProblem = null;
+            _lux = null;
+            return;
+        }
+        if (_roomLight is null)
+        {
+            if (_roomLightProblem is not null) return;
+            _roomLight = Session.RoomLight.Open(out _roomLightProblem);
+            if (_roomLight is null) { Log($"room light: {_roomLightProblem}"); return; }
+        }
+        if (_roomLight.Lux() is not double lux) return;
+        _lux = _lux is double was ? was * 0.6 + lux * 0.4 : lux;
+        int level = Session.RoomLight.LevelFor(_lux.Value, settings.RoomLight.Min, settings.RoomLight.Max);
+        if (_lastRoomLevel >= 0 && Math.Abs(level - _lastRoomLevel) < 3) return;
+        _lastRoomLevel = level;
+        // Called inside the pass, which holds the gate.
+        var context = new CommandContext(TextWriter.Null, TextWriter.Null, InEngine: true, ApplyRampsLocked) { Engine = this };
+        CommandRunner.SetUnisonFromRoom(level, context);
+    }
+
+    public string? FocusProblem() => _focus?.Problem ?? (GammaRamp.OnWayland ? "focus mode needs an X11 session" : null);
+
+    private void RunFeature(LinuxSettings settings, string name)
+    {
+        if (settings.Features.FirstOrDefault(f => string.Equals(f.Name, name, StringComparison.OrdinalIgnoreCase)) is not { } feature)
+        {
+            Log($"trigger: no feature '{name}'");
+            return;
+        }
+        foreach (var p in Automation.FeatureRunner.Run(feature, RunCommand)) Log($"feature {name}: {p}");
+    }
+
+    /// <summary>A command run here, as a client's or a hotkey's would be; the
+    /// reason it was refused, or null.</summary>
+    private string? RunCommand(string[] args)
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+        _gate.Wait();
+        try
+        {
+            int code = CommandRunner.Run(args, new CommandContext(output, error, InEngine: true, ApplyRampsLocked) { Engine = this });
+            return code == CommandRunner.Done ? null : error.ToString().Trim();
+        }
+        catch (Exception ex) { return ex.Message; }
+        finally { _gate.Release(); }
+    }
+
+    /// <summary>A desk profile applies when exactly its displays are connected,
+    /// once per arrival: after the outputs settle, and not again until the
+    /// desk changes.</summary>
+    private void DeskProfile(LinuxSettings settings)
+    {
+        Thread.Sleep(3000);
+        var connected = _events?.Outputs ?? new Dictionary<string, string?>();
+        var profile = settings.Presets.FirstOrDefault(p => p.Desk && Presets.PresetDesk.FitsExactly(p, connected));
+        if (profile is null) { _lastDesk = null; return; }
+        if (_lastDesk == profile.Name) return;
+        _lastDesk = profile.Name;
+        Log($"desk profile: {profile.Name}");
+        if (RunCommand(["preset", "apply", profile.Name]) is { } error) Log($"desk profile {profile.Name}: {error}");
+    }
+
+    private void AppArrived(LinuxSettings settings, string app)
+    {
+        var rule = settings.AppRules.FirstOrDefault(r => r.Enabled && string.Equals(r.App, app, StringComparison.OrdinalIgnoreCase));
+        if (rule is null || _ruleHeld?.Rule.App.Equals(app, StringComparison.OrdinalIgnoreCase) == true) return;
+        _rulePending?.Cancel();
+        var pending = _rulePending = new CancellationTokenSource();
+        if (pending.Token.WaitHandle.WaitOne(TimeSpan.FromSeconds(rule.DelaySeconds))) return;
+        if (!string.Equals(_events?.FrontApp, app, StringComparison.OrdinalIgnoreCase)) return;
+        if (settings.Presets.FirstOrDefault(p => string.Equals(p.Name, rule.Preset, StringComparison.OrdinalIgnoreCase)) is not { } preset) return;
+        // The desk as it was, only the parts the rule's preset will change.
+        Preset? before = rule.Then == "previous"
+            ? Presets.PresetDesk.Capture("(before " + app + ")", PresetParts.All.Where(p => !preset.Holds(p)).ToList())
+            : null;
+        _ruleHeld = (rule, before);
+        Log($"app rule: {app} in front, {rule.Preset}");
+        if (RunCommand(["preset", "apply", rule.Preset]) is { } error) Log($"app rule {app}: {error}");
+    }
+
+    private void AppLeft(string app)
+    {
+        _rulePending?.Cancel();
+        if (_ruleHeld is not { } held || !held.Rule.App.Equals(app, StringComparison.OrdinalIgnoreCase)) return;
+        _ruleHeld = null;
+        switch (held.Rule.Then)
+        {
+            case "keep":
+                break;
+            case "previous" when held.Before is { } before:
+                Log($"app rule: {app} left, the desk goes back");
+                _gate.Wait();
+                try
+                {
+                    foreach (var p in Presets.PresetDesk.Apply(before)) Log($"app rule {app}: {p}");
+                    ApplyRampsLocked();
+                }
+                finally { _gate.Release(); }
+                break;
+            default:
+                if (RunCommand(["preset", "apply", held.Rule.Then]) is { } error) Log($"app rule {app}: {error}");
+                break;
+        }
+    }
+
+    public string HotkeyStatus() => _hotkeys?.Status() ?? "not held yet: no desktop to hold them on";
 
     public string AwakeStatus()
     {

@@ -22,6 +22,8 @@ public static partial class CommandRunner
                 SettingsStore.Update(s => { s.Awake.Mode = AwakeMode.On; s.Awake.Until = null; });
                 c.Out.WriteLine("Keeping the computer awake until you switch it off.");
                 return AwakeNote(c);
+            case ["toggle"]:
+                return AwakeCommand([SettingsStore.Load().Awake.ActiveAt(now) ? "off" : "on"], c);
             case ["off" or "false"]:
                 SettingsStore.Update(s => { s.Awake.Mode = AwakeMode.Off; s.Awake.Until = null; });
                 c.Out.WriteLine("Keep awake off: the computer sleeps as its power settings say.");
@@ -59,7 +61,8 @@ public static partial class CommandRunner
             c.Out.WriteLine($"stay active  {(SettingsStore.Load().Awake.StayActive ? "on" : "off")}");
             return Done;
         }
-        if (args.Length != 1 || !TryOnOff(args[0], out bool on)) return Wrong(c, "stayactive takes on or off");
+        if (args is ["toggle"]) args = [SettingsStore.Load().Awake.StayActive ? "off" : "on"];
+        if (args.Length != 1 || !TryOnOff(args[0], out bool on)) return Wrong(c, "stayactive takes on, off or toggle");
         SettingsStore.Update(s => s.Awake.StayActive = on);
         c.Out.WriteLine(on
             ? "Stay active on: after 55 seconds without the pointer moving, it moves a pixel and back."

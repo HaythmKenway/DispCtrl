@@ -63,6 +63,31 @@ public static partial class GnomeShortcuts
         foreach (var key in new[] { "name", "command", "binding" }) Shell.Run("gsettings", ["reset", entry, key], 3000);
     }
 
+    /// <summary>Removes every entry of DispCtrl's whose id starts with
+    /// <paramref name="prefix"/> and is not in <paramref name="keep"/>: hotkeys
+    /// removed since they were last set.</summary>
+    public static void RemoveStale(string prefix, IReadOnlySet<string> keep)
+    {
+        foreach (var path in Paths() ?? [])
+        {
+            var id = path.TrimEnd('/').Split('/')[^1];
+            if (id.StartsWith(prefix, StringComparison.Ordinal) && !keep.Contains(id)) Remove(id);
+        }
+    }
+
+    /// <summary>Where a GNOME shortcut finds the command line: the snap's own
+    /// launcher, which outlives a refresh, never the revision's path; elsewhere
+    /// this program, with the .NET it needs named.</summary>
+    public static string CommandLine(string arguments)
+    {
+        if (Distribution.Distro.InSnap) return $"/snap/bin/dispctrl-linux {arguments}";
+        var exe = Environment.ProcessPath ?? "dispctrl-linux";
+        var command = $"\"{exe}\" {arguments}";
+        if (Environment.GetEnvironmentVariable("DOTNET_ROOT") is { Length: > 0 } root)
+            command = $"env DOTNET_ROOT=\"{root}\" {command}";
+        return command;
+    }
+
     /// <summary>The accelerator another GNOME custom shortcut already uses for
     /// <paramref name="accelerator"/>, by its name, so a clash is said.</summary>
     public static string? TakenBy(string accelerator, string exceptId)

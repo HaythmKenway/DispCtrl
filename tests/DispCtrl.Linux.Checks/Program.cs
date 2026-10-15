@@ -16,6 +16,7 @@ using DispCtrl.Linux.X11;
 // and runtime folders. The runtime folder sits in /tmp because a socket path
 // over 107 characters cannot be bound at all.
 GammaRamp.DisplayName = ":65000";
+Environment.SetEnvironmentVariable("XDG_CURRENT_DESKTOP", "");
 var scratch = Directory.CreateTempSubdirectory("dcl.").FullName;
 var config = Path.Combine(scratch, "config");
 var runtime = Path.Combine(scratch, "run");
@@ -42,6 +43,7 @@ try
     SettingsFile();
     Commands();
     NewFeatureChecks();
+    MajorReleaseChecks();
     Client();
     EngineProcess();
 }
@@ -247,13 +249,13 @@ void SettingsFile()
     // A file from a newer build: everything it adds survives this one's save.
     File.WriteAllText(SettingsStore.FilePath, """
         { "nightLight": { "enabled": false, "strength": 30, "transitionSeconds": 20 },
-          "dim": { "DP-1": 0.7 }, "hotkeys": [ { "keys": "Ctrl+Alt+N" } ] }
+          "dim": { "DP-1": 0.7 }, "cloudSync": [ { "keys": "Ctrl+Alt+N" } ] }
         """);
     SettingsStore.Update(s => s.NightLight.Strength = 35);
     using (var doc = JsonDocument.Parse(File.ReadAllText(SettingsStore.FilePath)))
     {
         var root = doc.RootElement;
-        Check(root.TryGetProperty("hotkeys", out var hk) && hk.GetArrayLength() == 1
+        Check(root.TryGetProperty("cloudSync", out var hk) && hk.GetArrayLength() == 1
             && root.GetProperty("nightLight").GetProperty("transitionSeconds").GetInt32() == 20
             && root.GetProperty("nightLight").GetProperty("strength").GetInt32() == 35
             && root.GetProperty("dim").GetProperty("DP-1").GetDouble() == 0.7,
@@ -521,7 +523,7 @@ void NewFeatureChecks()
     Check(suggested.Count >= 6 && suggested.All(t => t.BrightnessAll is not null && t.Outputs.Count == 0 && !t.Holds(PresetParts.Layout) && t.KeepSchedule),
         "presets: every ready-made one sets each display's brightness, moves no display and keeps night light's hours");
     Check(suggested.First(t => t.Name == "Gaming") is { PictureMode: "Game", NightLight.Enabled: false } g && !g.Holds(PresetParts.Theme)
-        && suggested.First(t => t.Name == "Power saver").Skip.Count == 4,
+        && suggested.First(t => t.Name == "Power saver").Skip.Count == 5,
         "presets: a ready-made preset holds only the parts it sets");
     Check(Run("preset", "add", "Night", "Movie").Code == CommandRunner.Done
         && SettingsStore.Load().Presets.Select(p => p.Name).SequenceEqual(["Night", "Movie"]), "commands: ready-made presets are added by name");
@@ -540,6 +542,177 @@ void NewFeatureChecks()
     Check(kept.NightLight is { Enabled: true, Strength: 75, Scheduled: true, From: "21:00", To: "06:30" } && kept.Dim["DP-1"] == 0.6,
         "presets: a ready-made preset switches night light and its strength, and keeps its hours and the dimming");
     File.Delete(SettingsStore.FilePath);
+}
+
+void MajorReleaseChecks()
+{
+    // Window tools: a window's place carried to another display's work area.
+    var from = new Rect(0, 0, 2560, 1400);
+    var to = new Rect(2560, 0, 1920, 1040);
+    Check(DispCtrl.Linux.Placement.WindowMoves.Carry(new Rect(0, 0, 800, 600), from, to) == new Rect(2560, 0, 800, 600)
+        && DispCtrl.Linux.Placement.WindowMoves.Carry(new Rect(1760, 800, 800, 600), from, to) == new Rect(3680, 440, 800, 600),
+        "placement: a window keeps its corner on the display it moves to");
+    Check(DispCtrl.Linux.Placement.WindowMoves.Carry(new Rect(0, 0, 2560, 1400), from, to) == to,
+        "placement: a window larger than the display it moves to is fitted to it");
+    var monitors = new List<MonitorInfo>
+    {
+        new("DP-1", true, new Rect(1920, 0, 2560, 1440), new Rect(1920, 0, 2560, 1400)),
+        new("eDP", false, new Rect(0, 360, 1920, 1080), new Rect(0, 360, 1920, 1080)),
+    };
+    Check(monitors[DispCtrl.Linux.Placement.WindowMoves.Neighbour(monitors, monitors[1], 1)].Name == "DP-1"
+        && monitors[DispCtrl.Linux.Placement.WindowMoves.Neighbour(monitors, monitors[0], 1)].Name == "eDP",
+        "placement: next is left to right, wrapping round");
+    Check(DispCtrl.Linux.Placement.WindowMoves.Span(monitors.Select(m => m.WorkArea)) == new Rect(0, 360, 4480, 1040),
+        "placement: a span covers every display, within the height they share");
+
+    Check(BrightnessTargets.Scale(0, 20, 80) == 20 && BrightnessTargets.Scale(100, 20, 80) == 80 && BrightnessTargets.Scale(50, 20, 80) == 50,
+        "unison: each display moves within its own range");
+    Check(DispCtrl.Linux.Automation.FeatureRunner.Split("preset apply \"Late night\"").SequenceEqual(["preset", "apply", "Late night"]),
+        "features: quotes hold a name with a space");
+    Check(DispCtrl.Linux.Automation.FeatureRunner.Problem("wait 500") is null && DispCtrl.Linux.Automation.FeatureRunner.Problem("wait soon") is not null
+        && DispCtrl.Linux.Automation.FeatureRunner.Problem("nightlight on") is null && DispCtrl.Linux.Automation.FeatureRunner.Problem("frobnicate") is not null
+        && DispCtrl.Linux.Automation.FeatureRunner.Problem("engine stop") is not null,
+        "features: steps are checked before they are saved");
+
+    var power = Directory.CreateDirectory(Path.Combine(scratch, "power")).FullName;
+    Directory.CreateDirectory(Path.Combine(power, "AC"));
+    Directory.CreateDirectory(Path.Combine(power, "BAT0"));
+    File.WriteAllText(Path.Combine(power, "AC", "type"), "Mains\n");
+    File.WriteAllText(Path.Combine(power, "AC", "online"), "0\n");
+    File.WriteAllText(Path.Combine(power, "BAT0", "type"), "Battery\n");
+    bool? onBattery = DispCtrl.Linux.Automation.SessionEvents.Mains(power);
+    File.WriteAllText(Path.Combine(power, "AC", "online"), "1\n");
+    Check(onBattery == false && DispCtrl.Linux.Automation.SessionEvents.Mains(power) == true,
+        "triggers: mains power is read from the kernel's power supplies");
+    Directory.Delete(Path.Combine(power, "BAT0"), true);
+    Check(DispCtrl.Linux.Automation.SessionEvents.Mains(power) is null, "triggers: a desktop with no battery reports no power changes");
+
+    Check(DispCtrl.Linux.Session.RoomLight.LevelFor(0, 20, 100) == 20 && DispCtrl.Linux.Session.RoomLight.LevelFor(1000, 20, 100) == 100
+        && DispCtrl.Linux.Session.RoomLight.LevelFor(30, 20, 100) is > 50 and < 70,
+        "room light: brightness follows the logarithm of the light, within its range");
+
+    var scrubbed = CommandRunner.Scrub($"monitor DELL P2723DE|22WB714 at {Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)}/x by {Environment.UserName}");
+    Check(!scrubbed.Contains("22WB714", StringComparison.Ordinal) && !scrubbed.Contains(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), StringComparison.Ordinal),
+        "report: serials and the home folder are taken out");
+
+    Check(HotkeyBinding.Defaults().All(h => Shortcut.Parse(h.Keys) is not null && CommandRunner.HotkeyCommandProblem(h.Command) is null),
+        "hotkeys: every default is a shortcut and a command that exists");
+    Check(!HotkeyBinding.Defaults().Any(h => h.Keys is "Ctrl+Alt+L" or "Ctrl+Alt+Backspace"),
+        "hotkeys: none takes the lock screen's key or X's own Ctrl+Alt+Backspace");
+
+    var desk = new Preset { Name = "Desk", Desk = true, Outputs = [new() { Name = "DP-1", Model = "DELL", Enabled = true }, new() { Name = "eDP", Enabled = true }] };
+    Check(PresetDesk.FitsExactly(desk, new Dictionary<string, string?> { ["DP-1"] = "DELL", ["eDP"] = null })
+        && !PresetDesk.FitsExactly(desk, new Dictionary<string, string?> { ["eDP"] = null })
+        && !PresetDesk.FitsExactly(desk, new Dictionary<string, string?> { ["DP-1"] = "LG", ["eDP"] = null }),
+        "desk profiles: exactly the displays saved, with the same monitors, and no other");
+
+    OpenRgbChecks();
+
+    (int Code, string Out, string Err) Run(params string[] args)
+    {
+        var o = new StringWriter();
+        var e = new StringWriter();
+        int code = CommandRunner.Run(args, new CommandContext(o, e, InEngine: false, () => []));
+        return (code, o.ToString(), e.ToString());
+    }
+    Check(Run("features", "add", "Late", "nightlight 80; frobnicate").Code == CommandRunner.AskedWrongly, "commands: a feature with an unknown step is refused");
+    Check(Run("features", "add", "Late", "nightlight 80; wait 10").Code == CommandRunner.Done
+        && SettingsStore.Load().Features.Single() is { Name: "Late", Steps.Count: 2 }, "commands: a feature is saved with its steps");
+    Check(Run("triggers", "add", "sunrise", "Late").Code == CommandRunner.AskedWrongly, "commands: an unknown event is asked wrongly");
+    Check(Run("triggers", "add", "at-time", "Late").Code == CommandRunner.AskedWrongly, "commands: at-time needs a time");
+    Check(Run("triggers", "add", "at-time", "Late", "--match", "22:30").Code == CommandRunner.Done
+        && SettingsStore.Load().Triggers.Single() is { Event: "at-time", Match: "22:30", Feature: "Late" }, "commands: a trigger is saved");
+    Check(Run("hotkeys", "add", "N", "nightlight toggle").Code == CommandRunner.AskedWrongly, "commands: a hotkey needs a modifier");
+    Check(Run("hotkeys", "add", "Ctrl+Alt+M", "preset", "apply", "Movie").Code == CommandRunner.Done
+        && SettingsStore.Load().Hotkeys!.Any(h => h.Keys == "Ctrl+Alt+M" && h.Command == "preset apply Movie"), "commands: a hotkey is added");
+    Check(Run("hotkeys", "remove", "Ctrl+Alt+M").Code == CommandRunner.Done && !SettingsStore.Load().Hotkeys!.Any(h => h.Keys == "Ctrl+Alt+M"),
+        "commands: a hotkey is removed by its keys");
+    Check(Run("oled", "on", "--idle-minutes", "5", "--dim", "40").Code == CommandRunner.Done
+        && SettingsStore.Load().OledCare is { Enabled: true, IdleMinutes: 5, DimPercent: 40 }, "commands: OLED care is set");
+    Check(Run("oled", "--dim", "99").Code == CommandRunner.AskedWrongly, "commands: OLED care's dimming is held to its range");
+    Check(Run("focus", "on", "--dim", "5").Code == CommandRunner.AskedWrongly, "commands: focus's dimming is held to its range");
+    Check(Run("rgb").Code == CommandRunner.Refused && Run("rgb").Err.Contains("OpenRGB", StringComparison.Ordinal),
+        "commands: lighting without OpenRGB running says what to start");
+    Check(Run("rgb", "colour", "chartreuse-ish").Code == CommandRunner.AskedWrongly, "commands: a colour that is not one is asked wrongly");
+    Check(Run("pin").Code == CommandRunner.Refused, "commands: pinning without an X display is refused");
+    Check(Run("unison", "range", "x", "80", "20").Code == CommandRunner.AskedWrongly, "commands: a unison range lowest first");
+    File.Delete(SettingsStore.FilePath);
+}
+
+void OpenRgbChecks()
+{
+    // A device as OpenRGB protocol 3 lays it out: two modes, one zone, three LEDs.
+    var blob = new MemoryStream();
+    var w = new BinaryWriter(blob);
+    void Str(string text) { var b = System.Text.Encoding.UTF8.GetBytes(text + "\0"); w.Write((ushort)b.Length); w.Write(b); }
+    w.Write(0u); w.Write(5);
+    Str("Keychron K2"); Str("Keychron"); Str("desc"); Str("1.0"); Str("serial"); Str("usb");
+    w.Write((ushort)2); w.Write(1);
+    foreach (var (name, flags) in new[] { ("Direct", 1u << 5), ("Static", 1u << 6) })
+    {
+        Str(name); w.Write(0); w.Write(flags); w.Write(0u); w.Write(0u); w.Write(0u); w.Write(100u);
+        w.Write(1u); w.Write(1u); w.Write(0u); w.Write(100u); w.Write(0u); w.Write(name == "Static" ? 2u : 1u);
+        w.Write((ushort)(name == "Static" ? 1 : 0)); if (name == "Static") w.Write(0x0000FFu);
+    }
+    w.Write((ushort)1); Str("Keys"); w.Write(2); w.Write(3u); w.Write(3u); w.Write(3u); w.Write((ushort)0);
+    w.Write((ushort)3); foreach (var led in new[] { "A", "B", "C" }) { Str(led); w.Write(0u); }
+    w.Write((ushort)3); w.Write(0u); w.Write(0u); w.Write(0u);
+    w.Flush();
+    var device = DispCtrl.Linux.Lighting.OpenRgb.Parse(0, blob.ToArray(), 3);
+    Check(device is { Name: "Keychron K2", Vendor: "Keychron", Type: 5, ActiveMode: 1, LedCount: 3 } && device.Modes.Count == 2
+        && device.Modes[1] is { Name: "Static", ColorMode: 2 } && device.Modes[1].Colors.SequenceEqual([0x0000FFu]),
+        "openrgb: a device is read as protocol 3 lays it out");
+    var mode = DispCtrl.Linux.Lighting.OpenRgb.SerializeMode(device.Modes[1], 3);
+    Check(BitConverter.ToUInt32(mode) == mode.Length && BitConverter.ToInt32(mode, 4) == 1,
+        "openrgb: an effect is written with its size and index first");
+    Check(DispCtrl.Linux.Lighting.OpenRgb.Pack(0xFF, 0x80, 0x10) == 0x1080FFu, "openrgb: colours are red in the low byte");
+
+    // A server that answers as OpenRGB does, to the handshake and the device list.
+    var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+    listener.Start();
+    int port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+    var leds = new List<byte[]>();
+    var server = Task.Run(() =>
+    {
+        using var client = listener.AcceptTcpClient();
+        var s = client.GetStream();
+        var header = new byte[16];
+        void Reply(uint packet, byte[] body)
+        {
+            var h = new byte[16];
+            "ORGB"u8.CopyTo(h);
+            BitConverter.GetBytes(packet).CopyTo(h, 8);
+            BitConverter.GetBytes((uint)body.Length).CopyTo(h, 12);
+            s.Write(h); s.Write(body);
+        }
+        try
+        {
+            while (true)
+            {
+                s.ReadExactly(header);
+                uint packet = BitConverter.ToUInt32(header, 8);
+                var body = new byte[BitConverter.ToUInt32(header, 12)];
+                s.ReadExactly(body);
+                switch (packet)
+                {
+                    case 40: Reply(40, BitConverter.GetBytes(4u)); break;
+                    case 0: Reply(0, BitConverter.GetBytes(1u)); break;
+                    case 1: Reply(1, blob.ToArray()); break;
+                    case 1050: leds.Add(body); break;
+                }
+            }
+        }
+        catch (Exception) { }
+    });
+    using (var rgb = DispCtrl.Linux.Lighting.OpenRgb.Connect("127.0.0.1", port))
+    {
+        var devices = rgb.Devices();
+        rgb.SetColour(devices[0], 0xFF, 0x93, 0x29);
+    }
+    server.Wait(3000);
+    listener.Stop();
+    Check(leds.Count == 1 && BitConverter.ToUInt16(leds[0], 4) == 3 && leds[0][6] == 0xFF && leds[0][7] == 0x93 && leds[0][8] == 0x29,
+        "openrgb: a colour reaches every LED, after the handshake settles on protocol 3");
 }
 
 void Client()
@@ -572,6 +745,8 @@ void EngineProcess()
         info.ArgumentList.Add(dll);
         foreach (var a in args) info.ArgumentList.Add(a);
         info.Environment["DISPLAY"] = ":65000";
+        // Not GNOME: the engine would write its hotkeys into GNOME's real settings.
+        info.Environment["XDG_CURRENT_DESKTOP"] = "";
         info.Environment.Remove("XAUTHORITY");
         return Process.Start(info)!;
     }

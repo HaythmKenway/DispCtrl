@@ -17,12 +17,17 @@ public sealed record RampChange(string Output, RampTarget Target, bool Written, 
 /// </remarks>
 public static class RampApplier
 {
-    public static IReadOnlyList<RampChange> Apply(LinuxSettings settings, TimeOnly now, ISet<string>? owned = null)
+    /// <param name="care">OLED care's dimming on top of the settings', 1 for
+    /// none: the engine's while nobody is at the desk.</param>
+    public static IReadOnlyList<RampChange> Apply(LinuxSettings settings, TimeOnly now, ISet<string>? owned = null, double care = 1)
     {
         var changes = new List<RampChange>();
         foreach (var output in GammaRamp.Outputs())
         {
             var target = RampTarget.For(settings, output.Name, now);
+            // Below the lowest manual dim on purpose: nobody is looking, and the
+            // first touch puts it back.
+            if (care < 1) target = target with { Dim = Math.Max(0.05, target.Dim * care) };
             bool ours = owned?.Contains(output.Name) ?? true;
             if (target.IsIdentity && !ours) continue;
 

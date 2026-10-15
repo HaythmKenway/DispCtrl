@@ -26,6 +26,7 @@ public static class Distro
         new("libXrandr.so.2", "night light, dimming and arranging displays", ["libxrandr2", "libXrandr", "libXrandr2", "libxrandr", "libxrandr", "libXrandr", "x11-libs/libXrandr"]),
         new("libXi.so.6", "snapping by dragging", ["libxi6", "libXi", "libXi6", "libxi", "libxi", "libXi", "x11-libs/libXi"]),
         new("libXtst.so.6", "Stay active's pointer nudge", ["libxtst6", "libXtst", "libXtst6", "libxtst", "libxtst", "libXtst", "x11-libs/libXtst"]),
+        new("libXss.so.1", "idle time, for OLED care, monitor sleep and idle triggers", ["libxss1", "libXScrnSaver", "libXss1", "libxss", "libxscrnsaver", "libXScrnSaver", "x11-libs/libXScrnSaver"]),
         new("libXext.so.6", "turning the displays off (DPMS)", ["libxext6", "libXext", "libXext6", "libxext", "libxext", "libXext", "x11-libs/libXext"]),
         new("libXfixes.so.3", "snap layouts", ["libxfixes3", "libXfixes", "libXfixes3", "libxfixes", "libxfixes", "libXfixes", "x11-libs/libXfixes"]),
         new("libXcomposite.so.1", "Snap Assist's window pictures", ["libxcomposite1", "libXcomposite", "libXcomposite1", "libxcomposite", "libxcomposite", "libXcomposite", "x11-libs/libXcomposite"]),

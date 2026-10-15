@@ -48,6 +48,14 @@ public sealed class Preset
     /// and its strength are applied. Ready-made presets keep a person's schedule.</summary>
     public bool KeepSchedule { get; set; }
 
+    /// <summary>RGB lighting through OpenRGB: #RRGGBB, "off" or "mode:NAME";
+    /// null when it holds none.</summary>
+    public string? Lighting { get; set; }
+
+    /// <summary>A desk profile: applied by itself when exactly its displays
+    /// are connected.</summary>
+    public bool Desk { get; set; }
+
     /// <summary>One line on what it does, for a ready-made preset's card.</summary>
     public string? Description { get; set; }
 
@@ -73,9 +81,10 @@ public sealed class Preset
 /// <summary>The parts a preset can hold, by the names the command line uses.</summary>
 public static class PresetParts
 {
-    public const string Layout = "layout", Brightness = "brightness", NightLight = "nightlight", Theme = "theme", Controls = "controls";
+    public const string Layout = "layout", Brightness = "brightness", NightLight = "nightlight", Theme = "theme", Controls = "controls",
+        Lighting = "lighting";
 
-    public static readonly IReadOnlyList<string> All = [Layout, Brightness, NightLight, Theme, Controls];
+    public static readonly IReadOnlyList<string> All = [Layout, Brightness, NightLight, Theme, Controls, Lighting];
 }
 
 /// <summary>One output as the preset found it: lit or off, its mode, place

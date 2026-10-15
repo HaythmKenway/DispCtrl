@@ -185,6 +185,7 @@ parts:
       - libxi6
       - libxtst6
       - libxext6
+      - libxss1
       - libxfixes3
       - libxcomposite1
       - libcairo2

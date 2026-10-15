@@ -16,6 +16,12 @@ public static partial class CommandRunner
                 return PresetList(c);
             case ["save", var name, .. var rest]:
                 return PresetSave(name, rest, c);
+            case ["desk", var name, var value]:
+                return PresetDeskCommand(name, value, c);
+            case ["rule", .. var rest]:
+                return PresetRuleCommand(rest, c);
+            case ["launch", var name, .. var program]:
+                return PresetLaunch(name, program, c);
             case ["suggested"]:
                 foreach (var t in PresetDesk.Suggested())
                     c.Out.WriteLine($"{t.Name,-12} {t.Description}{(FindPreset(t.Name) is null ? "" : "  (added)")}");
@@ -51,7 +57,7 @@ public static partial class CommandRunner
         }
     }
 
-    private const string PartsHelp = "--skip takes none, or parts separated by commas: layout, brightness, nightlight, theme, controls";
+    private const string PartsHelp = "--skip takes none, or parts separated by commas: layout, brightness, nightlight, theme, controls, lighting";
 
     /// <summary><c>preset add</c>: ready-made presets, by name or all; one whose
     /// name is already taken is left as it is.</summary>
@@ -151,6 +157,7 @@ public static partial class CommandRunner
         if (p.NightLight is { } n) c.Out.WriteLine($"  night light {(n.Enabled ? $"on, strength {n.Strength}" : "off")}{(!p.KeepSchedule && n.Scheduled ? $", {n.From} to {n.To}" : "")}");
         if (p.Dim is { Count: > 0 } dim) c.Out.WriteLine($"  dimming {string.Join(", ", dim.Select(d => $"{d.Key} {Percent(d.Value)}%"))}");
         if (p.Dark is bool dark) c.Out.WriteLine($"  dark mode {(dark ? "on" : "off")}");
+        if (p.Lighting is { } light) c.Out.WriteLine($"  lighting {light}");
         foreach (var g in p.Controls.GroupBy(x => x.Monitor))
             c.Out.WriteLine($"  controls {g.Key.Split('|')[0]}: {string.Join(", ", g.Select(x => $"0x{x.Code:X2}={x.Value}"))}");
         return Done;
@@ -202,13 +209,15 @@ public static partial class CommandRunner
                 SettingsStore.Update(s => s.Tray.Enabled = on);
                 c.Out.WriteLine(on ? "The tray icon shows from the next sign-in, or now: dispctrl-linux-gui --tray" : "Tray icon hidden.");
                 return Done;
+            case ["show"]:
+                return TrayShow(c);
             case ["click", var what]:
                 if (what is not ("panel" or "window")) return Wrong(c, "tray click takes panel or window");
                 SettingsStore.Update(s => s.Tray.QuickPanel = what == "panel");
                 c.Out.WriteLine(what == "panel" ? "A left click opens the quick panel." : "A left click opens the window.");
                 return Done;
             default:
-                return Wrong(c, "tray takes on, off or click panel|window");
+                return Wrong(c, "tray takes on, off, show or click panel|window");
         }
     }
 }

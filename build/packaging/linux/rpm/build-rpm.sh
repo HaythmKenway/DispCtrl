@@ -25,7 +25,7 @@ License:        MIT
 URL:            https://github.com/HaythmKenway/DispCtrl-linux
 AutoReqProv:    no
 Requires:       libstdc++.so.6()(64bit), libgcc_s.so.1()(64bit), libz.so.1()(64bit)
-Requires:       libX11.so.6()(64bit), libXrandr.so.2()(64bit), libXi.so.6()(64bit), libXtst.so.6()(64bit), libXext.so.6()(64bit)
+Requires:       libX11.so.6()(64bit), libXrandr.so.2()(64bit), libXi.so.6()(64bit), libXtst.so.6()(64bit), libXext.so.6()(64bit), libXss.so.1()(64bit)
 Requires:       libXfixes.so.3()(64bit), libXcomposite.so.1()(64bit), libcairo.so.2()(64bit)
 Requires:       libpango-1.0.so.0()(64bit), libpangocairo-1.0.so.0()(64bit)
 Requires:       libfontconfig.so.1()(64bit), libICE.so.6()(64bit), libSM.so.6()(64bit)
