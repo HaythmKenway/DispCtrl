@@ -1,7 +1,9 @@
 name: Linux release
-# DispCtrl for Linux's release, built entirely on GitHub: the checks, every
-# package, the install check on nine distributions, the GitHub release, and
-# the snaps for the Snap Store. Nothing is built on anyone's own machine.
+# DispCtrl for Linux's release, built entirely on GitHub, in parallel: the
+# checks, each package target and both snaps start together; the install on
+# nine distributions runs one runner per distribution once the tarballs are
+# built; then one job gathers everything, creates the release, uploads the
+# snaps to the Snap Store and refreshes the apt and dnf repositories.
 #
 # Run it from Actions > Linux release > Run workflow. The version is the one
 # in build/linux/Linux.Build.props; the release notes are
@@ -24,14 +26,11 @@ concurrency:
   group: linux-release
   cancel-in-progress: false
 jobs:
-  packages:
-    # Checks, packages (.deb and .rpm for x86-64 and ARM, tarballs for
-    # x86-64, ARM and musl), the nine-distribution install check, then the
-    # release with every package and the checksums.
+  checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 20
     permissions:
-      contents: write   # the tag and the release
+      contents: read
     outputs:
       version: ${{ steps.v.outputs.version }}
     steps:
@@ -51,45 +50,83 @@ jobs:
         run: |
           ./build.cmd linux-build
           dotnet run --project tests/DispCtrl.Linux.Checks -c Release --no-build
-      - name: Packages
+
+  packages:
+    # One target each, at once; ARM on an ARM runner, so its .deb and .rpm
+    # are made where they run.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x64
+            runner: ubuntu-latest
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+          - target: linux-musl-x64
+            runner: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+      - name: Package
         env:
-          DISPCTRL_VERSION: ${{ steps.v.outputs.version }}
+          DISPCTRL_LINUX_TARGETS: ${{ matrix.target }}
         run: |
-          # rpmbuild for the .rpm; fakeroot and dpkg-deb are on the image.
           sudo apt-get install -y --no-install-recommends rpm
           ./build.cmd linux-package
-      - name: Install on nine distributions
-        env:
-          VERSION: ${{ steps.v.outputs.version }}
-        run: build/packaging/linux/distro-check.sh "artifacts/linux-$VERSION"
-      - name: Release
+          mkdir out && cp artifacts/linux-*/*.tar.gz out/
+          cp artifacts/linux-*/*.deb artifacts/linux-*/*.rpm out/ 2>/dev/null || true
+          ls -la out
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: packages-${{ matrix.target }}
+          path: out/
+          retention-days: 7
+
+  distributions:
+    # The install check, one distribution per runner.
+    needs: packages
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - debian:12
+          - ubuntu:20.04
+          - ubuntu:24.04
+          - fedora:42
+          - rockylinux:8
+          - opensuse/tumbleweed
+          - archlinux
+          - alpine:3.20
+          - ghcr.io/void-linux/void-glibc:latest
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read     # the tarballs from this run
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install on ${{ matrix.image }}
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.v.outputs.version }}
+          IMAGE: ${{ matrix.image }}
         run: |
-          dir="artifacts/linux-$VERSION"
-          tag="v$VERSION"
-          files=("$dir"/*.deb "$dir"/*.rpm "$dir"/*.tar.gz "$dir"/*SHA256SUMS.txt)
-          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$tag" "${files[@]}" --clobber --repo "$GITHUB_REPOSITORY"
-          else
-            gh release create "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-              --title "DispCtrl for Linux $VERSION" --notes-file build/linux/release-notes.md --draft
-          fi
-          {
-            echo "## DispCtrl for Linux $VERSION"
-            echo
-            echo "| File | Size |"
-            echo "|---|---|"
-            for f in "${files[@]}"; do echo "| $(basename "$f") | $(du -h "$f" | cut -f1) |"; done
-          } >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p dist
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n packages-linux-x64 -D dist
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n packages-linux-musl-x64 -D dist
+          build/packaging/linux/distro-check.sh dist "$IMAGE"
 
   snap:
-    # The snap for each processor, built in Canonical's snapcraft image,
-    # attached to the release and, unless the channel is none and once the
-    # SNAPCRAFT_STORE_CREDENTIALS secret holds `snapcraft export-login`'s
-    # output, uploaded to the Store channel chosen.
-    needs: packages
+    # Both processors at once, from the start: the slowest part of a release.
     strategy:
       fail-fast: false
       matrix:
@@ -101,48 +138,77 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     permissions:
-      contents: write   # to upload to the release
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build
+        run: build/packaging/linux/snap/pack.sh --docker
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: snap-${{ matrix.arch }}
+          path: artifacts/snap/*.snap
+          retention-days: 7
+
+  release:
+    # Only when everything passed: the release, the Store, the repositories.
+    needs: [checks, packages, distributions, snap]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write   # the tag and the release
+      actions: write    # this run's files, and starting the repositories
     env:
-      VERSION: ${{ needs.packages.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.checks.outputs.version }}
       CHANNEL: ${{ inputs.snap_channel }}
       HAS_STORE_LOGIN: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS != '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Build
-        env:
-          DISPCTRL_VERSION: ${{ needs.packages.outputs.version }}
-        run: build/packaging/linux/snap/pack.sh --docker
-      - name: Attach to the release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Gather
         run: |
-          gh release upload "v$VERSION" artifacts/snap/*.snap --clobber --repo "$GITHUB_REPOSITORY"
-          echo "| $(basename artifacts/snap/*.snap) | $(du -h artifacts/snap/*.snap | cut -f1) |" >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p files snaps
+          for t in linux-x64 linux-arm64 linux-musl-x64; do
+            gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n "packages-$t" -D files
+          done
+          for a in amd64 arm64; do
+            gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n "snap-$a" -D snaps
+          done
+          cp snaps/*.snap files/
+          # One checksum file for everything, the snaps included.
+          (cd files && sha256sum *.deb *.rpm *.tar.gz *.snap > "dispctrl-linux-$VERSION-SHA256SUMS.txt")
+          ls -la files
+      - name: Release
+        run: |
+          tag="v$VERSION"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" files/* --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$tag" files/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "DispCtrl for Linux $VERSION" --notes-file build/linux/release-notes.md --draft
+          fi
+          {
+            echo "## DispCtrl for Linux $VERSION"
+            echo
+            echo "| File | Size |"
+            echo "|---|---|"
+            for f in files/*; do echo "| $(basename "$f") | $(du -h "$f" | cut -f1) |"; done
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload to the Snap Store
         if: inputs.snap_channel != 'none' && env.HAS_STORE_LOGIN == 'true'
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
         run: |
-          snap=$(basename artifacts/snap/*.snap)
           # The image's entry point is snapcraft; its arguments go straight to it.
-          docker run --rm -e SNAPCRAFT_STORE_CREDENTIALS -v "$PWD/artifacts/snap":/snaps -w /snaps \
-            ghcr.io/canonical/snapcraft:8_core24 upload --release="$CHANNEL" "/snaps/$snap"
-
-  publish:
-    # Out of draft once every file is attached, when asked.
-    needs: [packages, snap]
-    if: inputs.publish
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      actions: write    # to start the package repositories' rebuild
-    steps:
-      - name: Publish the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ needs.packages.outputs.version }}
+          for snap in snaps/*.snap; do
+            docker run --rm -e SNAPCRAFT_STORE_CREDENTIALS -v "$PWD/snaps":/snaps -w /snaps \
+              ghcr.io/canonical/snapcraft:8_core24 upload --release="$CHANNEL" "/snaps/$(basename "$snap")"
+          done
+      - name: Publish
+        if: inputs.publish
         run: |
           gh release edit "v$VERSION" --draft=false --latest --repo "$GITHUB_REPOSITORY"
           # The apt and dnf repositories serve the new release from now on.
