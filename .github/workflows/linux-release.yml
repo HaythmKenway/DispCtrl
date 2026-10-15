@@ -1,0 +1,145 @@
+name: Linux release
+# DispCtrl for Linux's release, built entirely on GitHub: the checks, every
+# package, the install check on nine distributions, the GitHub release, and
+# the snaps for the Snap Store. Nothing is built on anyone's own machine.
+#
+# Run it from Actions > Linux release > Run workflow. The version is the one
+# in build/linux/Linux.Build.props; the release notes are
+# build/linux/release-notes.md. A run for a version that already has a
+# release replaces its files.
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the GitHub release (otherwise it stays a draft to review)
+        type: boolean
+        default: false
+      snap_channel:
+        description: Snap Store channel for the snaps (none to skip the Store)
+        type: choice
+        options: [edge, beta, candidate, stable, none]
+        default: edge
+permissions: {}
+concurrency:
+  group: linux-release
+  cancel-in-progress: false
+jobs:
+  packages:
+    # Checks, packages (.deb and .rpm for x86-64 and ARM, tarballs for
+    # x86-64, ARM and musl), the nine-distribution install check, then the
+    # release with every package and the checksums.
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      contents: write   # the tag and the release
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+      - name: Version
+        id: v
+        run: |
+          version=$(sed -n 's:.*<DispCtrlVersion>\(.*\)</DispCtrlVersion>.*:\1:p' build/linux/Linux.Build.props)
+          [ -n "$version" ] || { echo "no DispCtrlVersion in build/linux/Linux.Build.props" >&2; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Checks
+        run: |
+          ./build.cmd linux-build
+          dotnet run --project tests/DispCtrl.Linux.Checks -c Release --no-build
+      - name: Packages
+        env:
+          DISPCTRL_VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          # rpmbuild for the .rpm; fakeroot and dpkg-deb are on the image.
+          sudo apt-get install -y --no-install-recommends rpm
+          ./build.cmd linux-package
+      - name: Install on nine distributions
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: build/packaging/linux/distro-check.sh "artifacts/linux-$VERSION"
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          dir="artifacts/linux-$VERSION"
+          tag="v$VERSION"
+          files=("$dir"/*.deb "$dir"/*.rpm "$dir"/*.tar.gz "$dir"/*SHA256SUMS.txt)
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" "${files[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "DispCtrl for Linux $VERSION" --notes-file build/linux/release-notes.md --draft
+          fi
+          {
+            echo "## DispCtrl for Linux $VERSION"
+            echo
+            echo "| File | Size |"
+            echo "|---|---|"
+            for f in "${files[@]}"; do echo "| $(basename "$f") | $(du -h "$f" | cut -f1) |"; done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  snap:
+    # The snap for each processor, built in Canonical's snapcraft image,
+    # attached to the release and, unless the channel is none and once the
+    # SNAPCRAFT_STORE_CREDENTIALS secret holds `snapcraft export-login`'s
+    # output, uploaded to the Store channel chosen.
+    needs: packages
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    permissions:
+      contents: write   # to upload to the release
+    env:
+      VERSION: ${{ needs.packages.outputs.version }}
+      CHANNEL: ${{ inputs.snap_channel }}
+      HAS_STORE_LOGIN: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS != '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build
+        env:
+          DISPCTRL_VERSION: ${{ needs.packages.outputs.version }}
+        run: build/packaging/linux/snap/pack.sh --docker
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "v$VERSION" artifacts/snap/*.snap --clobber --repo "$GITHUB_REPOSITORY"
+          echo "| $(basename artifacts/snap/*.snap) | $(du -h artifacts/snap/*.snap | cut -f1) |" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload to the Snap Store
+        if: inputs.snap_channel != 'none' && env.HAS_STORE_LOGIN == 'true'
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        run: |
+          snap=$(basename artifacts/snap/*.snap)
+          # The image's entry point is snapcraft; its arguments go straight to it.
+          docker run --rm -e SNAPCRAFT_STORE_CREDENTIALS -v "$PWD/artifacts/snap":/snaps -w /snaps \
+            ghcr.io/canonical/snapcraft:8_core24 upload --release="$CHANNEL" "/snaps/$snap"
+
+  publish:
+    # Out of draft once every file is attached, when asked.
+    needs: [packages, snap]
+    if: inputs.publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.packages.outputs.version }}
+        run: gh release edit "v$VERSION" --draft=false --latest --repo "$GITHUB_REPOSITORY"

@@ -57,6 +57,10 @@ concurrency:
   cancel-in-progress: false
 jobs:
   release:
+    # The Windows release is the original repository's; this one releases
+    # DispCtrl for Linux with linux-release.yml, and a v* tag here must not
+    # start a Windows build.
+    if: github.repository == 'jesvijonathan/DispCtrl'
     runs-on: windows-latest
     timeout-minutes: 75
     permissions:
