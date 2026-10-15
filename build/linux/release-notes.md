@@ -1,3 +1,15 @@
+DispCtrl for Linux 1.0.3 adds per-key lighting and fixes what was found on a laptop with an OLED panel:
+
+- **Per-key lighting:** the Lighting page draws a keyboard that has per-key LEDs. Select keys by clicking or dragging, pick a colour, or use a gradient, rainbow or row preset. `rgb key` and `rgb keys` do the same from a command line.
+- **Colours that change:** a colour used to be reported as set while the keyboard stayed as it was. The device is now put into a per-LED mode first.
+- **OpenRGB looks after itself:** a lighting command starts OpenRGB when it is not running, `rgb setup` downloads and verifies it, and without it the keyboard backlight the kernel offers is used.
+- **The backlight no longer goes fully dark:** brightness is never written below 1%, which switched an OLED panel off completely.
+- **The tray icon:** it registers again when the tray restarts, and a second start no longer fails silently or blocks.
+- **Focus mode** leaves the dock, the top bar and the window's own popups undimmed.
+- **Displays:** a new arrangement canvas with snapping, an inspector and a keep-or-revert countdown.
+- **Wallpaper:** a path box beside the file chooser, for when the desktop's chooser does not answer.
+- **Logs and reports:** one rotating log with private details taken out; `report --save` and `report --mail` send nothing until you do.
+
 DispCtrl for Linux 1.0.2 makes lighting dependable:
 
 - **When OpenRGB stops answering**, the Lighting page goes back to saying how to start it, instead of leaving an error under a device it can no longer reach. A **Refresh** button looks for devices again.
@@ -21,12 +33,12 @@ The rest of this page is 1.0's.
 | Your system | Download | Install |
 |---|---|---|
 | Any, from the Snap Store | | `sudo snap install dispctrl-linux` |
-| Debian, Ubuntu, Mint, Pop!_OS | `dispctrl-linux_1.0.2_amd64.deb` (or `_arm64`) | `sudo apt install ./dispctrl-linux_1.0.2_amd64.deb` |
-| Fedora, RHEL, Rocky, Alma, openSUSE | `dispctrl-linux-1.0.2-1.x86_64.rpm` (or `.aarch64`) | `sudo dnf install ./dispctrl-linux-1.0.2-1.x86_64.rpm` |
-| Arch, Manjaro, Void, Gentoo, NixOS and the rest | `dispctrl-linux-1.0.2-linux-x64.tar.gz` (or `-linux-arm64`) | unpack, then `./install.sh` |
-| Alpine and other musl systems | `dispctrl-linux-1.0.2-linux-musl-x64.tar.gz` | unpack, then `./install.sh` |
+| Debian, Ubuntu, Mint, Pop!_OS | `dispctrl-linux_1.0.3_amd64.deb` (or `_arm64`) | `sudo apt install ./dispctrl-linux_1.0.3_amd64.deb` |
+| Fedora, RHEL, Rocky, Alma, openSUSE | `dispctrl-linux-1.0.3-1.x86_64.rpm` (or `.aarch64`) | `sudo dnf install ./dispctrl-linux-1.0.3-1.x86_64.rpm` |
+| Arch, Manjaro, Void, Gentoo, NixOS and the rest | `dispctrl-linux-1.0.3-linux-x64.tar.gz` (or `-linux-arm64`) | unpack, then `./install.sh` |
+| Alpine and other musl systems | `dispctrl-linux-1.0.3-linux-musl-x64.tar.gz` | unpack, then `./install.sh` |
 
-Every package carries .NET inside it. `dispctrl-linux doctor` says what it can reach on your system, and how to install anything missing. The checksums are in `dispctrl-linux-1.0.2-SHA256SUMS.txt`.
+Every package carries .NET inside it. `dispctrl-linux doctor` says what it can reach on your system, and how to install anything missing. The checksums are in `dispctrl-linux-1.0.3-SHA256SUMS.txt`.
 
 ## What's in 1.0
 

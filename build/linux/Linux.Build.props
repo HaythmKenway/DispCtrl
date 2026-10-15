@@ -12,7 +12,7 @@
   <PropertyGroup>
     <!-- The Linux release's version; package.sh, the snap and the release
          workflow pass -p:Version to override it. -->
-    <DispCtrlVersion>1.0.2</DispCtrlVersion>
+    <DispCtrlVersion>1.0.3</DispCtrlVersion>
     <Version Condition="'$(Version)' == ''">$(DispCtrlVersion)</Version>
 
     <TargetFramework>net10.0</TargetFramework>
