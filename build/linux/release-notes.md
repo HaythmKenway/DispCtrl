@@ -1,3 +1,10 @@
+DispCtrl for Linux 1.0.4 makes the keyboard editor easier and the colours true:
+
+- **Colours match the keyboard:** some LEDs take their colours in another order, so red showed as green. A device's colour order can be set with `rgb order`, or found by asking what the keyboard shows; EVision keyboards start as GRB.
+- **A clearer keyboard editor:** the keyboard has a card of its own and fits it, so the numpad is no longer cut off. It has ready colours, keys that lift and press, and named colour sets per keyboard (`rgb preset`).
+- **Pin on top works** after clicking the desktop, and for Ctrl+Alt+P, move and span.
+- **One install at a time:** the snap, the packages and the tarball refuse to sit side by side.
+
 DispCtrl for Linux 1.0.3 adds per-key lighting and fixes what was found on a laptop with an OLED panel:
 
 - **Per-key lighting:** the Lighting page draws a keyboard that has per-key LEDs. Select keys by clicking or dragging, pick a colour, or use a gradient, rainbow or row preset. `rgb key` and `rgb keys` do the same from a command line.
@@ -35,12 +42,12 @@ The rest of this page is 1.0's.
 | Any, from the Snap Store | | `sudo snap install dispctrl-linux` |
 | Debian, Ubuntu, Mint, Pop!_OS, from the apt repository | | add the repository ([commands](https://github.com/HaythmKenway/DispCtrl-linux#install)), then `sudo apt install dispctrl-linux` |
 | Fedora, RHEL, Rocky, Alma, from the dnf repository | | add the repository ([commands](https://github.com/HaythmKenway/DispCtrl-linux#install)), then `sudo dnf install dispctrl-linux` |
-| Debian, Ubuntu, Mint, Pop!_OS | `dispctrl-linux_1.0.3_amd64.deb` (or `_arm64`) | `sudo apt install ./dispctrl-linux_1.0.3_amd64.deb` |
-| Fedora, RHEL, Rocky, Alma, openSUSE | `dispctrl-linux-1.0.3-1.x86_64.rpm` (or `.aarch64`) | `sudo dnf install ./dispctrl-linux-1.0.3-1.x86_64.rpm` |
-| Arch, Manjaro, Void, Gentoo, NixOS and the rest | `dispctrl-linux-1.0.3-linux-x64.tar.gz` (or `-linux-arm64`) | unpack, then `./install.sh` |
-| Alpine and other musl systems | `dispctrl-linux-1.0.3-linux-musl-x64.tar.gz` | unpack, then `./install.sh` |
+| Debian, Ubuntu, Mint, Pop!_OS | `dispctrl-linux_1.0.4_amd64.deb` (or `_arm64`) | `sudo apt install ./dispctrl-linux_1.0.4_amd64.deb` |
+| Fedora, RHEL, Rocky, Alma, openSUSE | `dispctrl-linux-1.0.4-1.x86_64.rpm` (or `.aarch64`) | `sudo dnf install ./dispctrl-linux-1.0.4-1.x86_64.rpm` |
+| Arch, Manjaro, Void, Gentoo, NixOS and the rest | `dispctrl-linux-1.0.4-linux-x64.tar.gz` (or `-linux-arm64`) | unpack, then `./install.sh` |
+| Alpine and other musl systems | `dispctrl-linux-1.0.4-linux-musl-x64.tar.gz` | unpack, then `./install.sh` |
 
-Every package carries .NET inside it. `dispctrl-linux doctor` says what it can reach on your system, and how to install anything missing. The checksums are in `dispctrl-linux-1.0.3-SHA256SUMS.txt`.
+Every package carries .NET inside it. `dispctrl-linux doctor` says what it can reach on your system, and how to install anything missing. The checksums are in `dispctrl-linux-1.0.4-SHA256SUMS.txt`.
 
 ## What's in 1.0
 
