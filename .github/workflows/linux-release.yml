@@ -203,7 +203,7 @@ jobs:
           done
           cp snaps/*.snap files/
           # One checksum file for everything, the snaps included.
-          (cd files && sha256sum *.deb *.rpm *.tar.gz *.snap > "dispctrl-linux-$VERSION-SHA256SUMS.txt")
+          (cd files && sha256sum -- *.deb *.rpm *.tar.gz *.snap > "dispctrl-linux-$VERSION-SHA256SUMS.txt")
           ls -la files
       - name: Release
         run: |
