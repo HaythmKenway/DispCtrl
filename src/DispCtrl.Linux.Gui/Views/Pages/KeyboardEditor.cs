@@ -44,7 +44,7 @@ public sealed class KeyboardEditor : StackPanel
     private static readonly IBrush Selected = Brushes.DodgerBlue;
     private static readonly IBrush Unselected = new SolidColorBrush(Color.FromArgb(60, 128, 128, 128));
     private static readonly Task<bool> AnimationsOn = Task.Run(DesktopAnimates);
-    private bool _dragging, _sending, _animate;
+    private bool _dragging, _sending, _animate, _settingPicker;
     private int _hover = -1;
     private int _lastHit = -1;
 
@@ -94,9 +94,7 @@ public sealed class KeyboardEditor : StackPanel
         // Scaled to the card's width, never scrolled: a clipped numpad hid keys.
         Children.Add(new Viewbox { Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, HorizontalAlignment = HorizontalAlignment.Left, Child = _canvas });
 
-        AutomationProperties.SetName(_picker, "Key colour");
-        var apply = Button("Apply", "Colour the selected keys", async () => await Send(_selected.ToDictionary(l => l, _ => Picked())));
-        apply.Classes.Add("accent");
+        AutomationProperties.SetName(_picker, "Custom colour");
         var swatches = new WrapPanel { VerticalAlignment = VerticalAlignment.Center };
         foreach (var (name, hex) in new[] { ("White", "#FFFFFF"), ("Red", "#FF0000"), ("Orange", "#FF6000"), ("Yellow", "#FFE000"), ("Green", "#00FF00"),
                      ("Cyan", "#00FFFF"), ("Blue", "#0000FF"), ("Purple", "#8000FF"), ("Pink", "#FF40A0"), ("Off", "#000000") })
@@ -110,45 +108,53 @@ public sealed class KeyboardEditor : StackPanel
             AutomationProperties.SetName(dot, $"Colour selected keys {name}");
             dot.Click += async (_, _) =>
             {
+                _settingPicker = true;
                 _picker.Color = Color.Parse(hex);
+                _settingPicker = false;
                 await Send(_selected.ToDictionary(l => l, _ => Picked()));
             };
             swatches.Children.Add(dot);
         }
+        // The custom colour applies as it is chosen, so there is no Apply button to find.
+        _picker.ColorChanged += async (_, _) =>
+        {
+            if (!_settingPicker && _selected.Count > 0) await Send(_selected.ToDictionary(l => l, _ => Picked()));
+        };
+        swatches.Children.Add(_picker);
         var hint = new TextBlock
         {
             Classes = { "caption" }, TextWrapping = TextWrapping.Wrap,
-            Text = "1. Click or drag across keys to select them (Ctrl adds). 2. Pick a colour below, or a ready colour, and press Apply.",
+            Text = "Click or drag across keys to select them (Ctrl adds), then click a colour.",
+        };
+        var effects = new ComboBox { PlaceholderText = "Fill the whole keyboard…", MinWidth = 220, Margin = new Thickness(0, 0, 8, 4) };
+        AutomationProperties.SetName(effects, "Fill the whole keyboard");
+        effects.ItemsSource = new[] { "Gradient", "Rainbow", "Rows" };
+        effects.SelectionChanged += async (_, _) =>
+        {
+            var which = effects.SelectedItem as string;
+            effects.SelectedItem = null;
+            if (which == "Gradient") await Preset((x, _) => Shade(Picked(), x * 120));
+            else if (which == "Rainbow") await Preset((x, _) => Hue(x * 330, 1, 1));
+            else if (which == "Rows") await Preset((_, y) => Hue(y * 55, 1, 1));
         };
         var selection = new WrapPanel
         {
             Children =
             {
-                _picker, apply,
                 Button("Select all", "Select every key", () => Select(_geometry.Keys.Where(k => k.OnGrid).Select(k => k.Led))),
-                Button("Whole row", "Select the rows of the selected keys", WholeRow),
                 Button("Clear", "Select nothing", () => Select([])),
+                effects,
             },
         };
-        var presets = new WrapPanel
+        var more = new Expander
         {
-            Children =
-            {
-                new TextBlock { Text = "Across the keyboard:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 4) },
-                Button("Gradient", "The chosen colour shading to the colour a third of the way round the wheel, left to right",
-                    async () => await Preset((x, _) => Shade(Picked(), x * 120))),
-                Button("Rainbow", "A rainbow from left to right", async () => await Preset((x, _) => Hue(x * 330, 1, 1))),
-                Button("Rows", "Each row of keys its own colour", async () => await Preset((_, y) => Hue(y * 55, 1, 1))),
-            },
+            Header = "Saved looks and colour fixes", HorizontalAlignment = HorizontalAlignment.Stretch,
+            Content = new StackPanel { Spacing = 8, Children = { Presets(), Order(), Calibrate() } },
         };
-        var saved = Presets();
         Children.Insert(0, hint);
         Children.Add(swatches);
         Children.Add(selection);
-        Children.Add(presets);
-        Children.Add(saved);
-        Children.Add(Order());
-        Children.Add(Calibrate());
+        Children.Add(more);
         Children.Add(_status);
         _ = FadeColoursAsync();
     }

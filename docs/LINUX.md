@@ -403,8 +403,9 @@ dispctrl-linux rgb autostart on|off
 
 A keyboard with a light for each key (`rgb` lists it as `per-key: 126 LEDs`)
 is also drawn on the Lighting page: click or drag across keys (Ctrl adds), pick
-a colour and press Apply; Select all, Whole row and the Gradient, Rainbow and
-Rows buttons colour many at once. Keys you do not name keep their colour. The
+then click a colour, which applies at once; Select all and the "Fill the whole
+keyboard" list (Gradient, Rainbow, Rows) colour many at once. Saved colour sets
+and the colour-order fix sit under "Saved looks and colour fixes". Keys you do not name keep their colour. The
 keys are placed from the LED names OpenRGB gives them (ANSI or ISO, full-size,
 tenkeyless, 75% or 60%) or, for keyboards that only name LEDs "Keyboard LED 12",
 from the zone matrix; LEDs that are not keys (a logo, a light bar) sit on a
