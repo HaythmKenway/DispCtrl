@@ -4,6 +4,14 @@
              x:Class="DispCtrl.Linux.Gui.Views.Controls.ArrangeCanvas">
 
     <UserControl.Styles>
+        <!-- Where a dragged display will land: an outline in the accent colour. -->
+        <Style Selector="Border.ghost">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+            <Setter Property="Opacity" Value="0.8" />
+        </Style>
         <Style Selector="Border.tile">
             <Setter Property="CornerRadius" Value="6" />
             <Setter Property="BorderThickness" Value="1" />

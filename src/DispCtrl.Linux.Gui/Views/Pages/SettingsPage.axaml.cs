@@ -65,7 +65,17 @@ public partial class SettingsPage : UserControl
                 Title = "Wallpaper",
                 FileTypeFilter = [Avalonia.Platform.Storage.FilePickerFileTypes.ImageAll],
             });
-            if (files.FirstOrDefault()?.TryGetLocalPath() is { } path) Views.CardBuilder.Show(wallStatus, await DeskActions.RunAsync("wallpaper", path));
+            if (files.FirstOrDefault() is not { } file) return;
+            // Copied through the picker's own grant to a folder the desktop can
+            // read too: in the snap neither the engine nor GNOME may open the
+            // picture where it was chosen (the portal hands this window alone a
+            // path under /run/user/…/doc), so the path alone set nothing.
+            string? copy;
+            try { copy = await KeepWallpaper(file); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Views.CardBuilder.Show(wallStatus, ex.Message); return; }
+            var reply = await CommandSender.RunHereAsync(["wallpaper", copy]);
+            wallStatus.Classes.Set("status", reply.ExitCode != 0);
+            Views.CardBuilder.Show(wallStatus, reply.ExitCode == 0 ? reply.Stdout.Trim() : CommandSender.Reason(reply));
         };
         var wallpaper = Views.CardBuilder.Card(FluentAvalonia.UI.Controls.FASymbol.Image, "Wallpaper", "The desktop's picture (GNOME shows one on every display).", wall, out wallStatus);
         var report = new Button { Content = "Report a problem…" };
@@ -91,6 +101,25 @@ public partial class SettingsPage : UserControl
         var problem = Views.CardBuilder.Card(FluentAvalonia.UI.Controls.FASymbol.Alert, "Report a problem",
             "Opens a GitHub issue with what DispCtrl can see here, serial numbers and your name taken out, for you to read before sending.", report, out reportStatus);
         Body.Children.InsertRange(at, [Views.CardBuilder.Section("Desktop and support"), wallpaper, updates, problem, Support()]);
+    }
+
+    /// <summary>The picture, copied where it stays and the desktop can read it:
+    /// the snap's own folder in the home directory, or DispCtrl's data folder.</summary>
+    private static async Task<string> KeepWallpaper(IStorageFile file)
+    {
+        var root = Environment.GetEnvironmentVariable("SNAP_USER_COMMON") is { Length: > 0 } common
+            ? common
+            : Path.Combine(Environment.GetEnvironmentVariable("XDG_DATA_HOME") is { Length: > 0 } data
+                ? data : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share"), "dispctrl-linux");
+        var folder = Path.Combine(root, "wallpapers");
+        Directory.CreateDirectory(folder);
+        // One kept at a time: the desktop holds a copy's path, not the copy.
+        foreach (var old in Directory.GetFiles(folder)) File.Delete(old);
+        var target = Path.Combine(folder, Path.GetFileName(file.Name));
+        await using var source = await file.OpenReadAsync();
+        await using var destination = File.Create(target);
+        await source.CopyToAsync(destination);
+        return target;
     }
 
     private const string PayPal = "https://paypal.me/0x4kil", Upi = "akileswar2002@oksbi", Bitcoin = "13pu8fvcNt6Rx8tXJGfFDVWf59uhZuaFEp";

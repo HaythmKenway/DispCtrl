@@ -1,7 +1,9 @@
-DispCtrl for Linux 1.0.1 fixes three things found in 1.0.0:
+DispCtrl for Linux 1.0.1 fixes five things found in 1.0.0:
 
 - **Lighting in the snap:** the snap could not reach OpenRGB at all, because it lacked the network permission. It has that permission now.
 - **The Lighting page without OpenRGB:** it now shows one card that says how to get OpenRGB and switch on its server, instead of controls that only answered with errors.
+- **Choosing a wallpaper:** it did nothing from the snap. Neither the engine nor GNOME could read the picture where you chose it. The window now copies it to a folder of its own and sets it from there.
+- **Arranging displays:** a dragged display no longer jumps from place to place behind the pointer. It follows the pointer, an outline shows where it will land, and it lands there when you let go.
 - **Report a problem:** the button did nothing in the snap, because the confined engine may not open a browser. The window now opens the GitHub issue itself, through the desktop's launcher.
 
 The rest of this page is 1.0's.

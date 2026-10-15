@@ -105,10 +105,16 @@ public partial class ArrangeCanvas : UserControl
         Surface.Height = Math.Clamp(width * 0.38, 180, 400);
     }
 
+    // Where the dragged display will land, outlined while the display itself
+    // follows the pointer.
+    private readonly Border _ghost = new() { Classes = { "ghost" }, IsVisible = false, IsHitTestVisible = false };
+    private (int X, int Y, PhysicalLayout.Placed Landing)? _pending;
+
     private void Build()
     {
         Surface.Children.Clear();
         _tiles.Clear();
+        Surface.Children.Add(_ghost);
         foreach (var view in _outputs)
         {
             var number = new TextBlock
@@ -206,6 +212,7 @@ public partial class ArrangeCanvas : UserControl
         if (sender is not Border { Tag: Tile tile } border || _tiles.Count < 2) return;
         if (!e.GetCurrentPoint(Surface).Properties.IsLeftButtonPressed) return;
         _dragging = tile;
+        _pending = null;
         _grabbedAt = (tile.X, tile.Y);
         var pointer = e.GetPosition(Surface);
         _grabOffset = new Point(pointer.X - Canvas.GetLeft(border), pointer.Y - Canvas.GetTop(border));
@@ -215,15 +222,25 @@ public partial class ArrangeCanvas : UserControl
         e.Handled = true;
     }
 
+    /// <summary>
+    /// The display follows the pointer freely, as Windows' Settings draws it,
+    /// and an outline shows the nearest place it may land; it lands there on
+    /// release. It used to jump from one legal place to the next on every
+    /// move and never sit under the pointer, which felt like lag.
+    /// </summary>
     private void OnPointerMoved(object? sender, PointerEventArgs e)
     {
-        if (_dragging is null || sender is not Border { Tag: Tile tile } || tile != _dragging) return;
+        if (_dragging is null || sender is not Border { Tag: Tile tile } border || tile != _dragging) return;
         var pointer = e.GetPosition(Surface);
-        double x = (pointer.X - _grabOffset.X - _offsetX) / _scale + _originX;
-        double y = (pointer.Y - _grabOffset.Y - _offsetY) / _scale + _originY;
+        double left = pointer.X - _grabOffset.X, top = pointer.Y - _grabOffset.Y;
+        Canvas.SetLeft(border, left);
+        Canvas.SetTop(border, top);
+        double x = (left - _offsetX) / _scale + _originX;
+        double y = (top - _offsetY) / _scale + _originY;
 
-        // The nearest legal place to the pointer, measured in the picture, so
-        // it lands where it is drawn rather than where its pixels would be.
+        // The nearest legal place to where it is drawn, measured in the
+        // picture, so it lands where it was dropped rather than where its
+        // pixels would be.
         var moving = PreviewPanel(_dragging);
         double nearest = double.MaxValue;
         ArrangementSlots.Slot? best = null;
@@ -241,10 +258,12 @@ public partial class ArrangeCanvas : UserControl
         }
         if (best is { } target)
         {
-            _dragging.X = target.X;
-            _dragging.Y = target.Y;
-            _preview[_dragging.Token] = landing;
-            PlaceTiles();
+            _pending = (target.X, target.Y, landing);
+            _ghost.Width = Math.Max(0, landing.Width * _scale - 2);
+            _ghost.Height = Math.Max(0, landing.Height * _scale - 2);
+            Canvas.SetLeft(_ghost, _offsetX + (landing.X - _originX) * _scale + 1);
+            Canvas.SetTop(_ghost, _offsetY + (landing.Y - _originY) * _scale + 1);
+            _ghost.IsVisible = true;
         }
         e.Handled = true;
     }
@@ -271,6 +290,14 @@ public partial class ArrangeCanvas : UserControl
         _dragging = null;
         border.ZIndex = 0;
         border.Classes.Remove("dragging");
+        _ghost.IsVisible = false;
+        if (_pending is { } landed)
+        {
+            moved.X = landed.X;
+            moved.Y = landed.Y;
+            _preview[moved.Token] = landed.Landing;
+            _pending = null;
+        }
         if ((moved.X, moved.Y) == _grabbedAt) { Layout(); return; }
 
         // With three or more displays the one dropped may have been holding
