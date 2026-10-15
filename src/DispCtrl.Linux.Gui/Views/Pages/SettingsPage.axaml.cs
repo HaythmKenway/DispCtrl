@@ -12,7 +12,7 @@ namespace DispCtrl.Linux.Gui.Views.Pages;
 /// and About pages, which on Linux have little enough to share one.</summary>
 public partial class SettingsPage : UserControl
 {
-    private const string GuideUrl = "https://github.com/HaythmKenway/DispCtrl/blob/master/docs/LINUX.md";
+    private const string GuideUrl = "https://github.com/HaythmKenway/DispCtrl-linux/blob/master/docs/LINUX.md";
 
     public SettingsPage()
     {

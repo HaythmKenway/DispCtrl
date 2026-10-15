@@ -64,5 +64,5 @@ $notes.Add('Windows 11, x64. Self-contained, so no .NET install is needed. Setti
 # Checksums are attached as *SHA256SUMS.txt beside the files; repeated in the
 # notes they only pushed the install table and the rest of the page down.
 $notes.Add('')
-$notes.Add('DispCtrl is free and built in spare time. If it earns a place on your desk, [sponsoring](https://github.com/sponsors/jesvijonathan) pays for development and test hardware, and [sending your monitor](https://github.com/HaythmKenway/DispCtrl/blob/master/devices/README.md) helps just as much.')
+$notes.Add('DispCtrl is free and built in spare time. If it earns a place on your desk, [sponsoring](https://github.com/sponsors/jesvijonathan) pays for development and test hardware, and [sending your monitor](https://github.com/HaythmKenway/DispCtrl-linux/blob/master/devices/README.md) helps just as much.')
 $notes -join "`n"

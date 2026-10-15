@@ -19,7 +19,7 @@ when editing it.
 ## Windows: from nothing to running
 
 ```powershell
-git clone https://github.com/HaythmKenway/DispCtrl.git
+git clone https://github.com/HaythmKenway/DispCtrl-linux.git
 cd DispCtrl
 .\build.cmd setup -Install     # asks winget for .NET 10 and MinGW-w64 if missing
 .\build.cmd build

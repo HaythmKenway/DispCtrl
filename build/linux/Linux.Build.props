@@ -38,8 +38,8 @@
     <Product>DispCtrl for Linux</Product>
     <Authors>HaythmKenway</Authors>
     <Copyright>Copyright (c) 2026 Jesvi Jonathan and DispCtrl for Linux's contributors. MIT licence.</Copyright>
-    <RepositoryUrl>https://github.com/HaythmKenway/DispCtrl</RepositoryUrl>
-    <PackageProjectUrl>https://github.com/HaythmKenway/DispCtrl</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/HaythmKenway/DispCtrl-linux</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/HaythmKenway/DispCtrl-linux</PackageProjectUrl>
   </PropertyGroup>
 
 </Project>

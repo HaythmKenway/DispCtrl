@@ -47,10 +47,10 @@ description: |
 
     sudo snap connect dispctrl-linux:login-session-control
 
-  https://github.com/HaythmKenway/DispCtrl/blob/master/docs/LINUX.md
-website: https://github.com/HaythmKenway/DispCtrl
-source-code: https://github.com/HaythmKenway/DispCtrl
-issues: https://github.com/HaythmKenway/DispCtrl/issues
+  https://github.com/HaythmKenway/DispCtrl-linux/blob/master/docs/LINUX.md
+website: https://github.com/HaythmKenway/DispCtrl-linux
+source-code: https://github.com/HaythmKenway/DispCtrl-linux
+issues: https://github.com/HaythmKenway/DispCtrl-linux/issues
 license: MIT
 icon: src/DispCtrl.Linux.Gui/Assets/dispctrl.png
 base: core24

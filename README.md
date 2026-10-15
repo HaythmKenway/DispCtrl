@@ -71,7 +71,7 @@ Looking for DispCtrl on Windows? See the original, [jesvijonathan/DispCtrl](http
 ## Build from source
 
 ```bash
-git clone https://github.com/HaythmKenway/DispCtrl.git && cd DispCtrl
+git clone https://github.com/HaythmKenway/DispCtrl-linux.git && cd DispCtrl
 ./build.cmd setup             # the .NET 10 SDK, if missing
 ./build.cmd linux-build       # the command line, the window and the checks
 ./build.cmd linux-run gui

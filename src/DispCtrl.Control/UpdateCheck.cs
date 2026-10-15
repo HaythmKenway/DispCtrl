@@ -25,11 +25,11 @@ public sealed record UpdateResult(string Current, string Latest, string Url, boo
 /// </remarks>
 public static class UpdateCheck
 {
-    public const string LatestApi = "https://api.github.com/repos/HaythmKenway/DispCtrl/releases/latest";
-    public const string ReleasesPage = "https://github.com/HaythmKenway/DispCtrl/releases/latest";
+    public const string LatestApi = "https://api.github.com/repos/HaythmKenway/DispCtrl-linux/releases/latest";
+    public const string ReleasesPage = "https://github.com/HaythmKenway/DispCtrl-linux/releases/latest";
 
     /// <summary>Only a page on the project's own releases is ever offered as the link.</summary>
-    private const string TrustedPrefix = "https://github.com/HaythmKenway/DispCtrl/releases/";
+    private const string TrustedPrefix = "https://github.com/HaythmKenway/DispCtrl-linux/releases/";
 
     /// <summary>Checks now and records the answer in settings.</summary>
     /// <exception cref="HttpRequestException">No answer: offline, or GitHub refused.</exception>

@@ -40,8 +40,8 @@
     <Product>DispCtrl</Product>
     <Description>Per-monitor display, brightness, taskbar and OLED controls for Windows, with a scriptable command line.</Description>
     <Copyright>Copyright (c) 2026 Jesvi Jonathan (jesvi22j@gmail.com, www.jesvi.net). MIT licence.</Copyright>
-    <RepositoryUrl>https://github.com/HaythmKenway/DispCtrl</RepositoryUrl>
-    <PackageProjectUrl>https://github.com/HaythmKenway/DispCtrl</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/HaythmKenway/DispCtrl-linux</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/HaythmKenway/DispCtrl-linux</PackageProjectUrl>
   </PropertyGroup>
 
   <ItemGroup>
