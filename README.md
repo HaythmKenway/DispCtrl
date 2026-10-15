@@ -9,7 +9,7 @@
 Brightness, night light, display modes, presets and snap layouts for every display,<br>
 from a window, a tray icon with a quick panel, and a scriptable command line.
 
-<a href="https://snapcraft.io/dispctrl-linux"><img alt="Get it from the Snap Store" src="https://snapcraft.io/en/dark/install.svg" height="48"></a>
+<a href="https://snapcraft.io/dispctrl-linux"><img alt="Get it from the Snap Store" src="https://snapcraft.io/en/dark/install.svg" height="48"></a>&nbsp;&nbsp;<a href="https://apps.microsoft.com/detail/9PNQWKNRGVR0?mode=direct"><img alt="Get DispCtrl for Windows from the Microsoft Store" src="https://get.microsoft.com/images/en-us%20dark.svg" height="48"></a>
 
 <a href="https://snapcraft.io/dispctrl-linux"><img alt="dispctrl-linux" src="https://snapcraft.io/dispctrl-linux/badge.svg"></a> <a href="#install"><img alt="Linux (X11)" src="https://img.shields.io/badge/platform-Linux%20(X11)-FCC624?logo=linux&amp;logoColor=black"></a> <a href="LICENSE"><img alt="Licence: MIT" src="https://img.shields.io/badge/licence-MIT-green"></a>
 
@@ -65,8 +65,6 @@ dispctrl-linux help                        everything
 ## Windows
 
 Looking for DispCtrl on Windows? Get it from the Microsoft Store, or see the original project, [jesvijonathan/DispCtrl](https://github.com/jesvijonathan/DispCtrl).
-
-<a href="https://apps.microsoft.com/detail/9PNQWKNRGVR0?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get DispCtrl for Windows from the Microsoft Store" width="200" height="55"></a>
 
 ## Documentation
 
