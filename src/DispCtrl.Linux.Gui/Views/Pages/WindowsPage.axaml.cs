@@ -146,7 +146,9 @@ public partial class WindowsPage : UserControl
             var span = new Button { Content = "Span" };
             span.Click += async (_, _) => CardBuilder.Show(status, await Services.DeskActions.RunAsync("placement", "span", "--window", id));
             var row = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { pin, move, span } };
-            _windows.Children.Add(Views.CardBuilder.Card(null, string.IsNullOrWhiteSpace(w.Title) ? w.AppClass ?? id : w.Title, w.AppClass, row, out status));
+            string title = string.IsNullOrWhiteSpace(w.Title) ? w.AppClass ?? id : w.Title;
+            if (title.Length > 70) title = title[..67].TrimEnd() + "…";
+            _windows.Children.Add(Views.CardBuilder.Card(null, title, w.AppClass, row, out status));
         }
     }
 }

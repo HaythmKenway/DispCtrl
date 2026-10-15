@@ -90,7 +90,11 @@ public sealed class LightingPage : UserControl
         _noticeText.Text = devices is null
             ? $"{LightingControl.Unreachable(settings)}. OpenRGB is in most distributions' repositories and on Flathub; its udev rules give it the devices."
             : "";
-        if (devices is null) return;
+        if (devices is null)
+        {
+            _devices.Children.Add(Caption("Each device OpenRGB finds is listed here, with its own effects, once it answers."));
+            return;
+        }
         if (devices.Count == 0) _devices.Children.Add(Caption("OpenRGB is running and found no lighting devices."));
         foreach (var d in devices)
         {

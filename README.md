@@ -24,7 +24,11 @@ from a window, a tray icon with a quick panel, and a scriptable command line.
 - **Displays**: drag them into place at their real size; change resolution, refresh rate and orientation with fifteen seconds to keep it; extend, duplicate or one display, as with Win+P.
 - **Your monitor's own controls**: contrast, input source, colour preset, picture mode, colour gains and volume - only those it lists.
 - **Presets**: save the whole desk under a name and put it back in one click.
-- **Screen care**: keep the computer awake for good or for a while, Stay active (a one-pixel nudge after 55 seconds still), turn the displays off.
+- **Screen care**: keep awake, Stay active (a one-pixel nudge after 55 seconds still), OLED care, Focus mode, monitor sleep, turning the displays off.
+- **Every display together**: unison brightness, each display in its own range, and room light from the ambient light sensor.
+- **Automation**: hotkeys for any command, features (named steps) and triggers; presets that apply when a desk connects or an app is in front.
+- **RGB lighting** for keyboards, mice, fans and strips, through OpenRGB.
+- **Window tools**: pin on top, gather, move a window to another display, span.
 - **Snap layouts and Snap Assist**: drag a window to the top centre, or press Super+Z.
 - **A tray icon and quick panel** with all of it one click away, and `dispctrl-linux` for scripts.
 

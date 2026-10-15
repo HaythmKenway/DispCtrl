@@ -20,11 +20,17 @@ using DispCtrl, not for people reading the diff.
 - **Linux: resolution, refresh rate, orientation and display mode.** Each display's card changes them, with fifteen seconds to keep the change; Extend, Duplicate and one display as with Win+P. `dispctrl-linux display set --mode 1920x1080 --rate 60 --rotate left`, `display project`, `display only`.
 - **Linux: a monitor's own controls and input switching** over DDC/CI: contrast, input source, colour preset, picture mode, colour gains, sharpness and volume, only those the monitor lists. `dispctrl-linux monitor 1 set contrast 70`, `input 1 HDMI-1`.
 - **Linux: keep awake, Stay active and turning the displays off** on a new Screen care page: keep the computer (and its displays) awake for good, for a while or until a time; nudge the pointer after 55 seconds still; switch every display off. `dispctrl-linux awake for 2h`, `stayactive on`, `displays-off`.
+- **Linux 1.0: hotkeys, features and triggers.** Global shortcuts for any command (GNOME's own custom shortcuts on GNOME), named lists of steps, and running them when a display connects, an app comes to the front, after idle, on lock, on battery, after resume or at a time. Desk profiles and app rules apply presets by themselves; `preset launch` runs a program with one.
+- **Linux 1.0: unison brightness and room light.** One level for every display, each in its own range, moved by the brightness hotkeys and the tray icon's wheel; and unison that follows the ambient light sensor.
+- **Linux 1.0: OLED care, Focus mode and monitor sleep** on the Screen care page, and **window tools** (pin on top, gather, move to a display, span) on the Windows page.
+- **Linux 1.0: RGB lighting through OpenRGB** - keyboards, mice, fans and strips - on a Lighting page, in the tray and in presets.
+- **Linux 1.0: night light on Wayland** through GNOME's or KDE's own; `update`, `report` and `wallpaper`; a softer Snap Assist with a fade-in; and a tray icon whose panel opens at once.
 - **Linux: ready-made presets** - Day, Evening, Night, Reading, Movie, Gaming and Power saver - for any desk, from the Presets page or `dispctrl-linux preset add all`. The mouse wheel over the tray icon moves every display's brightness.
 - **Linux: dark mode**, on GNOME, KDE and XFCE, and dark during night light's hours. `dispctrl-linux darkmode on`, `darkmode schedule on`.
 - **Snap layouts and Snap Assist on Linux** (X11): drag a window to the top centre of a display, or press Super+Z, and choose where it goes - halves, thirds, quarters and more, picked for each display's shape; then fill the spaces left from pictures of your other windows. On GNOME the shortcut appears among its custom keyboard shortcuts.
 
 ### Fixed
+- Linux snap: a GNOME shortcut (snap layouts' Super+Z) named the snap revision's own path, which the next refresh deleted.
 - Linux snap: the tray icon's menu never opened (the snap's confinement refused the path it was served at), the engine's Start button did nothing, and after a refresh the old engine ran on unreachable.
 - Linux: the window showed the generic application icon in GNOME's dock and KDE's task manager instead of DispCtrl's.
 - Linux: the window would not open on desktops without GNOME's `gsettings` (KDE or XFCE without GLib's tools, Alpine, Void), or with no system font installed.

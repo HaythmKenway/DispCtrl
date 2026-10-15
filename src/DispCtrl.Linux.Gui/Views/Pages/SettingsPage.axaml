@@ -75,7 +75,7 @@
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                 <TextBlock Name="VersionText" Classes="title" />
                                 <TextBlock Classes="caption"
-                                           Text="Early, for X11. The command line, dispctrl-linux, does everything this window does." />
+                                           Text="For X11 desktops; brightness and night light also on Wayland. The command line, dispctrl-linux, does everything this window does." />
                             </StackPanel>
                             <Button Classes="control" Content="Read the guide" Click="OnGuide"
                                     AutomationProperties.Name="Read the guide" />

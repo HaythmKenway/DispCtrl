@@ -1055,6 +1055,20 @@ unrecallable.
   ramps and holding the snap shortcut, while the window said "Not running".
   The engine now stops itself within ten seconds when its socket is no longer
   the one at its path.
+- **Scratch settings do not keep a development run off the desk.** With
+  `DISPCTRL_LINUX_CONFIG_DIR` pointed at scratch settings, a `--local`
+  `nightlight` still warmed the real screens, and putting it back cleared the
+  owner's own dimming until their engine's next pass. Point X at a display
+  that cannot answer (`DISPLAY=:65000`), as the checks do; DDC/CI and the
+  backlight are not behind X at all, so never run a writing command against
+  them.
+- **GNOME's shortcuts are its real settings.** The hotkey service writes
+  GNOME custom shortcuts, so an engine with no display (the checks') would
+  have rewritten the developer's keyboard settings: it now starts only with a
+  desktop session, and the checks run outside GNOME (`XDG_CURRENT_DESKTOP=`).
+- **A GNOME shortcut must name `/snap/bin/dispctrl-linux` in the snap.** The
+  process's own path is the revision's (`/snap/dispctrl-linux/3/lib/...`),
+  gone after the next refresh; `GnomeShortcuts.CommandLine` builds it.
 - **BusyBox's `timeout` exits 143, not 124**, when it stops a command.
 - **Subscribe to raw motion only while button 1 is down.** Every pointer
   movement on the desk would otherwise wake the engine.

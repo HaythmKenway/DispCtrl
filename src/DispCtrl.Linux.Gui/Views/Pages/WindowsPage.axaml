@@ -7,7 +7,7 @@
             <StackPanel Name="Body" Classes="page">
                 <TextBlock Classes="pagetitle" Text="Windows" />
                 <TextBlock Classes="pagesubtitle"
-                           Text="Snap layouts and Snap Assist, as on Windows 11: Windows has them built in, so DispCtrl for Windows leaves them to it." />
+                           Text="Snap layouts and Snap Assist, and tools that pin windows on top and move them between displays." />
 
                 <TextBlock Classes="section" Text="Snap layouts" />
                 <StackPanel Spacing="4">

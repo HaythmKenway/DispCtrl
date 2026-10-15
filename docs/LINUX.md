@@ -2,14 +2,15 @@
 
 Each display's brightness, software dimming and a night light with a
 schedule; the arrangement, resolution, refresh rate and orientation; the
-monitors' own controls; keep awake, Stay active and dark mode; presets of
-the whole desk; snap layouts; and a tray icon with a quick panel. From a
-command line (`dispctrl-linux`), a window and the tray (`dispctrl-linux-gui`),
-kept by a small engine that runs with your session.
+monitors' own controls; unison brightness and room light; keep awake, Stay
+active, OLED care, Focus mode, monitor sleep and dark mode; presets, desk
+profiles and app rules; hotkeys, features and triggers; window tools and snap
+layouts; RGB lighting through OpenRGB; and a tray icon with a quick panel.
+From a command line (`dispctrl-linux`), a window and the tray
+(`dispctrl-linux-gui`), kept by a small engine that runs with your session.
 
-It is smaller than DispCtrl for Windows: no taskbar, hotkeys, OLED care or
-Focus mode yet. Most of it needs an X11 session (see [Wayland](#wayland)).
-What follows is everything it does today.
+Most of it needs an X11 session (see [Wayland](#wayland)). What follows is
+everything it does.
 
 | | How | Needs |
 |---|---|---|
@@ -26,6 +27,14 @@ What follows is everything it does today.
 | Turn off displays | DPMS | an X11 session |
 | Dark mode, and dark on night light's hours | GNOME's gsettings, KDE's colour scheme, XFCE's xfconf | GNOME, KDE or XFCE |
 | Presets of the whole desk | all of the above, saved under a name | as each part needs |
+| Unison: every display together, each in its own range; room light | the targets above; iio-sensor-proxy for the light | room light: an ambient light sensor |
+| Hotkeys for any command | GNOME's custom shortcuts on GNOME, an X key grab elsewhere | the engine |
+| Features (named steps) and triggers | the engine watches displays, the app in front, idle, lock, power, resume, the time | the engine; libXss for idle |
+| Desk profiles and app rules | presets applied when a desk connects, or while an app is in front | the engine |
+| Pin on top, gather, move to a display, span | the window manager (EWMH) | an X11 session |
+| OLED care, monitor sleep | the gamma ramp after idle; DPMS | an X11 session and the engine |
+| Focus mode | a veil over all but the window in front | an X11 session with a compositor, and the engine |
+| RGB lighting | OpenRGB's SDK server | OpenRGB running, with its server on |
 | Tray icon and quick panel | StatusNotifierItem | a tray: KDE, XFCE, Cinnamon, MATE, Budgie; GNOME with the AppIndicator extension (on in Ubuntu) |
 
 ## Install
@@ -215,6 +224,103 @@ dispctrl-linux stayactive on|off
 dispctrl-linux displays-off
 ```
 
+### OLED care, Focus mode and monitor sleep
+
+**OLED care** dims every display when nothing has been touched for a while (4
+minutes by default), then dims more (after 10), so a still picture does not
+stay lit at full strength; the first touch brings it back. It waits while a
+window is full screen or a media player says it is playing. **Rest now** dims
+at once until the next touch. **Focus mode** darkens everything but the window
+in front, on overlays clicks pass through; a full-screen window lifts it. It
+needs a compositor. **Monitor sleep** switches the displays off (DPMS) after a
+while idle, unless keep awake holds them on.
+
+```
+dispctrl-linux oled on --idle-minutes 5 --dim 50 --second-minutes 12 --second-dim 90
+dispctrl-linux oled rest
+dispctrl-linux focus on --dim 60
+dispctrl-linux monitor-sleep on --minutes 20
+```
+
+## Every display together: unison and room light
+
+**Unison** gives every display one level, each within its own range, so a dim
+laptop panel and a bright monitor reach their lowest and highest together. The
+brightness hotkeys and the tray icon's wheel move it. **Room light** moves
+unison with the ambient light sensor (through iio-sensor-proxy, which GNOME
+and KDE use too).
+
+```
+dispctrl-linux unison on
+dispctrl-linux unison 60 | up | down 10
+dispctrl-linux unison range DELL 20 80       a display by part of its name, its lowest and highest
+dispctrl-linux unison exclude built-in
+dispctrl-linux brightness up | down          every display, through unison when it is on
+dispctrl-linux roomlight on --min 20 --max 100
+```
+
+## Hotkeys, features and triggers
+
+The engine holds global shortcuts that run any `dispctrl-linux` command. On
+GNOME they become its own custom shortcuts (Settings, Keyboard), since GNOME
+keeps Super for itself; elsewhere the engine grabs them. The defaults:
+
+| Keys | Does |
+|---|---|
+| Ctrl+Alt+Page Up / Page Down | Every display brighter / dimmer |
+| Ctrl+Alt+N | Night light |
+| Ctrl+Alt+D | The quick panel |
+| Ctrl+Alt+O | Turn the displays off |
+| Ctrl+Alt+R | Restore: night light off, no dimming |
+| Ctrl+Alt+K | Keep awake |
+| Ctrl+Alt+P / G | Pin the window in front on top / gather every window here |
+
+They differ from Windows' where Linux desktops already use the key:
+Ctrl+Alt+L locks many of them, and Ctrl+Alt+Backspace can end an X session.
+
+A **feature** is a named list of steps: commands, `wait MS`, or `run PROGRAM`.
+A **trigger** runs one when something happens: a display connects or leaves,
+an app comes to the front or leaves, idle for some minutes and back, lock and
+unlock, on battery or mains power, after resume, or at a time.
+
+```
+dispctrl-linux hotkeys add Ctrl+Alt+M preset apply Movie
+dispctrl-linux features add Late "nightlight 80; dim 0.6 --all; rgb colour warm"
+dispctrl-linux triggers add at-time Late --match 22:30
+dispctrl-linux triggers add display-connected Docked --match DELL
+dispctrl-linux triggers add idle Late --minutes 20
+```
+
+## Windows
+
+**Pin on top** keeps a window above the others; **gather** brings every window
+to one display; **move** sends one to the next or a given display, keeping its
+place; **span** stretches one across displays. The Windows page lists the open
+windows with each.
+
+```
+dispctrl-linux pin [on | off | toggle] [--window 0x3a00007]
+dispctrl-linux placement gather [--to 2 | pointer]
+dispctrl-linux placement move --to next
+dispctrl-linux placement span [--displays 1,2]
+```
+
+## Lighting
+
+Keyboards, mice, fans, LED strips and boards, through
+[OpenRGB](https://openrgb.org), which knows each maker's devices and holds the
+permissions they need. Start OpenRGB with its SDK server on (`openrgb
+--server`, or Settings, SDK Server); DispCtrl talks to it on 127.0.0.1:6742.
+Presets keep the lighting too; the ready-made Night dims it to amber and Movie
+turns it off.
+
+```
+dispctrl-linux rgb                           devices and their effects
+dispctrl-linux rgb colour warm | #FF9329 [--device 2]
+dispctrl-linux rgb mode "Rainbow Wave"
+dispctrl-linux rgb off
+```
+
 ## Dark mode
 
 ```
@@ -244,7 +350,18 @@ dispctrl-linux preset list | show Evening | rename Evening Night | delete Night
 dispctrl-linux preset set Evening --skip none
 ```
 
-Parts: `layout`, `brightness`, `nightlight` (with dimming), `theme`, `controls`.
+Parts: `layout`, `brightness`, `nightlight` (with dimming), `theme`, `controls`, `lighting`.
+
+A **desk profile** applies by itself when exactly its displays connect; an
+**app rule** applies a preset while an app is in front, then puts the desk
+back, keeps it, or applies another; **launch** runs a program with a preset
+and restores the desk when it ends.
+
+```
+dispctrl-linux preset desk Docked on
+dispctrl-linux preset rule add vlc Movie --then previous --delay 3
+dispctrl-linux preset launch Gaming steam
+```
 
 **Ready-made presets** are a starting point on any desk: Day, Evening, Night,
 Reading, Movie, Gaming and Power saver. Each sets every display's brightness,
@@ -354,12 +471,23 @@ as `settings.json.bad`.
 
 ## Wayland
 
-Wayland compositors keep gamma ramps to themselves, and there is no protocol
-every one of them offers, so on a pure Wayland session night light and dimming
-are unavailable and say so. Brightness - DDC/CI and the backlight - works
-everywhere. Log in to an X11 session ("Ubuntu on Xorg", "Plasma (X11)") for
-the rest. Per-compositor support is planned
-([docs/design/LINUX-PORT.md](design/LINUX-PORT.md)).
+Wayland compositors keep gamma ramps and window placement to themselves. On
+Wayland, night light goes through the desktop's own (GNOME's or KDE's: its
+strength, schedule and on or off), brightness, unison, room light, keep awake,
+dark mode, presets' brightness and theme, hotkeys on GNOME, and lighting all
+work, and the rest says it needs X11. Log in to an X11 session ("Ubuntu on
+Xorg", "Plasma (X11)") for dimming, arranging, snap layouts, the window tools,
+OLED care and Focus mode.
+
+## Updates and problems
+
+`dispctrl-linux update` asks this project's releases whether a newer one is
+out (one request, nothing downloaded); the snap updates itself.
+`dispctrl-linux report` shows what a problem report needs - the version, the
+desktop and `doctor` - with serial numbers, your name and home folder taken
+out; `report --open --what "..."` starts a GitHub issue with it for you to read
+before sending. `dispctrl-linux wallpaper PICTURE` sets the desktop's picture
+on GNOME, KDE and XFCE.
 
 ## Building from source
 
