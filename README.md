@@ -11,7 +11,7 @@ from a window, a tray icon with a quick panel, and a scriptable command line.
 
 <a href="https://snapcraft.io/dispctrl-linux"><img alt="Get it from the Snap Store" src="https://snapcraft.io/en/dark/install.svg" height="48"></a>
 
-<a href="https://snapcraft.io/dispctrl-linux"><img alt="dispctrl-linux" src="https://snapcraft.io/dispctrl-linux/badge.svg"></a> <a href="https://snapcraft.io/dispctrl-linux"><img alt="dispctrl-linux" src="https://snapcraft.io/dispctrl-linux/trending.svg?name=0"></a> <a href="#install"><img alt="Linux (X11)" src="https://img.shields.io/badge/platform-Linux%20(X11)-FCC624?logo=linux&amp;logoColor=black"></a> <a href="LICENSE"><img alt="Licence: MIT" src="https://img.shields.io/badge/licence-MIT-green"></a>
+<a href="https://snapcraft.io/dispctrl-linux"><img alt="dispctrl-linux" src="https://snapcraft.io/dispctrl-linux/badge.svg"></a> <a href="#install"><img alt="Linux (X11)" src="https://img.shields.io/badge/platform-Linux%20(X11)-FCC624?logo=linux&amp;logoColor=black"></a> <a href="LICENSE"><img alt="Licence: MIT" src="https://img.shields.io/badge/licence-MIT-green"></a>
 
 [Install](#install) · [Getting started](#getting-started) · [Guide](docs/LINUX.md)
 
