@@ -395,6 +395,8 @@ dispctrl-linux rgb order RGB|GRB|BGR ...                         colour order of
 dispctrl-linux rgb preset save|apply|delete NAME | list         per-key colour sets, kept for each keyboard
 dispctrl-linux rgb mode "Rainbow Wave"
 dispctrl-linux rgb off
+dispctrl-linux rgb preset save|apply|delete|list NAME   per-key colour sets for a keyboard
+dispctrl-linux rgb order RGB|GRB|BGR ...        colour order of a device whose colours show wrong
 dispctrl-linux rgb start | setup | udev      start OpenRGB, download it, check the udev rules
 dispctrl-linux rgb autostart on|off
 ```
@@ -407,6 +409,23 @@ keys are placed from the LED names OpenRGB gives them (ANSI or ISO, full-size,
 tenkeyless, 75% or 60%) or, for keyboards that only name LEDs "Keyboard LED 12",
 from the zone matrix; LEDs that are not keys (a logo, a light bar) sit on a
 strip below. Colours appear at once and are written in the background.
+
+The keyboard sits on a card of its own, scaled to fit. The key under the pointer
+lifts and a coloured key presses in (both are skipped when the desktop has
+animations off). Ready colours beside the picker colour the selected keys at
+once.
+
+**Colour sets.** Name the colours a keyboard holds now (Save current) and put
+them back later (Use); `rgb preset save|apply|delete|list NAME` does the same.
+A set belongs to the keyboard it was saved on and is stored in the lighting
+section of `settings.json`.
+
+**Colours that look wrong.** Some LEDs take their colours in another order, so
+red shows as green. Choose the keyboard's colour order on the card (RGB, GRB,
+BGR, BRG, RBG or GBR), or press *Fix the colours*, which lights the keyboard red,
+then green, and asks what you see. `rgb order GRB` sets it from a command line.
+EVision keyboards start as GRB. Everything DispCtrl draws, saves and reports is
+the colour you meant; the order is applied only on its way to the device.
 
 ## Dark mode
 
