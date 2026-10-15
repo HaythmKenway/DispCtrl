@@ -64,7 +64,9 @@ dispctrl-linux help                        everything
 
 ## Windows
 
-Looking for DispCtrl on Windows? See the original, [jesvijonathan/DispCtrl](https://github.com/jesvijonathan/DispCtrl).
+Looking for DispCtrl on Windows? Get it from the Microsoft Store, or see the original project, [jesvijonathan/DispCtrl](https://github.com/jesvijonathan/DispCtrl).
+
+<a href="https://apps.microsoft.com/detail/9PNQWKNRGVR0?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get DispCtrl for Windows from the Microsoft Store" width="200" height="55"></a>
 
 ## Documentation
 
