@@ -79,24 +79,15 @@ environment:
   FONTCONFIG_FILE: $SNAP/etc/fonts/fonts.conf
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
 
-# The one place a snap and the host's .deb meet is the user's session bus:
-# the snap's runtime folder and /tmp are its own, so a lock file cannot be
-# shared. The engine owns this name while it runs, and any other install's
-# engine, or window, sees it taken and refuses to start (DispCtrl.Linux.Core,
-# Installs.cs). Owning a name needs the slot; asking who owns it does not.
-# Both are best effort: if the Store withholds the slot the engine runs
-# without the claim, and only the /proc scan guards against a second install.
-slots:
-  engine-name:
-    interface: dbus
-    bus: session
-    name: org.dispctrl.Linux
+# No dbus slot for the engine's session-bus name: the Store sends a snap that
+# declares one to human review (1.0.4 was held on it), which stops automatic
+# publishing. Without it the engine's claim is denied and ignored, and the
+# /proc scan alone guards against a second install (Installs.cs).
 
 apps:
   dispctrl-linux:
     command: lib/dispctrl-linux
     command-chain: [bin/launch]
-    slots: [engine-name]
     # network-bind is for the engine's command socket, not a network: the
     # default seccomp filter allows bind but not listen or accept, so without
     # it the engine died with EACCES at Listen. It is on the command line too,
@@ -136,7 +127,6 @@ apps:
   engine:
     command: lib/dispctrl-linux engine
     command-chain: [bin/launch]
-    slots: [engine-name]
     # snapd runs it at sign-in when ~/snap/dispctrl-linux/current/.config/
     # autostart/ holds this file; bin/launch puts it there on first use.
     autostart: dispctrl-linux-engine.desktop
