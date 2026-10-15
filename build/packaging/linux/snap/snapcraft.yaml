@@ -26,28 +26,34 @@ name: dispctrl-linux
 title: DispCtrl
 summary: Per-display brightness, night light, presets and snap layouts
 description: |
-  DispCtrl for Linux warms or dims any display through its gamma ramp, keeps
-  a night light schedule, arranges displays and changes their resolution,
-  refresh rate and orientation, sets a laptop panel's backlight, keeps the
-  computer awake, switches dark mode, saves the whole desk as presets, and
-  brings Windows 11's snap layouts and Snap Assist to X11 desktops. A tray
-  icon with a quick panel puts it all one click away; a small engine started
-  at sign-in keeps it applied, and the window and the dispctrl-linux command
-  both talk to it.
+  Windows 11-style display controls, lighting and window management for X11 desktops.
 
-  It needs an X11 session: on Wayland the compositor keeps gamma and window
-  placement to itself.
+  Displays
+  - Warm or dim any display through its gamma ramp, with a night light schedule.
+  - Arrange displays and change resolution, refresh rate and orientation.
+  - Set a laptop panel's backlight; unison keeps displays matched.
+  - Save the whole desk as a preset and bring it back in one click.
 
-  Not in the snap: an external monitor's own brightness over DDC/CI. Strict
-  confinement cannot reach the I2C buses; the .deb and the tarball from the
-  project's releases can.
+  Lighting
+  - Colour and effects for keyboards, mice, fans and strips through OpenRGB.
+  - A per-key keyboard editor with saved colour sets and a colour-order fix for keyboards that swap red and green.
 
-  The laptop backlight needs one permission the Store does not connect by
-  itself yet:
+  Windows and desktop
+  - Snap layouts and Snap Assist, pinning windows on top, and moving them between displays.
+  - Keep the computer awake, switch dark mode, change the wallpaper.
+  - A tray icon with a quick panel, hotkeys, and the dispctrl-linux command.
 
-    sudo snap connect dispctrl-linux:login-session-control
+  A small engine starts at sign-in and keeps your settings applied. The window and the command both talk to it.
 
-  https://github.com/HaythmKenway/DispCtrl-linux/blob/master/docs/LINUX.md
+  Needs an X11 session. On Wayland the compositor keeps gamma and window placement to itself.
+
+  Not in the snap: an external monitor's own brightness over DDC/CI, because strict confinement cannot reach the I2C buses. The .deb and the tarball from the project's releases can.
+
+  The laptop backlight needs one permission the Store does not connect by itself yet:
+  sudo snap connect dispctrl-linux:login-session-control
+
+  Linux guide: https://github.com/HaythmKenway/DispCtrl-linux/blob/master/docs/LINUX.md
+  A Linux port of DispCtrl by Jesvi Jonathan: https://github.com/jesvijonathan/DispCtrl
 website: https://github.com/HaythmKenway/DispCtrl-linux
 source-code: https://github.com/HaythmKenway/DispCtrl-linux
 issues: https://github.com/HaythmKenway/DispCtrl-linux/issues
