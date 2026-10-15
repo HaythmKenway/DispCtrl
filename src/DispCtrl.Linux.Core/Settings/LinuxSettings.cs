@@ -75,6 +75,9 @@ public sealed class LinuxSettings
         AppRules.RemoveAll(r => r is null || string.IsNullOrWhiteSpace(r.App) || string.IsNullOrWhiteSpace(r.Preset));
         foreach (var r in AppRules) r.DelaySeconds = Math.Clamp(r.DelaySeconds, 0, 600);
         Lighting ??= new LightingSettings();
+        Lighting.ColourOrders ??= [];
+        Lighting.KeyPresets ??= [];
+        Lighting.KeyPresets.RemoveAll(p => p is null || string.IsNullOrWhiteSpace(p.Name) || string.IsNullOrWhiteSpace(p.Keyboard) || p.Colours is null);
         OledCare ??= new OledCareSettings();
         OledCare.Normalise();
         Focus ??= new FocusSettings();
@@ -376,8 +379,27 @@ public sealed class LightingSettings
     /// "off", or "mode:NAME"; what a preset saves.</summary>
     public string? Last { get; set; }
 
+    /// <summary>Colour order by device name, for LEDs wired differently from RGB
+    /// (a keyboard whose red shows green is "GRB"). Unlisted devices use a known
+    /// quirk, else RGB.</summary>
+    public Dictionary<string, string> ColourOrders { get; set; } = [];
+
+    /// <summary>Named per-key colour sets, each for one keyboard.</summary>
+    public List<KeyPreset> KeyPresets { get; set; } = [];
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Unknown { get; set; }
+}
+
+/// <summary>Every key's colour on one keyboard, saved under a name.</summary>
+/// <remarks>Keyed by the keyboard's name rather than its position, which changes
+/// when devices are plugged in a different order; <see cref="Colours"/> holds
+/// one RRGGBB per LED, in LED order.</remarks>
+public sealed class KeyPreset
+{
+    public string Name { get; set; } = "";
+    public string Keyboard { get; set; } = "";
+    public List<string> Colours { get; set; } = [];
 }
 
 /// <summary>OLED care: the displays dim, in two stages, when nothing has been

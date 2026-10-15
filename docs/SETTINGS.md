@@ -298,5 +298,7 @@ The Linux client keeps its own `settings.json` (see [DispCtrl for Linux](LINUX.m
 |---|---|---|---|
 | `/lighting/host` | 127.0.0.1 | text | Where OpenRGB's SDK server listens. |
 | `/lighting/port` | 6742 | number | The port of OpenRGB's SDK server. |
+| `/lighting/colourOrders` | none | name to order | The colour order of devices whose LEDs are not RGB, by device name, such as `GRB`. `dispctrl-linux rgb order`. |
+| `/lighting/keyPresets` | none | list | Saved per-key colour sets: a name, the keyboard's name and one RRGGBB per LED. `dispctrl-linux rgb preset save NAME`. |
 | `/lighting/autoStart` | on | on or off | Start an OpenRGB found on this computer, headless, when a lighting command finds its server stopped, and at sign-in once lighting has been used. `dispctrl-linux rgb autostart on\|off`. |
 | `/lighting/last` | none | text | What was last set on every device (a colour, `off` or `mode:NAME`), which presets save. |

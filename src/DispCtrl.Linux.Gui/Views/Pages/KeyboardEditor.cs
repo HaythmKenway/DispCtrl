@@ -7,8 +7,10 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Transformation;
 using DispCtrl.Linux.Gui.Services;
 using DispCtrl.Linux.Lighting;
+using DispCtrl.Linux.Settings;
 using static DispCtrl.Linux.Gui.Views.CardBuilder;
 
 namespace DispCtrl.Linux.Gui.Views.Pages;
@@ -27,7 +29,7 @@ namespace DispCtrl.Linux.Gui.Views.Pages;
 /// </remarks>
 public sealed class KeyboardEditor : StackPanel
 {
-    private const double Unit = 30;
+    private const double Unit = 38;
 
     private readonly RgbDevice _device;
     private readonly KeyboardGeometry _geometry;
@@ -42,7 +44,8 @@ public sealed class KeyboardEditor : StackPanel
     private static readonly IBrush Selected = Brushes.DodgerBlue;
     private static readonly IBrush Unselected = new SolidColorBrush(Color.FromArgb(60, 128, 128, 128));
     private static readonly Task<bool> AnimationsOn = Task.Run(DesktopAnimates);
-    private bool _dragging, _sending;
+    private bool _dragging, _sending, _animate;
+    private int _hover = -1;
     private int _lastHit = -1;
 
     public KeyboardEditor(RgbDevice device)
@@ -61,11 +64,13 @@ public sealed class KeyboardEditor : StackPanel
 
         _canvas.Width = _geometry.Width * Unit;
         _canvas.Height = _geometry.Height * Unit;
-        foreach (var key in _geometry.Keys)
+        // Unlabelled keys off the grid are LEDs the layout could not place; drawing them
+        // gave a row of blank caps under the keyboard.
+        foreach (var key in _geometry.Keys.Where(k => k.OnGrid || k.Label.Length > 0))
         {
             var text = new TextBlock
             {
-                Text = key.Label, FontSize = key.Label.Length > 4 ? 8 : 10, HorizontalAlignment = HorizontalAlignment.Center,
+                Text = key.Label, FontSize = key.Label.Length > 4 ? 9 : 12, HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false,
             };
             var cap = new Border
@@ -79,22 +84,42 @@ public sealed class KeyboardEditor : StackPanel
             _caps[key.Led] = (cap, text);
             Paint(key.Led);
         }
+        _canvas.PointerExited += (_, _) => Hover(-1);
         _canvas.PointerPressed += OnPressed;
         _canvas.PointerMoved += OnMoved;
         _canvas.PointerReleased += (_, _) => EndDrag();
         _canvas.PointerCaptureLost += (_, _) => EndDrag();
         AutomationProperties.SetName(_canvas, "Keyboard keys");
         ToolTip.SetTip(_canvas, "Click or drag across keys to select them; hold Ctrl to add to the selection.");
-        Children.Add(new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-            Content = _canvas,
-        });
+        // Scaled to the card's width, never scrolled: a clipped numpad hid keys.
+        Children.Add(new Viewbox { Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, HorizontalAlignment = HorizontalAlignment.Left, Child = _canvas });
 
         AutomationProperties.SetName(_picker, "Key colour");
         var apply = Button("Apply", "Colour the selected keys", async () => await Send(_selected.ToDictionary(l => l, _ => Picked())));
         apply.Classes.Add("accent");
+        var swatches = new WrapPanel { VerticalAlignment = VerticalAlignment.Center };
+        foreach (var (name, hex) in new[] { ("White", "#FFFFFF"), ("Red", "#FF0000"), ("Orange", "#FF6000"), ("Yellow", "#FFE000"), ("Green", "#00FF00"),
+                     ("Cyan", "#00FFFF"), ("Blue", "#0000FF"), ("Purple", "#8000FF"), ("Pink", "#FF40A0"), ("Off", "#000000") })
+        {
+            var dot = new Button
+            {
+                Width = 28, Height = 28, Margin = new Thickness(0, 0, 6, 4), Padding = new Thickness(0), CornerRadius = new CornerRadius(14),
+                Background = new SolidColorBrush(Color.Parse(hex)), Classes = { "pop", "dot" },
+            };
+            ToolTip.SetTip(dot, $"{name}: colour the selected keys at once");
+            AutomationProperties.SetName(dot, $"Colour selected keys {name}");
+            dot.Click += async (_, _) =>
+            {
+                _picker.Color = Color.Parse(hex);
+                await Send(_selected.ToDictionary(l => l, _ => Picked()));
+            };
+            swatches.Children.Add(dot);
+        }
+        var hint = new TextBlock
+        {
+            Classes = { "caption" }, TextWrapping = TextWrapping.Wrap,
+            Text = "1. Click or drag across keys to select them (Ctrl adds). 2. Pick a colour below, or a ready colour, and press Apply.",
+        };
         var selection = new WrapPanel
         {
             Children =
@@ -116,10 +141,169 @@ public sealed class KeyboardEditor : StackPanel
                 Button("Rows", "Each row of keys its own colour", async () => await Preset((_, y) => Hue(y * 55, 1, 1))),
             },
         };
+        var saved = Presets();
+        Children.Insert(0, hint);
+        Children.Add(swatches);
         Children.Add(selection);
         Children.Add(presets);
+        Children.Add(saved);
+        Children.Add(Order());
+        Children.Add(Calibrate());
         Children.Add(_status);
         _ = FadeColoursAsync();
+    }
+
+    /// <summary>Saved colour sets for this keyboard: pick one to put it back, or
+    /// name the colours on the keyboard now to keep them. Written by the same
+    /// <c>rgb preset</c> commands the command line uses.</summary>
+    private StackPanel Presets()
+    {
+        var box = new ComboBox { MinWidth = 180, PlaceholderText = "Saved colour sets", Margin = new Thickness(0, 0, 8, 4) };
+        var name = new TextBox { Width = 160, PlaceholderText = "Name for this look", Margin = new Thickness(0, 0, 8, 4) };
+        AutomationProperties.SetName(box, "Saved colour sets");
+        AutomationProperties.SetName(name, "Name for this look");
+        void Reload(string? select = null)
+        {
+            var names = SettingsStore.Load().Lighting.KeyPresets.Where(p => p.Keyboard == _device.Name).Select(p => p.Name).ToList();
+            box.ItemsSource = names;
+            box.SelectedItem = select is not null && names.Contains(select) ? select : null;
+        }
+        Reload();
+        var device = (_device.Index + 1).ToString(CultureInfo.InvariantCulture);
+        var load = Button("Use", "Put the chosen colour set on the keyboard", async () =>
+        {
+            if (box.SelectedItem is not string chosen) { Show(_status, "Choose a saved colour set first."); return; }
+            var error = await DeskActions.RunAsync("rgb", "preset", "apply", chosen, "--device", device);
+            Show(_status, error);
+            if (error is null) await ReloadColours();
+        });
+        var save = Button("Save current", "Keep the colours on the keyboard now under this name", async () =>
+        {
+            var label = name.Text?.Trim() ?? "";
+            if (label.Length == 0) { Show(_status, "Type a name first, such as Gaming or Night."); return; }
+            await WaitForSends();
+            var error = await DeskActions.RunAsync("rgb", "preset", "save", label, "--device", device);
+            Show(_status, error);
+            if (error is null) { Reload(label); name.Text = ""; }
+        });
+        var delete = Button("Delete", "Forget the chosen colour set", async () =>
+        {
+            if (box.SelectedItem is not string chosen) { Show(_status, "Choose a saved colour set first."); return; }
+            var error = await DeskActions.RunAsync("rgb", "preset", "delete", chosen);
+            Show(_status, error);
+            if (error is null) Reload();
+        });
+        return new StackPanel
+        {
+            Spacing = 4,
+            Children =
+            {
+                new TextBlock { Text = "Saved colour sets for this keyboard", FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 8, 0, 0) },
+                new WrapPanel { Children = { box, load, delete } },
+                new WrapPanel { Children = { name, save } },
+            },
+        };
+    }
+
+    /// <summary>For a keyboard whose colours show as others (red as green): its
+    /// LED colour order, which <c>rgb order</c> sets. Redrawn from the device after a change.</summary>
+    private StackPanel Order()
+    {
+        string[] orders = ["RGB", "GRB", "BGR", "BRG", "RBG", "GBR"];
+        var box = new ComboBox { ItemsSource = orders, Margin = new Thickness(0, 0, 8, 0), MinWidth = 100 };
+        box.SelectedItem = LightingControl.OrderOf(SettingsStore.Load().Lighting, _device.Name);
+        AutomationProperties.SetName(box, "Colour order");
+        ToolTip.SetTip(box, "Pick the order that makes the keyboard show the colours drawn here");
+        box.SelectionChanged += async (_, _) =>
+        {
+            if (box.SelectedItem is not string order) return;
+            if (order == LightingControl.OrderOf(SettingsStore.Load().Lighting, _device.Name)) return;
+            var error = await DeskActions.RunAsync("rgb", "order", order, "--device", (_device.Index + 1).ToString(CultureInfo.InvariantCulture));
+            if (error is null) error = await DeskActions.RunAsync("rgb", "keys", string.Join(',', _colours.Where(c => _caps.ContainsKey(c.Key)).Select(c => $"led {c.Key}=#{c.Value.R:X2}{c.Value.G:X2}{c.Value.B:X2}")), "--device", (_device.Index + 1).ToString(CultureInfo.InvariantCulture));
+            Show(_status, error);
+        };
+        return new StackPanel
+        {
+            Spacing = 4,
+            Children =
+            {
+                new TextBlock { Text = "Colours on the keyboard look wrong? Choose its colour order", FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 8, 0, 0) },
+                box,
+            },
+        };
+    }
+
+    /// <summary>Finds a keyboard's colour order by asking what it shows: red is sent
+    /// on the first byte and green on the second, and the two answers fix all
+    /// three. Works for any device, known or not.</summary>
+    private StackPanel Calibrate()
+    {
+        var device = (_device.Index + 1).ToString(CultureInfo.InvariantCulture);
+        var say = new TextBlock { Classes = { "caption" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+        var answers = new WrapPanel { IsVisible = false };
+        var start = Button("Fix the colours…", "Light the keyboard and answer what colour you see; DispCtrl works out the rest", () => { });
+        string? first = null;
+        async Task Ask(string text, string wireColour)
+        {
+            // The order is reset first, so what is sent is what the bytes themselves light.
+            var error = await DeskActions.RunAsync("rgb", "colour", wireColour, "--device", device);
+            if (error is not null) { Show(_status, error); return; }
+            say.Text = text;
+            say.IsVisible = answers.IsVisible = true;
+        }
+        foreach (var name in new[] { "Red", "Green", "Blue" })
+        {
+            var b = Button(name, $"The keyboard shows {name.ToLowerInvariant()}", async () =>
+            {
+                char seen = name[0];
+                if (first is null)
+                {
+                    first = seen.ToString();
+                    await Ask("Now it should be green on the keyboard drawn here. What colour do you see on the keyboard?", "#00FF00");
+                    return;
+                }
+                char second = seen;
+                var third = "RGB".Except([first[0], second]).ToList();
+                answers.IsVisible = say.IsVisible = false;
+                var wasFirst = first;
+                first = null;
+                if (third.Count != 1) { Show(_status, "Those two answers cannot both be right. Try again."); return; }
+                var order = $"{wasFirst}{second}{third[0]}";
+                var error = await DeskActions.RunAsync("rgb", "order", order, "--device", device);
+                if (error is null) error = await DeskActions.RunAsync("rgb", "keys", string.Join(',', _colours.Where(c => _caps.ContainsKey(c.Key)).Select(c => $"led {c.Key}=#{c.Value.R:X2}{c.Value.G:X2}{c.Value.B:X2}")), "--device", device);
+                Show(_status, error ?? $"Colour order set to {order}.");
+            });
+            answers.Children.Add(b);
+        }
+        start.Click += async (_, _) =>
+        {
+            first = null;
+            await DeskActions.RunAsync("rgb", "order", "RGB", "--device", device);
+            await Ask("The keyboard should now be red. What colour do you see on the keyboard?", "#FF0000");
+        };
+        return new StackPanel { Spacing = 4, Children = { start, say, answers } };
+    }
+
+    private async Task WaitForSends()
+    {
+        for (int i = 0; i < 50 && _sending; i++) await Task.Delay(40);
+    }
+
+    /// <summary>Reads the keyboard's colours back after a saved set was applied, so the drawing matches.</summary>
+    private async Task ReloadColours()
+    {
+        var devices = await Task.Run(() =>
+        {
+            try { using var rgb = LightingControl.Connect(SettingsStore.Load().Lighting); return rgb.Devices(); }
+            catch (Exception ex) when (ex is System.Net.Sockets.SocketException or IOException or AggregateException) { return null; }
+        });
+        if (devices?.FirstOrDefault(d => d.Index == _device.Index) is not { Colours: { } held }) return;
+        for (int i = 0; i < _device.LedCount && i < held.Count; i++)
+        {
+            _colours[i] = ((byte)held[i], (byte)(held[i] >> 8), (byte)(held[i] >> 16));
+            _confirmed[i] = _colours[i];
+            if (_caps.ContainsKey(i)) PaintFill(i);
+        }
     }
 
     /// <summary>Colour changes ease in over 150 ms, once the desktop's own
@@ -127,8 +311,16 @@ public sealed class KeyboardEditor : StackPanel
     private async Task FadeColoursAsync()
     {
         if (!await AnimationsOn) return;
+        _animate = true;
         foreach (var (cap, _) in _caps.Values)
-            cap.Transitions = [new BrushTransition { Property = Border.BackgroundProperty, Duration = TimeSpan.FromMilliseconds(150), Easing = new CubicEaseOut() }];
+        {
+            cap.RenderTransform = TransformOperations.Parse("scale(1)");
+            cap.Transitions =
+            [
+                new BrushTransition { Property = Border.BackgroundProperty, Duration = TimeSpan.FromMilliseconds(150), Easing = new CubicEaseOut() },
+                new TransformOperationsTransition { Property = Visual.RenderTransformProperty, Duration = TimeSpan.FromMilliseconds(120), Easing = new CubicEaseOut() },
+            ];
+        }
     }
 
     /// <summary>False when the desktop turns animations off (GNOME's reduced
@@ -156,7 +348,7 @@ public sealed class KeyboardEditor : StackPanel
 
     private static Button Button(string text, string tip, Func<Task> click)
     {
-        var b = new Button { Content = text, Margin = new Thickness(0, 0, 8, 4) };
+        var b = new Button { Content = text, Margin = new Thickness(0, 0, 8, 4), Classes = { "pop" } };
         ToolTip.SetTip(b, tip);
         AutomationProperties.SetName(b, text);
         b.Click += async (_, _) => await click();
@@ -178,7 +370,36 @@ public sealed class KeyboardEditor : StackPanel
 
     private void OnMoved(object? sender, PointerEventArgs e)
     {
-        if (_dragging) AddAt(e.GetPosition(_canvas));
+        var p = e.GetPosition(_canvas);
+        if (_dragging) AddAt(p);
+        Hover(_geometry.KeyAt(p.X / Unit, p.Y / Unit)?.Led ?? -1);
+    }
+
+    /// <summary>The key under the pointer lifts slightly, so it is plain what a click will take.</summary>
+    private void Hover(int led)
+    {
+        if (led == _hover) return;
+        Scale(_hover, 1);
+        _hover = led;
+        Scale(led, 1.1);
+        _canvas.Cursor = led >= 0 ? new Cursor(StandardCursorType.Hand) : Cursor.Default;
+    }
+
+    private void Scale(int led, double to)
+    {
+        if (_animate && _caps.TryGetValue(led, out var cap)) cap.Cap.RenderTransform = TransformOperations.Parse($"scale({to.ToString(CultureInfo.InvariantCulture)})");
+    }
+
+    /// <summary>A quick press-and-release on a key whose colour just changed, the
+    /// nearest a desktop gets to feedback under the finger.</summary>
+    private async void Pop(IEnumerable<int> leds)
+    {
+        if (!_animate) return;
+        var list = leds.Where(_caps.ContainsKey).Take(200).ToList();
+        foreach (var l in list) Scale(l, 0.86);
+        await Task.Delay(110);
+        foreach (var l in list) Scale(l == _hover ? -1 : l, 1);
+        Scale(_hover, 1.1);
     }
 
     private void EndDrag()
@@ -232,8 +453,9 @@ public sealed class KeyboardEditor : StackPanel
         {
             _colours[c.Key] = c.Value;
             _pending[c.Key] = c.Value;
-            PaintFill(c.Key);
+            if (_caps.ContainsKey(c.Key)) PaintFill(c.Key);
         }
+        Pop(colours.Keys);
         if (_sending) return;
         _sending = true;
         try
@@ -248,7 +470,7 @@ public sealed class KeyboardEditor : StackPanel
                 foreach (var c in batch)
                 {
                     if (error is null) _confirmed[c.Key] = c.Value;
-                    else if (!_pending.ContainsKey(c.Key)) { _colours[c.Key] = _confirmed[c.Key]; PaintFill(c.Key); }
+                    else if (!_pending.ContainsKey(c.Key)) { _colours[c.Key] = _confirmed[c.Key]; if (_caps.ContainsKey(c.Key)) PaintFill(c.Key); }
                 }
             }
         }

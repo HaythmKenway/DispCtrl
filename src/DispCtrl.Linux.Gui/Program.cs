@@ -2,6 +2,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using DispCtrl.Linux.Diagnostics;
+using DispCtrl.Linux.Distribution;
+using DispCtrl.Linux.Engine;
 using DispCtrl.Linux.Gui.Services;
 
 namespace DispCtrl.Linux.Gui;
@@ -23,6 +25,14 @@ class Program
         AppLog.Configure("gui", echo: true);
         AppLog.InstallExceptionHooks();
         Request = args.Contains("--tray") ? Instance.Tray : args.Contains("--quick-panel") ? Instance.Panel : Instance.Window;
+        // A window or tray beside another install's engine would show and
+        // drive an engine that is not the one running.
+        if (!Instance.IsRunning() && Installs.Refusal(ownEngineRuns: EngineClient.IsRunning()) is { } another)
+        {
+            Log.Write($"not starting: {another}");
+            Console.Error.WriteLine($"dispctrl-linux-gui: {another}");
+            return 1;
+        }
         // A process already running (the tray's, from sign-in) does it instead.
         for (int attempt = 0; ; attempt++)
         {

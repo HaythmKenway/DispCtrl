@@ -198,6 +198,8 @@ public static partial class CommandRunner
           rgb colour <#RRGGBB|name> [--device N]   one colour (warm, white, red, blue, purple ...)
           rgb key <NAME[,NAME...]> <colour> [--device N]   light single keys: a, "left shift", F5, "led 12" (keyboards with a light per key)
           rgb keys <NAME=COLOUR,...|FILE> [--device N]     several keys at once; a file holds one NAME=COLOUR per line
+          rgb preset list|save|apply|delete <NAME> [--device N]   per-key colour sets for a keyboard, saved by name
+          rgb order <RGB|GRB|BGR|...> [--device N]  the colour order a device's LEDs take, when a colour shows as another (red as green)
           rgb off | rgb mode <effect> [--device N] off, or one of the device's own effects (Rainbow Wave ...)
           rgb server HOST[:PORT]                   where OpenRGB listens (127.0.0.1:6742)
           rgb start                                start OpenRGB's server headless (found on PATH, ~/.local/bin, Flatpak, snap or our own copy)
@@ -332,6 +334,9 @@ public static partial class CommandRunner
         bool engine = c.InEngine || EngineClient.IsRunning();
         Line(engine, "engine", engine ? $"running ({Runtime.SocketPath})" : "not running",
             $"{Distro.EngineStartCommand}   (the schedule and hot-plug need it)");
+        var others = Installs.Conflicts(Installs.Probe.Current(), engine);
+        Line(others.Count == 0, "one install", others.Count == 0 ? "no other DispCtrl install found" : others[0].Evidence,
+            others.Count == 0 ? null : $"Two installs fight over the ramps, hotkeys and tray. Remove the other: {others[0].Remedy}");
         c.Out.WriteLine($"[ok]  {"settings",-16} {SettingsStore.FilePath}");
 
         c.Out.WriteLine();

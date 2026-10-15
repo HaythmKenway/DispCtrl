@@ -148,6 +148,7 @@ public sealed class TrayHost : IDisposable
         if (s.Settings.Awake.ActiveAt(DateTimeOffset.Now)) parts.Add("keeping awake");
         if (s.Settings.Awake.StayActive) parts.Add("stay active");
         if (!s.Engine) parts.Add("engine not running");
+        if (s.OtherInstall is not null) parts.Add("a second DispCtrl install is present: " + s.OtherInstall);
         return string.Join(" · ", parts);
     }
 

@@ -5,6 +5,7 @@ Maintainer: DispCtrl <https://github.com/HaythmKenway/DispCtrl-linux/issues>
 Installed-Size: @SIZE@
 Depends: libc6 (>= 2.27), libgcc-s1 | libgcc1, libstdc++6, zlib1g, libx11-6, libxrandr2, libxi6, libxtst6, libxext6, libxss1, libxfixes3, libxcomposite1, libcairo2, libpango-1.0-0, libpangocairo-1.0-0, libfontconfig1, libice6, libsm6
 Recommends: ddcutil
+Conflicts: dispctrl-linux-bin, dispctrl-linux-git
 Section: utils
 Priority: optional
 Homepage: https://github.com/HaythmKenway/DispCtrl-linux

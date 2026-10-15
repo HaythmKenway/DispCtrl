@@ -70,6 +70,16 @@
         <DockPanel>
             <!-- One line on every page while the engine is not running: the
                  schedule, snapping and repair after a hot-plug all need it. -->
+            <!-- Two installs run two engines that fight over the ramps and the
+                 tray; the second is named with the command that removes it. -->
+            <Border Name="InstallBanner" DockPanel.Dock="Top" Classes="notice" Margin="16,12,16,0" Padding="12,8"
+                    IsVisible="False">
+                <Grid ColumnDefinitions="Auto,*">
+                    <ui:FASymbolIcon Symbol="Important" FontSize="16" VerticalAlignment="Center" Margin="0,0,12,0" />
+                    <SelectableTextBlock Name="InstallText" Grid.Column="1" TextWrapping="Wrap" VerticalAlignment="Center"
+                                         AutomationProperties.Name="A second DispCtrl install" />
+                </Grid>
+            </Border>
             <Border Name="EngineBanner" DockPanel.Dock="Top" Classes="notice" Margin="16,12,16,0" Padding="12,8"
                     IsVisible="False">
                 <Grid ColumnDefinitions="Auto,*,Auto">

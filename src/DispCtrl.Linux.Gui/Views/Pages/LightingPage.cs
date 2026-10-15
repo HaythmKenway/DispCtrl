@@ -46,7 +46,7 @@ public sealed class LightingPage : UserControl
             var b = new Button
             {
                 Width = 36, Height = 36, Margin = new Thickness(0, 0, 8, 8), Padding = new Thickness(0),
-                Background = new SolidColorBrush(Color.Parse(hex)), CornerRadius = new CornerRadius(18),
+                Background = new SolidColorBrush(Color.Parse(hex)), CornerRadius = new CornerRadius(18), Classes = { "pop", "dot" },
             };
             ToolTip.SetTip(b, name);
             AutomationProperties.SetName(b, $"Lighting {name}");
@@ -133,8 +133,14 @@ public sealed class LightingPage : UserControl
                     await Apply(status, "rgb", "mode", mode, "--device", device.ToString(CultureInfo.InvariantCulture));
             };
             // A light for each key: the keyboard itself, to colour key by key.
-            _devices.Children.Add(Card(Icon(d.Type), d.Name, $"{d.Vendor} {d.TypeName}, {d.LedCount} LEDs".Trim(), effects, out status,
-                d.HasPerKeyLeds ? new KeyboardEditor(d) : null));
+            var header = Card(Icon(d.Type), d.Name, $"{d.Vendor} {d.TypeName}, {d.LedCount} LEDs".Trim(), effects, out status);
+            if (!d.HasPerKeyLeds) { _devices.Children.Add(header); continue; }
+            // The editor gets a card of its own, the full width: beside the effect
+            // picker it was squeezed into the text column and its numpad was cut off.
+            var editor = new Border { Classes = { "card" }, Margin = new Thickness(0, 4, 0, 12), Child = new KeyboardEditor(d) };
+            header.Margin = new Thickness(0, 0, 0, 0);
+            _devices.Children.Add(header);
+            _devices.Children.Add(editor);
         }
     }
 

@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using DispCtrl.Linux.Commands;
 using DispCtrl.Linux.Diagnostics;
+using DispCtrl.Linux.Distribution;
 using DispCtrl.Linux.Engine;
 using DispCtrl.Linux.Hardware;
 using DispCtrl.Linux.Ramps;
@@ -74,6 +75,26 @@ internal sealed class EngineHost : IEngineHooks
         if (EngineClient.IsRunning(path))
         {
             Console.Error.WriteLine($"dispctrl-linux engine: already running ({path})");
+            return CommandRunner.Refused;
+        }
+        // Two installs' engines would fight over the ramps, hotkeys and tray:
+        // the first one stays, the second says how to remove itself.
+        if (Installs.Refusal(ownEngineRuns: false) is { } another)
+        {
+            AppLog.Error("engine", $"not starting: {another}");
+            Console.Error.WriteLine($"dispctrl-linux engine: {another}");
+            return CommandRunner.Refused;
+        }
+        // Held for the life of the process: the bus gives the name up when
+        // this connection closes, so a crashed engine leaves nothing stale. A
+        // bus that refuses the claim (a snap without its dbus slot) is the
+        // /proc scan's job alone.
+        using var bus = Environment.GetEnvironmentVariable(Installs.AllowVariable) == "1" ? null : SessionBus.Connect();
+        if (bus?.RequestName(SessionBus.EngineName) == SessionBus.Claim.Taken)
+        {
+            string taken = $"another DispCtrl engine holds {SessionBus.EngineName} on the session bus; DispCtrl runs from one install only. Stop it with \"dispctrl-linux engine stop\" from the install that runs it, then remove that install.";
+            AppLog.Error("engine", $"not starting: {taken}");
+            Console.Error.WriteLine($"dispctrl-linux engine: {taken}");
             return CommandRunner.Refused;
         }
         // Started from the window or the snap's launcher, it leaves their

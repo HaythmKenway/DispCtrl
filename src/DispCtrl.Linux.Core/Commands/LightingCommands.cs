@@ -64,6 +64,40 @@ public static partial class CommandRunner
                 }
                 return Report(LightingControl.ApplyKeys(entries, device), $"{entries.Count} key{(entries.Count == 1 ? "" : "s")} set.", c);
             }
+            case ["preset", "list"]:
+                foreach (var p in settings.KeyPresets) c.Out.WriteLine($"{p.Name}  ({p.Keyboard})");
+                if (settings.KeyPresets.Count == 0) c.Out.WriteLine("No key presets saved: rgb preset save NAME.");
+                return Done;
+            case ["preset", "save" or "apply" or "delete", .. var pname] when pname.Length > 0:
+            {
+                var label = string.Join(' ', pname);
+                if (verbs[1] == "delete")
+                {
+                    int gone = 0;
+                    SettingsStore.Update(s => gone = s.Lighting.KeyPresets.RemoveAll(p => p.Name.Equals(label, StringComparison.OrdinalIgnoreCase)));
+                    return gone == 0 ? Refuse(c, $"no key preset '{label}'") : Deleted(c, label);
+                }
+                return verbs[1] == "save"
+                    ? Report(LightingControl.SaveKeyPreset(label, device), $"Saved '{label}'.", c)
+                    : Report(LightingControl.ApplyKeyPreset(label, device), $"Applied '{label}'.", c);
+            }
+            case ["order", var order] when OpenRgb.NormaliseOrder(order) is { } normal:
+            {
+                try
+                {
+                    using var rgb = LightingControl.ConnectOrStart(settings);
+                    var devices = rgb.Devices();
+                    var target = device is null ? devices.FirstOrDefault(d => d.LedCount > 1) : devices.FirstOrDefault(d => d.Index == device);
+                    if (target is null) return Refuse(c, "no such device: rgb list shows the numbers");
+                    SettingsStore.Update(s => s.Lighting.ColourOrders[target.Name] = normal);
+                    c.Out.WriteLine($"{target.Name}: colour order {normal}. Try rgb colour red; if the keyboard shows another colour, try another order (RGB, GRB, BGR ...).");
+                    return Done;
+                }
+                catch (Exception ex) when (ex is SocketException or IOException or AggregateException)
+                {
+                    return Refuse(c, LightingControl.Unreachable(settings));
+                }
+            }
             case ["off"]:
                 return ReportResult(LightingControl.ApplyDetailed("off", device), "Lighting off.", c);
             case ["mode" or "effect", .. var name] when name.Length > 0:
@@ -116,7 +150,13 @@ public static partial class CommandRunner
                 return Done;
             }
             default:
-                return Wrong(c, "rgb takes list, colour COLOUR, key NAMES COLOUR, keys NAME=COLOUR,... | FILE, off, mode NAME or server HOST[:PORT], and --device N");
+                return Wrong(c, "rgb takes list, colour COLOUR, order RGB|GRB|BGR..., preset list|save|apply|delete NAME, key NAMES COLOUR, keys NAME=COLOUR,... | FILE, off, mode NAME or server HOST[:PORT], and --device N");
+        }
+
+        static int Deleted(CommandContext c, string label)
+        {
+            c.Out.WriteLine($"Deleted '{label}'.");
+            return Done;
         }
 
         static int Report(List<string> problems, string done, CommandContext c) => ReportResult(new LightingControl.Result(problems, []), done, c);

@@ -55,6 +55,31 @@ first one, and until then are built with `./build.cmd linux-package`
 | Alpine and other musl systems | `dispctrl-linux-<version>-linux-musl-x64.tar.gz` | `./install.sh`, below |
 | Any, as a snap | the [Snap Store](https://snapcraft.io/dispctrl-linux) | `sudo snap install dispctrl-linux` (`--edge` for the newest build; see [The snap](#the-snap)) |
 
+### One install at a time
+
+Install DispCtrl one way only. A snap beside the .deb, or a tarball beside
+either, would run two engines and two tray icons that fight over the gamma
+ramps, hotkeys and settings, so each refuses the other:
+
+- The `.deb` and `.rpm` refuse to install while the snap or a tarball install
+  is there, and say what to run: `sudo snap remove dispctrl-linux`, or
+  `~/.local/lib/dispctrl-linux/install.sh --uninstall`.
+- `install.sh` refuses beside the snap, a package or another copy on the
+  PATH. `./install.sh --force` installs anyway, for people who know why.
+- At run time every engine and window looks for another install's running
+  engine (in `/proc`, and by the name `org.dispctrl.Linux` on the session
+  bus, which the engine owns while it runs) and refuses to start with a
+  line saying how to remove the other. `dispctrl-linux doctor` lists a
+  second install under "one install", and the window and the tray tooltip
+  show it too.
+
+Under the snap's confinement the check sees less: another install's files
+under `/usr` and your real home are out of reach, and `/proc` shows other
+processes' command lines but often not their programs. The session bus name
+is what reaches across; it needs the snap's `dbus` slot, which the Store may
+have to approve. Without it the snap's engine still stops when it sees the
+package's in `/proc`, but a package engine will not see the snap's.
+
 ### From the apt or dnf repository
 
 The easiest way on Debian and Fedora's families: a signed repository, so
@@ -366,6 +391,8 @@ dispctrl-linux rgb                           devices and their effects
 dispctrl-linux rgb colour warm | #FF9329 [--device 2]
 dispctrl-linux rgb key a,s,d,f red [--device 1]   single keys: a, "left shift", F5, "led 12"
 dispctrl-linux rgb keys "esc=#00FF00,space=purple" | FILE    several keys at once, NAME=COLOUR
+dispctrl-linux rgb order RGB|GRB|BGR ...                         colour order of a device whose colours show wrong (red as green)
+dispctrl-linux rgb preset save|apply|delete NAME | list         per-key colour sets, kept for each keyboard
 dispctrl-linux rgb mode "Rainbow Wave"
 dispctrl-linux rgb off
 dispctrl-linux rgb start | setup | udev      start OpenRGB, download it, check the udev rules

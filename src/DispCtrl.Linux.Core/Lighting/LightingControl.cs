@@ -34,7 +34,21 @@ public static class LightingControl
                 ? $"OpenRGB's SDK server does not answer at {s.Host}:{s.Port}: dispctrl-linux rgb start starts it"
                 : $"OpenRGB's SDK server does not answer at {s.Host}:{s.Port} and no OpenRGB is installed: dispctrl-linux rgb setup downloads the official one";
 
-    public static OpenRgb Connect(LightingSettings s) => OpenRgb.Connect(s.Host, s.Port);
+    public static OpenRgb Connect(LightingSettings s)
+    {
+        var rgb = OpenRgb.Connect(s.Host, s.Port);
+        rgb.OrderFor = name => OrderOf(s, name);
+        return rgb;
+    }
+
+    /// <summary>A device's colour order: the one set for it, else the known quirk
+    /// (the EVision keyboards on the reference desk light green for the red byte),
+    /// else RGB.</summary>
+    public static string OrderOf(LightingSettings s, string deviceName)
+    {
+        if (s.ColourOrders is { } set && set.TryGetValue(deviceName, out var chosen) && OpenRgb.NormaliseOrder(chosen) is { } order) return order;
+        return deviceName.StartsWith("EVision", StringComparison.OrdinalIgnoreCase) ? "GRB" : "RGB";
+    }
 
     /// <summary>Connects, starting OpenRGB once first when it is not running and settings allow, so a command just works.</summary>
     public static OpenRgb ConnectOrStart(LightingSettings s)
@@ -124,6 +138,64 @@ public static class LightingControl
                 foreach (var led in leds) colours[led] = colour;
             }
             if (colours.Count == 0) return problems;
+            try { rgb.SetLeds(target, colours); }
+            catch (IOException ex) { problems.Add($"{target.Name}: {ex.Message}"); }
+        }
+        catch (Exception ex) when (ex is SocketException or IOException or AggregateException)
+        {
+            Diagnostics.AppLog.Warn("openrgb", $"unreachable: {ex.GetBaseException().Message}");
+            problems.Add(Unreachable(settings));
+        }
+        return problems;
+    }
+
+    /// <summary>Saves the colours a keyboard holds now under a name, replacing a
+    /// preset of that name for the same keyboard.</summary>
+    public static List<string> SaveKeyPreset(string name, int? device = null)
+    {
+        var settings = SettingsStore.Load().Lighting;
+        var problems = new List<string>();
+        try
+        {
+            using var rgb = ConnectOrStart(settings);
+            var devices = rgb.Devices();
+            var target = device is null ? devices.FirstOrDefault(d => d.HasPerKeyLeds) : devices.FirstOrDefault(d => d.Index == device);
+            if (target is null) { problems.Add(device is null ? "no keyboard with a light for each key" : $"no device {device + 1}"); return problems; }
+            var held = target.Colours;
+            var colours = Enumerable.Range(0, target.LedCount)
+                .Select(i => held is not null && i < held.Count ? $"{(byte)held[i]:X2}{(byte)(held[i] >> 8):X2}{(byte)(held[i] >> 16):X2}" : "000000").ToList();
+            SettingsStore.Update(s =>
+            {
+                s.Lighting.KeyPresets.RemoveAll(p => p.Keyboard == target.Name && p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+                s.Lighting.KeyPresets.Add(new KeyPreset { Name = name, Keyboard = target.Name, Colours = colours });
+            });
+        }
+        catch (Exception ex) when (ex is SocketException or IOException or AggregateException)
+        {
+            Diagnostics.AppLog.Warn("openrgb", $"unreachable: {ex.GetBaseException().Message}");
+            problems.Add(Unreachable(settings));
+        }
+        return problems;
+    }
+
+    /// <summary>Puts a saved per-key preset back on its keyboard.</summary>
+    public static List<string> ApplyKeyPreset(string name, int? device = null)
+    {
+        var settings = SettingsStore.Load().Lighting;
+        var problems = new List<string>();
+        try
+        {
+            using var rgb = ConnectOrStart(settings);
+            var devices = rgb.Devices();
+            var presets = settings.KeyPresets.Where(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase)).ToList();
+            var target = device is not null ? devices.FirstOrDefault(d => d.Index == device)
+                : devices.FirstOrDefault(d => presets.Any(p => p.Keyboard == d.Name));
+            if (target is null) { problems.Add(presets.Count == 0 ? $"no key preset '{name}'" : "the keyboard this preset is for is not connected"); return problems; }
+            var preset = presets.FirstOrDefault(p => p.Keyboard == target.Name);
+            if (preset is null) { problems.Add($"preset '{name}' was saved for {string.Join(", ", presets.Select(p => p.Keyboard))}, not {target.Name}"); return problems; }
+            var colours = new Dictionary<int, (byte, byte, byte)>();
+            for (int i = 0; i < Math.Min(preset.Colours.Count, target.LedCount); i++)
+                if (TryColour(preset.Colours[i], out var c)) colours[i] = c;
             try { rgb.SetLeds(target, colours); }
             catch (IOException ex) { problems.Add($"{target.Name}: {ex.Message}"); }
         }

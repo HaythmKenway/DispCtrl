@@ -10,6 +10,7 @@
 # runtime and claim its private libraries as the package's own provides.
 set -euo pipefail
 
+here=$(cd "$(dirname "$0")/.." && pwd)
 tree=$1 version=$2 arch=$3 out=$4 scratch=$5
 # RPM versions may not contain "-": 0.2.2-beta.1 becomes 0.2.2~beta.1, which
 # rpm sorts before 0.2.2, as the .deb does.
@@ -30,6 +31,7 @@ Requires:       libXfixes.so.3()(64bit), libXcomposite.so.1()(64bit), libcairo.s
 Requires:       libpango-1.0.so.0()(64bit), libpangocairo-1.0.so.0()(64bit)
 Requires:       libfontconfig.so.1()(64bit), libICE.so.6()(64bit), libSM.so.6()(64bit)
 Recommends:     ddcutil
+Conflicts:      dispctrl-linux-bin, dispctrl-linux-git
 
 %description
 DispCtrl for Linux sets each display's brightness - external monitors over
@@ -41,6 +43,9 @@ Night light, dimming, arranging and snapping need an X11 session.
 
 %install
 cp -a "$tree/." %{buildroot}/
+
+%pre
+$(sed '1d' "$here/package-guard.sh")
 
 %post
 # The backlight rule, and the menu, for everyone now rather than at reboot.

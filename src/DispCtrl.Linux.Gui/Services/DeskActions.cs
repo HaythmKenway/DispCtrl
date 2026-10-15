@@ -60,12 +60,19 @@ public static class DeskActions
 
     /// <summary>The state the menu and panel show, read in one go off the UI thread.</summary>
     /// <param name="Connected">Connected outputs, for the display mode choices.</param>
-    public sealed record State(LinuxSettings Settings, bool? Dark, bool Engine, bool NightLightAvailable, IReadOnlyList<XRandROutput> Connected);
+    public sealed record State(LinuxSettings Settings, bool? Dark, bool Engine, bool NightLightAvailable, IReadOnlyList<XRandROutput> Connected, string? OtherInstall = null);
 
     /// <summary>Everything the menu and panel show, off the UI thread: the theme
     /// is a gsettings call and the outputs an X round trip, and on the UI thread
     /// they held up every click on the tray icon.</summary>
     public static Task<State> ReadAsync() => Task.Run(() =>
         new State(SettingsStore.Load(), Session.DarkMode.Read(), EngineClient.IsRunning(), GammaRamp.IsAvailable(out _),
-            XRandR.IsAvailable ? XRandR.Query().Where(o => o.Connected).ToList() : []));
+            XRandR.IsAvailable ? XRandR.Query().Where(o => o.Connected).ToList() : [], OtherInstallNotice()));
+
+    /// <summary>The second install's removal line for the banner and tooltip, or null.</summary>
+    public static string? OtherInstallNotice()
+    {
+        var others = Distribution.Installs.Conflicts(Distribution.Installs.Probe.Current(), EngineClient.IsRunning());
+        return others.Count == 0 ? null : Distribution.Installs.OneLine(others);
+    }
 }

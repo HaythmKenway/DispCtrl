@@ -7,6 +7,8 @@
 #                                 only needed where systemd-logind cannot set
 #                                 the backlight (docs/LINUX.md, "Backlight")
 #   ./install.sh --uninstall      remove everything this installed
+#   ./install.sh --force          install although another DispCtrl install
+#                                 (snap, .deb/.rpm, another copy) is present
 #
 # Settings in ~/.config/dispctrl-linux are kept on uninstall.
 # POSIX sh, not bash: Alpine and other minimal systems have no bash.
@@ -26,13 +28,15 @@ rule=/etc/udev/rules.d/90-dispctrl-backlight.rules
 engine=true
 backlight_rule=false
 uninstall=false
+force=false
 for arg in "$@"; do
   case "$arg" in
     --no-engine) engine=false ;;
     --backlight-rule) backlight_rule=true ;;
     --uninstall) uninstall=true ;;
+    --force) force=true ;;
     -h|--help) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    *) echo "Unknown option: $arg (--no-engine, --backlight-rule, --uninstall)" >&2; exit 2 ;;
+    *) echo "Unknown option: $arg (--no-engine, --backlight-rule, --uninstall, --force)" >&2; exit 2 ;;
   esac
 done
 
@@ -60,6 +64,39 @@ fi
 
 [ -x "$here/lib/dispctrl-linux" ] || { echo "Run this from the extracted release folder (lib/dispctrl-linux is missing)." >&2; exit 1; }
 
+# At most one install: a snap or a package beside this copy runs a second
+# engine and tray that fight over the gamma ramps, hotkeys and settings.
+# DISPCTRL_GUARD_ROOT is for the checks, which run this against a fake root.
+root="${DISPCTRL_GUARD_ROOT:-}"
+other=""; remove=""
+if command -v snap >/dev/null 2>&1 && snap list dispctrl-linux >/dev/null 2>&1; then
+  other="the snap is installed"; remove="sudo snap remove dispctrl-linux"
+elif [ -e "$root/snap/dispctrl-linux" ] || [ -e "$root/var/lib/snapd/snap/dispctrl-linux" ]; then
+  other="the snap is installed"; remove="sudo snap remove dispctrl-linux"
+elif command -v dpkg >/dev/null 2>&1 && dpkg -s dispctrl-linux >/dev/null 2>&1; then
+  other="the .deb package is installed"; remove="sudo apt remove dispctrl-linux"
+elif command -v rpm >/dev/null 2>&1 && rpm -q dispctrl-linux >/dev/null 2>&1; then
+  other="the .rpm package is installed"; remove="sudo dnf remove dispctrl-linux   (or: sudo zypper remove dispctrl-linux)"
+elif command -v pacman >/dev/null 2>&1 && pacman -Q dispctrl-linux >/dev/null 2>&1; then
+  other="the pacman package is installed"; remove="sudo pacman -R dispctrl-linux"
+elif [ -e "$root/usr/bin/dispctrl-linux" ] || [ -d "$root/usr/lib/dispctrl-linux" ]; then
+  other="a copy is installed in /usr"; remove="remove it with the tool that installed it (see: ls -l /usr/bin/dispctrl-linux)"
+elif [ -z "$root" ] && found=$(command -v dispctrl-linux 2>/dev/null) && [ -n "$found" ] \
+     && [ "$(readlink -f "$found")" != "$(readlink -f "$lib/dispctrl-linux" 2>/dev/null || echo "$lib/dispctrl-linux")" ]; then
+  other="another copy is on the PATH ($found)"; remove="remove it, or run it with: $found engine stop"
+fi
+if [ -n "$other" ]; then
+  if [ "$force" = true ]; then
+    echo "Warning: $other. Installing anyway (--force); only one engine can run at a time, and the second to start refuses." >&2
+  else
+    echo "Not installing: $other." >&2
+    echo "DispCtrl runs from one install only; two would fight over the gamma ramps, hotkeys and tray." >&2
+    echo "Remove the other first: $remove" >&2
+    echo "(--force installs anyway.)" >&2
+    exit 1
+  fi
+fi
+
 # The bundled .NET runtime needs the C++ runtime every desktop has, but a
 # minimal Alpine or Void does not; and an arm64 download on an x86 machine
 # cannot run at all. Both are said here, before anything is copied.
@@ -85,6 +122,8 @@ stop_engine
 mkdir -p "$lib" "$bin" "$apps" "$icons" "$units"
 rm -rf "$lib"; mkdir -p "$lib"
 cp -a "$here/lib/." "$lib/"
+# So that the copy can be removed, and the runtime check can name the command.
+install -m 0755 "$here/install.sh" "$lib/install.sh"
 ln -sf "$lib/dispctrl-linux" "$bin/dispctrl-linux"
 ln -sf "$lib/dispctrl-linux-gui" "$bin/dispctrl-linux-gui"
 sed "s|^Exec=dispctrl-linux-gui|Exec=$lib/dispctrl-linux-gui|" "$here/share/applications/dispctrl-linux.desktop" > "$apps/dispctrl-linux.desktop"
@@ -106,6 +145,8 @@ fi
 if [ "$engine" = true ]; then
   if have_user_systemd; then
     systemctl --user daemon-reload
+    # Both would start an engine at sign-in: the unit is the one.
+    rm -f "$autostart/dispctrl-linux-engine.desktop"
     systemctl --user enable "$unit" >/dev/null 2>&1
     # graphical-session.target is not active on every desktop; start it now
     # either way so it runs from this session on.

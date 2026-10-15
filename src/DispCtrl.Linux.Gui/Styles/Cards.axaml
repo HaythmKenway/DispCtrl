@@ -54,6 +54,25 @@
         <Setter Property="Margin" Value="16,16,16,24" />
     </Style>
 
+    <!-- Buttons that answer the pointer: a lift on hover, a press on click. -->
+    <Style Selector="Button.pop">
+        <Setter Property="RenderTransform" Value="scale(1)" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.12" Easing="CubicEaseOut" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Button.pop:pointerover">
+        <Setter Property="RenderTransform" Value="scale(1.04)" />
+    </Style>
+    <Style Selector="Button.pop.dot:pointerover">
+        <Setter Property="RenderTransform" Value="scale(1.18)" />
+    </Style>
+    <Style Selector="Button.pop:pressed">
+        <Setter Property="RenderTransform" Value="scale(0.93)" />
+    </Style>
+
     <Style Selector="Border.card">
         <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />

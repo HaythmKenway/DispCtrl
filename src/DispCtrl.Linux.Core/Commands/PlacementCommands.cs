@@ -133,11 +133,19 @@ public static partial class CommandRunner
 
     private static AppWindow? WindowFor(XConnection x, Dictionary<string, string> flags, CommandContext c)
     {
-        ulong? id = flags.TryGetValue("--window", out var text) ? (TryWindowId(text, out var parsed) ? parsed : null) : Desktop.Active(x);
-        if (id is null) { Refuse(c, flags.ContainsKey("--window") ? $"'{text}' is not a window id (windows lists them)" : "no window is in front"); return null; }
-        var w = Desktop.Describe(x, id.Value);
-        if (w is null) Refuse(c, $"0x{id:x} is not an application window");
-        return w;
+        if (flags.TryGetValue("--window", out var text))
+        {
+            if (!TryWindowId(text, out var parsed)) { Refuse(c, $"'{text}' is not a window id (windows lists them)"); return null; }
+            var named = Desktop.Describe(x, parsed);
+            if (named is null) Refuse(c, $"0x{parsed:x} is not an application window");
+            return named;
+        }
+        // With the pointer last on the desktop, GNOME's desktop-icons window is the
+        // active one and is no application window: the topmost real one is meant.
+        var active = Desktop.Active(x) is { } id ? Desktop.Describe(x, id) : null;
+        active ??= Desktop.Windows(x, includeMinimized: false).FirstOrDefault();
+        if (active is null) Refuse(c, "no window is in front");
+        return active;
     }
 
     /// <summary>Words first, then --flags with their values.</summary>

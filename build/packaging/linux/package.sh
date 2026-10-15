@@ -100,6 +100,7 @@ deb() { # rid arch
   sed -e "s/@VERSION@/$debversion/" -e "s/@SIZE@/$size/" -e "s/@ARCH@/$arch/" "$here/deb/control" > "$deb/DEBIAN/control"
   printf '/etc/xdg/autostart/dispctrl-linux-engine.desktop\n/etc/xdg/autostart/dispctrl-linux-tray.desktop\n' > "$deb/DEBIAN/conffiles"
   install -m 0755 "$here/deb/postinst" "$here/deb/prerm" "$here/deb/postrm" "$deb/DEBIAN/"
+  install -m 0755 "$here/package-guard.sh" "$deb/DEBIAN/preinst"
   chmod -R go-w "$deb"
   find "$deb" -type d -exec chmod 0755 {} +
   echo "== dispctrl-linux_${version}_$arch.deb"

@@ -30,6 +30,9 @@ Environment.SetEnvironmentVariable("XDG_RUNTIME_DIR", runtime);
 // The checks log too (every refusal does); into scratch, never the real log.
 Environment.SetEnvironmentVariable("DISPCTRL_LINUX_LOG_DIR", Path.Combine(scratch, "logs"));
 
+// The engine the checks start runs beside the owner's own.
+Environment.SetEnvironmentVariable(Installs.AllowVariable, "1");
+
 int failed = 0;
 void Check(bool condition, string name)
 {
@@ -55,6 +58,7 @@ try
     Client();
     EngineProcess();
     InstanceChecks();
+    InstallChecks();
 }
 finally
 {
@@ -1175,4 +1179,173 @@ void LoggingChecks()
     Check(urlRun.Code == 0 && urlRun.Out.Trim().StartsWith("https://", StringComparison.Ordinal) && urlRun.Out.Trim().Length <= ProblemReport.IssueLimit, "report: --url prints an address within the limit");
     var mailRun = Run("report", "--mail-url", "--save", save);
     Check(mailRun.Code == 0 && mailRun.Out.Trim().StartsWith("mailto:", StringComparison.Ordinal), "report: --mail-url prints the mailto link");
+}
+
+
+void InstallChecks()
+{
+    Check(Installs.KindOf("/snap/dispctrl-linux/412/lib/dispctrl-linux") == InstallKind.Snap, "installs: a path under /snap is the snap");
+    Check(Installs.KindOf("/usr/lib/dispctrl-linux/dispctrl-linux") == InstallKind.Package, "installs: /usr/lib is the package");
+    Check(Installs.KindOf("/home/a/.local/lib/dispctrl-linux/dispctrl-linux-gui") == InstallKind.Tarball, "installs: ~/.local/lib is the tarball");
+    Check(Installs.SameInstall("/snap/dispctrl-linux/1/lib/dispctrl-linux", "/snap/dispctrl-linux/2/lib/dispctrl-linux-gui"),
+        "installs: two revisions of the snap are one install");
+    Check(!Installs.SameInstall("/opt/a/dispctrl-linux", "/opt/b/dispctrl-linux"), "installs: two folders of no known kind are two installs");
+
+    var fake = Path.Combine(scratch, "root");
+    var home = Path.Combine(fake, "home", "me");
+    Directory.CreateDirectory(home);
+    void Process(int pid, string cmdline, uint uid = 1000)
+    {
+        var dir = Path.Combine(fake, "proc", pid.ToString());
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "cmdline"), cmdline);
+        File.WriteAllText(Path.Combine(dir, "status"), $"Name:\tx\nUid:\t{uid}\t{uid}\t{uid}\t{uid}\n");
+    }
+    Installs.Probe As(string exe) => new(fake, home, exe, 1, 1000, DistroFamily.Debian);
+
+    Process(200, "/usr/lib/dispctrl-linux/dispctrl-linux\0engine\0");
+    var fromSnap = Installs.RunningElsewhere(As("/snap/dispctrl-linux/9/lib/dispctrl-linux"));
+    Check(fromSnap is [{ Kind: InstallKind.Package, Running: true }] && fromSnap[0].Remedy == "sudo apt remove dispctrl-linux",
+        "installs: the snap sees the package's engine in /proc and names how to remove it");
+    Check(Installs.RunningElsewhere(As("/usr/lib/dispctrl-linux/dispctrl-linux")).Count == 0, "installs: an engine of the same install is not another");
+    Check(Installs.RunningElsewhere(As("/usr/lib/dispctrl-linux/dispctrl-linux-gui") with { OwnPid = 200 }).Count == 0, "installs: this process is never counted");
+
+    Process(201, "/snap/dispctrl-linux/7/lib/dispctrl-linux\0engine\0");
+    Check(Installs.RunningElsewhere(As("/usr/lib/dispctrl-linux/dispctrl-linux")) is [{ Kind: InstallKind.Snap } snap] && snap.Remedy == "sudo snap remove dispctrl-linux",
+        "installs: the package sees the snap's engine and the exact removal command");
+    Process(202, "dispctrl-linux\0engine\0");
+    Process(203, "/home/other/.local/lib/dispctrl-linux/dispctrl-linux\0engine\0", uid: 1001);
+    Process(204, "/usr/bin/dotnet\0dispctrl-linux.dll\0engine\0");
+    Check(Installs.RunningElsewhere(As("/usr/lib/dispctrl-linux/dispctrl-linux")).Count == 1,
+        "installs: another user's engine, a bare command name and other programs are not counted");
+
+    var empty = Path.Combine(scratch, "empty-root");
+    Directory.CreateDirectory(empty);
+    var clean = new Installs.Probe(empty, Path.Combine(empty, "home"), "/usr/lib/dispctrl-linux/dispctrl-linux", 1, 1000, DistroFamily.Debian);
+    Check(Installs.Conflicts(clean, ownEngineRuns: false, busOwner: () => false).Count == 0, "installs: one install is no conflict");
+    Check(Installs.Conflicts(clean, ownEngineRuns: false, busOwner: () => true) is [{ Running: true }],
+        "installs: a name held on the session bus is a running engine of another install");
+    Check(Installs.Conflicts(clean, ownEngineRuns: true, busOwner: () => true).Count == 0, "installs: the name is this install's own when its engine runs");
+
+    Directory.CreateDirectory(Path.Combine(empty, "snap", "dispctrl-linux"));
+    Directory.CreateDirectory(Path.Combine(empty, "home", ".local", "lib", "dispctrl-linux"));
+    var present = Installs.Conflicts(clean, ownEngineRuns: false, busOwner: () => null);
+    Check(present.Count == 2 && present.All(c => !c.Running) && present.Any(c => c.Kind == InstallKind.Snap) && present.Any(c => c.Kind == InstallKind.Tarball),
+        "installs: files of two other installs are reported, not running");
+    Check(Installs.OneLine(present).Contains("Remove the other:", StringComparison.Ordinal), "installs: the line says how to remove the other");
+
+    BusChecks();
+    GuardScriptChecks();
+}
+
+void BusChecks()
+{
+    Check(SessionBus.Connect("unix:path=/nonexistent/bus") is null, "bus: no session bus is a null, not a crash");
+    var daemon = new System.Diagnostics.ProcessStartInfo("dbus-daemon", ["--session", "--nofork", "--print-address"]) { RedirectStandardOutput = true, UseShellExecute = false };
+    System.Diagnostics.Process? process = null;
+    try { process = System.Diagnostics.Process.Start(daemon); }
+    catch (System.ComponentModel.Win32Exception) { }
+    if (process is null) { Console.WriteLine("SKIP bus: no dbus-daemon here"); return; }
+    try
+    {
+        var address = process.StandardOutput.ReadLine();
+        using var first = SessionBus.Connect(address);
+        using var second = SessionBus.Connect(address);
+        Check(first is not null && second is not null, "bus: two connections to a private session bus");
+        if (first is null || second is null) return;
+        Check(second.NameHasOwner(SessionBus.EngineName) == false, "bus: the name is free to begin with");
+        Check(first.RequestName(SessionBus.EngineName) == SessionBus.Claim.Owner, "bus: the first engine claims the name");
+        Check(first.RequestName(SessionBus.EngineName) == SessionBus.Claim.Owner, "bus: claiming it again is still owning it");
+        Check(second.RequestName(SessionBus.EngineName) == SessionBus.Claim.Taken, "bus: a second install's engine is told it is taken");
+        Check(second.NameHasOwner(SessionBus.EngineName) == true, "bus: a window sees the name owned");
+        first.Dispose();
+        Thread.Sleep(200);
+        Check(second.NameHasOwner(SessionBus.EngineName) == false, "bus: the name is free again once the engine's connection closes");
+    }
+    finally
+    {
+        process.Kill();
+        process.WaitForExit();
+    }
+}
+
+void GuardScriptChecks()
+{
+    var repo = AppContext.BaseDirectory;
+    while (repo is not null && !File.Exists(Path.Combine(repo, "DispCtrl.slnx"))) repo = Path.GetDirectoryName(repo);
+    if (repo is null) { Console.WriteLine("SKIP scripts: repository root not found"); return; }
+    var scripts = Path.Combine(repo, "build", "packaging", "linux");
+
+    var work = Path.Combine(scratch, "scripts");
+    var stubs = Path.Combine(work, "bin");
+    Directory.CreateDirectory(stubs);
+    void Stub(string name, int exit)
+    {
+        var path = Path.Combine(stubs, name);
+        File.WriteAllText(path, $"#!/bin/sh\nexit {exit}\n");
+        File.SetUnixFileMode(path, (UnixFileMode)0b111_101_101);
+    }
+    // Package managers that know nothing of DispCtrl, whatever the real machine has.
+    foreach (var tool in new[] { "snap", "dpkg", "rpm", "pacman", "systemctl" }) Stub(tool, 1);
+
+    (int Code, string Err) Run(string script, string root, string argument, string? installed = null)
+    {
+        if (installed is not null) Stub(installed, 0);
+        var info = new System.Diagnostics.ProcessStartInfo("sh", [script, .. (argument.Length == 0 ? [] : new[] { argument })])
+        {
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            WorkingDirectory = Path.GetDirectoryName(script)!,
+        };
+        info.Environment["PATH"] = $"{stubs}:/usr/bin:/bin";
+        info.Environment["DISPCTRL_GUARD_ROOT"] = root;
+        info.Environment["HOME"] = Path.Combine(work, "home");
+        info.Environment["XDG_CONFIG_HOME"] = Path.Combine(work, "home", ".config");
+        info.Environment["XDG_DATA_HOME"] = Path.Combine(work, "home", ".local", "share");
+        using var p = System.Diagnostics.Process.Start(info)!;
+        var err = p.StandardError.ReadToEnd();
+        p.StandardOutput.ReadToEnd();
+        p.WaitForExit();
+        if (installed is not null) Stub(installed, 1);
+        return (p.ExitCode, err);
+    }
+
+    var none = Path.Combine(work, "none");
+    Directory.CreateDirectory(none);
+    var guard = Path.Combine(scripts, "package-guard.sh");
+    Check(Run(guard, none, "install").Code == 0, "guard: the .deb preinst lets a clean machine through");
+    Check(Run(guard, none, "remove").Code == 0, "guard: and ignores the other maintainer script actions");
+    var withSnap = Run(guard, none, "install", installed: "snap");
+    Check(withSnap.Code == 1 && withSnap.Err.Contains("sudo snap remove dispctrl-linux", StringComparison.Ordinal), "guard: the snap installed refuses the .deb with the exact command");
+    Check(Run(guard, none, "2", installed: "snap").Code == 1, "guard: the .rpm upgrade (2) refuses too");
+
+    var snapDir = Path.Combine(work, "snaproot");
+    Directory.CreateDirectory(Path.Combine(snapDir, "snap", "dispctrl-linux"));
+    Check(Run(guard, snapDir, "install").Code == 1, "guard: /snap/dispctrl-linux alone refuses");
+    var tarRoot = Path.Combine(work, "tarroot");
+    Directory.CreateDirectory(Path.Combine(tarRoot, "home", "me", ".local", "lib", "dispctrl-linux"));
+    Check(Run(guard, tarRoot, "install").Code == 1, "guard: a tarball install in a home folder refuses the package");
+
+    // install.sh from a fake extracted folder.
+    var tree = Path.Combine(work, "extracted");
+    Directory.CreateDirectory(Path.Combine(tree, "lib"));
+    File.Copy(Path.Combine(scripts, "install.sh"), Path.Combine(tree, "install.sh"), overwrite: true);
+    var fakeCli = Path.Combine(tree, "lib", "dispctrl-linux");
+    File.WriteAllText(fakeCli, "#!/bin/sh\necho dispctrl-linux 0\n");
+    File.SetUnixFileMode(fakeCli, (UnixFileMode)0b111_101_101);
+    var install = Path.Combine(tree, "install.sh");
+    Directory.CreateDirectory(Path.Combine(work, "home"));
+
+    foreach (var (tool, label) in new[] { ("snap", "the snap"), ("dpkg", "the .deb"), ("rpm", "the .rpm"), ("pacman", "pacman's package") })
+    {
+        var r = Run(install, none, "", installed: tool);
+        Check(r.Code == 1 && r.Err.Contains("Not installing", StringComparison.Ordinal), $"install.sh: refuses beside {label}");
+    }
+    var usr = Path.Combine(work, "usrroot");
+    Directory.CreateDirectory(Path.Combine(usr, "usr", "bin"));
+    File.WriteAllText(Path.Combine(usr, "usr", "bin", "dispctrl-linux"), "");
+    Check(Run(install, usr, "").Code == 1, "install.sh: refuses beside /usr/bin/dispctrl-linux");
+    var forced = Run(install, usr, "--force");
+    Check(forced.Err.Contains("Installing anyway", StringComparison.Ordinal), "install.sh: --force goes past the guard with a warning");
+    Check(Run(install, usr, "--bogus").Code == 2, "install.sh: an unknown option is still refused");
 }

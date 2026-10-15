@@ -67,11 +67,14 @@ public partial class MainWindow : Window
 
     private void RefreshEngine()
     {
-        _ = Task.Run(() => EngineClient.IsRunning()).ContinueWith(t =>
+        _ = Task.Run(() => (Engine: EngineClient.IsRunning(), Other: DeskActions.OtherInstallNotice())).ContinueWith(t =>
         {
-            _engineRunning = t.Result;
-            EngineBanner.IsVisible = !t.Result;
-            if (_pages.TryGetValue("settings", out var page) && page is SettingsPage settings) settings.ShowEngine(t.Result);
+            var (engine, other) = t.Result;
+            _engineRunning = engine;
+            EngineBanner.IsVisible = !engine;
+            InstallBanner.IsVisible = other is not null;
+            InstallText.Text = other is null ? null : "A second DispCtrl install is present, and two fight over the ramps, hotkeys and tray. " + other;
+            if (_pages.TryGetValue("settings", out var page) && page is SettingsPage settings) settings.ShowEngine(engine);
         }, TaskScheduler.FromCurrentSynchronizationContext());
     }
 }

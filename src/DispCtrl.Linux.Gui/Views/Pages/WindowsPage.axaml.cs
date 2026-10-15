@@ -140,7 +140,14 @@ public partial class WindowsPage : UserControl
             string id = $"0x{w.Id:x}";
             TextBlock status = null!;
             var pin = new ToggleButton { Content = w.Above ? "Pinned" : "Pin", IsChecked = w.Above };
-            pin.Click += async (_, _) => { CardBuilder.Show(status, await Services.DeskActions.RunAsync("pin", pin.IsChecked == true ? "on" : "off", "--window", id)); pin.Content = pin.IsChecked == true ? "Pinned" : "Pin"; };
+            pin.Click += async (_, _) =>
+            {
+                bool want = pin.IsChecked == true;
+                var error = await Services.DeskActions.RunAsync("pin", want ? "on" : "off", "--window", id);
+                CardBuilder.Show(status, error);
+                if (error is not null) pin.IsChecked = !want;
+                pin.Content = pin.IsChecked == true ? "Pinned" : "Pin";
+            };
             var move = new Button { Content = "Next display" };
             move.Click += async (_, _) => CardBuilder.Show(status, await Services.DeskActions.RunAsync("placement", "move", "--window", id, "--to", "next"));
             var span = new Button { Content = "Span" };

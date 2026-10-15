@@ -92,6 +92,46 @@ public sealed class OpenRgb : IDisposable
         return client;
     }
 
+    /// <summary>The colour order a device's LEDs take, from its name: "RGB" unless a
+    /// device is known (or set) to want another, such as "GRB", where the wire's red
+    /// byte lights green. Everything here is logical RGB; the order is applied on
+    /// the way to the device and undone on the way back.</summary>
+    public Func<string, string> OrderFor { get; set; } = _ => "RGB";
+
+    /// <summary>Logical colour to the bytes sent for <paramref name="order"/>.</summary>
+    internal static (byte R, byte G, byte B) ToWire(string order, byte r, byte g, byte b)
+    {
+        byte Pick(char c) => c switch { 'R' => r, 'G' => g, _ => b };
+        return (Pick(order[0]), Pick(order[1]), Pick(order[2]));
+    }
+
+    /// <summary>What <see cref="ToWire"/> did, undone.</summary>
+    internal static (byte R, byte G, byte B) FromWire(string order, byte r, byte g, byte b)
+    {
+        byte[] wire = [r, g, b], logical = new byte[3];
+        for (int i = 0; i < 3; i++) logical[order[i] switch { 'R' => 0, 'G' => 1, _ => 2 }] = wire[i];
+        return (logical[0], logical[1], logical[2]);
+    }
+
+    /// <summary>A valid three-letter order of R, G and B (any case), else null.</summary>
+    public static string? NormaliseOrder(string? text)
+    {
+        var o = text?.Trim().ToUpperInvariant();
+        return o is { Length: 3 } && o.Distinct().Count() == 3 && o.All(c => c is 'R' or 'G' or 'B') ? o : null;
+    }
+
+    private uint Wire(string order, uint logical)
+    {
+        var (r, g, b) = ToWire(order, (byte)logical, (byte)(logical >> 8), (byte)(logical >> 16));
+        return Pack(r, g, b);
+    }
+
+    private uint Logical(string order, uint wire)
+    {
+        var (r, g, b) = FromWire(order, (byte)wire, (byte)(wire >> 8), (byte)(wire >> 16));
+        return Pack(r, g, b);
+    }
+
     private void Handshake()
     {
         Send(0, RequestProtocolVersion, U32(ClientProtocol));
@@ -105,7 +145,9 @@ public sealed class OpenRgb : IDisposable
     public RgbDevice Device(int index)
     {
         Send((uint)index, RequestControllerData, _protocol > 0 ? U32(_protocol) : []);
-        return Parse(index, Receive(RequestControllerData), _protocol);
+        var device = Parse(index, Receive(RequestControllerData), _protocol);
+        var order = OrderFor(device.Name);
+        return order == "RGB" || device.Colours is null ? device : device with { Colours = device.Colours.Select(c => Logical(order, c)).ToList() };
     }
 
     public IReadOnlyList<RgbDevice> Devices()
@@ -143,11 +185,12 @@ public sealed class OpenRgb : IDisposable
         var body = new byte[4 + 2 + device.LedCount * 4];
         BinaryPrimitives.WriteUInt32LittleEndian(body, (uint)body.Length);
         BinaryPrimitives.WriteUInt16LittleEndian(body.AsSpan(4), (ushort)device.LedCount);
+        var (wr, wg, wb) = ToWire(OrderFor(device.Name), r, g, b);
         for (int i = 0; i < device.LedCount; i++)
         {
-            body[6 + i * 4] = r;
-            body[7 + i * 4] = g;
-            body[8 + i * 4] = b;
+            body[6 + i * 4] = wr;
+            body[7 + i * 4] = wg;
+            body[8 + i * 4] = wb;
         }
         Send((uint)device.Index, UpdateLeds, body);
     }
@@ -166,6 +209,7 @@ public sealed class OpenRgb : IDisposable
         var mode = device.Modes.FirstOrDefault(m => m.Name is "Direct" or "Custom" && m.ColorMode == RgbMode.ColorModePerLed)
             ?? device.Modes.FirstOrDefault(m => m.ColorMode == RgbMode.ColorModePerLed)
             ?? throw new IOException($"{device.Name} has no effect that takes a colour for each LED");
+        var order = OrderFor(device.Name);
         var current = Device(device.Index).Colours ?? [];
         var body = new byte[4 + 2 + device.LedCount * 4];
         BinaryPrimitives.WriteUInt32LittleEndian(body, (uint)body.Length);
@@ -174,7 +218,7 @@ public sealed class OpenRgb : IDisposable
         {
             uint packed = i < current.Count ? current[i] : 0;
             if (colours.TryGetValue(i, out var c)) packed = Pack(c.R, c.G, c.B);
-            BinaryPrimitives.WriteUInt32LittleEndian(body.AsSpan(6 + i * 4), packed);
+            BinaryPrimitives.WriteUInt32LittleEndian(body.AsSpan(6 + i * 4), Wire(order, packed));
         }
         Send((uint)device.Index, UpdateMode, SerializeMode(mode with { Brightness = mode.BrightnessMax > 0 ? mode.BrightnessMax : mode.Brightness }, _protocol));
         Send((uint)device.Index, UpdateLeds, body);
@@ -202,7 +246,7 @@ public sealed class OpenRgb : IDisposable
         if (colour is { } c && (mode.Flags & RgbMode.HasModeSpecificColor) != 0)
         {
             int n = (int)Math.Max(1, Math.Max(mode.ColorsMin, (uint)Math.Max(colours.Length, 1)));
-            colours = Enumerable.Repeat(Pack(c.R, c.G, c.B), n).ToArray();
+            colours = Enumerable.Repeat(Wire(OrderFor(device.Name), Pack(c.R, c.G, c.B)), n).ToArray();
             colourMode = RgbMode.ColorModeSpecific;
         }
         Send((uint)device.Index, UpdateMode, SerializeMode(mode with { Colors = colours, ColorMode = colourMode }, _protocol));

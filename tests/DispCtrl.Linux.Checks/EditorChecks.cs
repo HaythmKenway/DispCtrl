@@ -14,6 +14,13 @@ internal static class EditorChecks
             new("DP-1", true, true, 1920, 1080, 0, 0, 527, 296),
             new("eDP", true, false, 2880, 1800, 1920, 0, 300, 190),
         ];
+        foreach (var order in new[] { "RGB", "GRB", "BGR", "BRG", "RBG", "GBR" })
+        {
+            var wire = DispCtrl.Linux.Lighting.OpenRgb.ToWire(order, 10, 20, 30);
+            check(DispCtrl.Linux.Lighting.OpenRgb.FromWire(order, wire.R, wire.G, wire.B) == (10, 20, 30), $"colour order {order}: sending and reading back round-trips");
+        }
+        check(DispCtrl.Linux.Lighting.OpenRgb.ToWire("GRB", 255, 0, 0) == (0, 255, 0), "colour order: red on a GRB device goes out on the green byte");
+        check(DispCtrl.Linux.Lighting.OpenRgb.NormaliseOrder("grb") == "GRB" && DispCtrl.Linux.Lighting.OpenRgb.NormaliseOrder("RRG") is null, "colour order: only a permutation of RGB is accepted");
         var editor = new ArrangementEditor(desk);
         check(!editor.IsChanged && !editor.CanUndo, "editor: a fresh desk has nothing staged");
 
