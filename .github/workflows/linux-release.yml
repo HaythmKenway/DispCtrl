@@ -53,15 +53,14 @@ jobs:
 
   packages:
     # One target each, at once; ARM on an ARM runner, so its .deb and .rpm
-    # are made where they run.
+    # are made where they run. ARM is its own job so the distribution
+    # installs, which need only x86-64 and musl, do not wait for it.
     strategy:
       fail-fast: false
       matrix:
         include:
           - target: linux-x64
             runner: ubuntu-latest
-          - target: linux-arm64
-            runner: ubuntu-24.04-arm
           - target: linux-musl-x64
             runner: ubuntu-latest
     runs-on: ${{ matrix.runner }}
@@ -90,8 +89,33 @@ jobs:
           path: out/
           retention-days: 7
 
+  packages-arm:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+      - name: Package
+        env:
+          DISPCTRL_LINUX_TARGETS: linux-arm64
+        run: |
+          sudo apt-get install -y --no-install-recommends rpm
+          ./build.cmd linux-package
+          mkdir out && cp artifacts/linux-*/*.tar.gz artifacts/linux-*/*.deb artifacts/linux-*/*.rpm out/
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: packages-linux-arm64
+          path: out/
+          retention-days: 7
+
   distributions:
-    # The install check, one distribution per runner.
+    # The install check, one distribution per runner, all at once.
     needs: packages
     strategy:
       fail-fast: false
@@ -153,7 +177,7 @@ jobs:
 
   release:
     # Only when everything passed: the release, the Store, the repositories.
-    needs: [checks, packages, distributions, snap]
+    needs: [checks, packages, packages-arm, distributions, snap]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

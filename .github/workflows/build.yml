@@ -75,16 +75,15 @@ jobs:
           ./build.cmd build
           ./build.cmd test
 
-  linux-distros:
-    # The Linux tarballs installed on clean Debian, Ubuntu 20.04 and 24.04,
-    # Fedora, Rocky 8, openSUSE, Arch, Alpine (musl) and Void, in containers:
-    # install.sh, doctor's package names, a display read through libXrandr,
-    # the window opening, uninstall (build/packaging/linux/distro-check.sh).
-    # Only when the Linux client or its packaging changed: it takes minutes.
+  linux-packages:
+    # The Linux tarballs the distribution installs below use, built once.
+    # Only when the Linux client or its packaging changed.
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     permissions:
       contents: read
+    outputs:
+      run: ${{ steps.changed.outputs.run }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -107,15 +106,63 @@ jobs:
         if: steps.changed.outputs.run == 'true'
         with:
           dotnet-version: 10.0.x
-      - name: Package and install on every distribution
+      - name: Package
         if: steps.changed.outputs.run == 'true'
         env:
           DISPCTRL_LINUX_TARGETS: linux-x64 linux-musl-x64
         run: |
           ./build.cmd linux-package
-          build/packaging/linux/distro-check.sh artifacts/linux-*/
+          mkdir out && cp artifacts/linux-*/*.tar.gz out/
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: steps.changed.outputs.run == 'true'
+        with:
+          name: linux-tarballs
+          path: out/
+          retention-days: 3
+
+  linux-distros:
+    # The tarballs installed on clean Debian, Ubuntu 20.04 and 24.04, Fedora,
+    # Rocky 8, openSUSE, Arch, Alpine (musl) and Void, each on its own runner
+    # at once: install.sh, doctor's package names, a display read through
+    # libXrandr, the window opening, uninstall
+    # (build/packaging/linux/distro-check.sh). One after another they took
+    # most of the run.
+    needs: linux-packages
+    if: needs.linux-packages.outputs.run == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - debian:12
+          - ubuntu:20.04
+          - ubuntu:24.04
+          - fedora:42
+          - rockylinux:8
+          - opensuse/tumbleweed
+          - archlinux
+          - alpine:3.20
+          - ghcr.io/void-linux/void-glibc:latest
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read     # this run's tarballs
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install on ${{ matrix.image }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE: ${{ matrix.image }}
+        run: |
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n linux-tarballs -D dist
+          build/packaging/linux/distro-check.sh dist "$IMAGE"
 
   windows:
+    # The Windows app is the original repository's; this one is DispCtrl
+    # for Linux, and building Windows here only made every run slower.
+    if: github.repository == 'jesvijonathan/DispCtrl'
     runs-on: windows-latest
     timeout-minutes: 45
     permissions:
