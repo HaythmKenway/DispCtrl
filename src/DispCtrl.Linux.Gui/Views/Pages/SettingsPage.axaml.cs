@@ -1,4 +1,6 @@
 using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Input.Platform;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using DispCtrl.Linux.Commands;
@@ -70,7 +72,47 @@ public partial class SettingsPage : UserControl
         report.Click += async (_, _) => Views.CardBuilder.Show(reportStatus, await DeskActions.RunAsync("report", "--open"));
         var problem = Views.CardBuilder.Card(FluentAvalonia.UI.Controls.FASymbol.Alert, "Report a problem",
             "Opens a GitHub issue with what DispCtrl can see here, serial numbers and your name taken out, for you to read before sending.", report, out reportStatus);
-        Body.Children.InsertRange(at, [Views.CardBuilder.Section("Desktop and support"), wallpaper, updates, problem]);
+        Body.Children.InsertRange(at, [Views.CardBuilder.Section("Desktop and support"), wallpaper, updates, problem, Support()]);
+    }
+
+    private const string PayPal = "https://paypal.me/0x4kil", Upi = "akileswar2002@oksbi", Bitcoin = "13pu8fvcNt6Rx8tXJGfFDVWf59uhZuaFEp";
+
+    /// <summary>Supporting DispCtrl for Linux: PayPal opens in the browser, the
+    /// UPI ID and the Bitcoin address are copied, to paste into a payment app.</summary>
+    private Border Support()
+    {
+        TextBlock status = null!;
+        async void Copy(string text, string what)
+        {
+            if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+            {
+                await clipboard.SetTextAsync(text);
+                status.Classes.Set("status", false);
+                Views.CardBuilder.Show(status, $"{what} copied: {text}");
+            }
+        }
+        Button Make(string text, string name, Action click)
+        {
+            var b = new Button { Content = text, Margin = new Thickness(0, 0, 8, 8) };
+            AutomationProperties.SetName(b, name);
+            b.Click += (_, _) => click();
+            return b;
+        }
+        var buttons = new WrapPanel
+        {
+            Margin = new Thickness(0, 10, 0, 0),
+            Children =
+            {
+                Make("PayPal", "Support with PayPal", async () =>
+                {
+                    if (TopLevel.GetTopLevel(this)?.Launcher is { } launcher) await launcher.LaunchUriAsync(new Uri(PayPal));
+                }),
+                Make("Copy UPI ID", "Copy the UPI ID", () => Copy(Upi, "UPI ID")),
+                Make("Copy Bitcoin address", "Copy the Bitcoin address", () => Copy(Bitcoin, "Bitcoin address")),
+            },
+        };
+        return Views.CardBuilder.Card(FluentAvalonia.UI.Controls.FASymbol.StarFilled, "Support DispCtrl for Linux",
+            "Free and open source, made in spare time. A donation keeps it going: PayPal, UPI or Bitcoin.", null, out status, buttons);
     }
 
     private bool? _running;

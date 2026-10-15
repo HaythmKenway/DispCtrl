@@ -1,10 +1,7 @@
-# Puts the "Sponsor" button on the repository page. The GitHub entry works once
-# GitHub Sponsors is enabled for the account (github.com/sponsors, then
-# "Join the waitlist" / set up a profile). Uncomment any other platform after
-# creating an account there; each takes the user name on that platform.
+# Puts the "Sponsor" button on the repository page: DispCtrl for Linux's
+# maintainer first (PayPal; UPI and Bitcoin are in the README's "Support the
+# project"), then the original DispCtrl's author, whose project this began as.
+custom:
+  - "https://paypal.me/0x4kil"
+  - "https://github.com/HaythmKenway/DispCtrl-linux#support-the-project"
 github: [jesvijonathan]
-# ko_fi: your-kofi-name
-# buy_me_a_coffee: your-bmc-name
-# patreon: your-patreon-name
-# liberapay: your-liberapay-name
-custom: ["https://paypal.me/jesvijon", "https://jesvijonathan.github.io/DispCtrl/#upi", "https://jesvijonathan.github.io/DispCtrl/#support"]

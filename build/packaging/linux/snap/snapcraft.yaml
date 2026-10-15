@@ -51,6 +51,9 @@ description: |
 website: https://github.com/HaythmKenway/DispCtrl-linux
 source-code: https://github.com/HaythmKenway/DispCtrl-linux
 issues: https://github.com/HaythmKenway/DispCtrl-linux/issues
+donation:
+  - https://paypal.me/0x4kil
+  - https://github.com/HaythmKenway/DispCtrl-linux#support-the-project
 license: MIT
 icon: src/DispCtrl.Linux.Gui/Assets/dispctrl.png
 base: core24

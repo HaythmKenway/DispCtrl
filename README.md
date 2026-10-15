@@ -84,6 +84,23 @@ git clone https://github.com/HaythmKenway/DispCtrl-linux.git && cd DispCtrl
 
 The Linux projects build with their own settings, in `build/linux/Linux.Build.props`. [Building from source](docs/LINUX.md#building-from-source) has the rest.
 
+## Support the project
+
+DispCtrl for Linux is free and open source, made in spare time. If it helps you, a donation keeps it going.
+
+| | |
+|---|---|
+| **PayPal** | [paypal.me/0x4kil](https://paypal.me/0x4kil) |
+| **UPI** | `akileswar2002@oksbi` |
+| **Bitcoin** | `13pu8fvcNt6Rx8tXJGfFDVWf59uhZuaFEp` |
+
+<p>
+<img src="site/assets/support/upi.png" alt="UPI QR code for akileswar2002@oksbi" width="160" height="160">&nbsp;&nbsp;
+<img src="site/assets/support/bitcoin.png" alt="Bitcoin QR code for 13pu8fvcNt6Rx8tXJGfFDVWf59uhZuaFEp" width="160" height="160">
+</p>
+
+DispCtrl itself is [Jesvi Jonathan's](https://github.com/jesvijonathan) work, and you can [sponsor the original project](https://github.com/sponsors/jesvijonathan) too.
+
 ## Licence
 
-[MIT](LICENSE). DispCtrl is © 2026 [Jesvi Jonathan](https://github.com/jesvijonathan); the Linux edition is maintained by [@HaythmKenway](https://github.com/HaythmKenway). If it helps you, consider [sponsoring the original author](https://github.com/sponsors/jesvijonathan).
+[MIT](LICENSE). DispCtrl is © 2026 [Jesvi Jonathan](https://github.com/jesvijonathan); the Linux edition is maintained by [@HaythmKenway](https://github.com/HaythmKenway).
