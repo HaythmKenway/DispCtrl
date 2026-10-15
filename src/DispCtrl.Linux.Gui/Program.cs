@@ -14,6 +14,11 @@ class Program
     /// (--quick-panel) or only the tray icon (--tray, the sign-in start).</summary>
     public static string Request { get; private set; } = Instance.Window;
 
+    /// <summary>A folder to render each page of the window into as a PNG, then exit
+    /// (<c>--capture DIR</c>): the store listing's screenshots, drawn by the app itself
+    /// so nothing else on the desktop can appear in them.</summary>
+    public static string? CaptureTo { get; private set; }
+
     // Initialization code. Don't use any Avalonia, third-party APIs or any
     // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
     // yet and stuff might break.
@@ -25,6 +30,11 @@ class Program
         AppLog.Configure("gui", echo: true);
         AppLog.InstallExceptionHooks();
         Request = args.Contains("--tray") ? Instance.Tray : args.Contains("--quick-panel") ? Instance.Panel : Instance.Window;
+        if (Array.IndexOf(args, "--capture") is >= 0 and var at && at + 1 < args.Length)
+        {
+            CaptureTo = args[at + 1];
+            return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args, ShutdownMode.OnExplicitShutdown);
+        }
         // A window or tray beside another install's engine would show and
         // drive an engine that is not the one running.
         if (!Instance.IsRunning() && Installs.Refusal(ownEngineRuns: EngineClient.IsRunning()) is { } another)

@@ -44,6 +44,12 @@ public partial class App : Application
             // Explicit shutdown: with the tray icon the process outlives its
             // window; without it, closing the window ends it (OnWindowClosed).
             desktop.ShutdownMode = Avalonia.Controls.ShutdownMode.OnExplicitShutdown;
+            if (Program.CaptureTo is { } folder)
+            {
+                _ = PageCapture.RunAsync(desktop, folder);
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
             if (SettingsStore.Load().Tray.Enabled) StartTray();
             else if (Program.Request == Instance.Tray) { desktop.Shutdown(); return; }
 
