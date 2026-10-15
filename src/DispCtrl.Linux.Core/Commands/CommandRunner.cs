@@ -70,7 +70,7 @@ public static partial class CommandRunner
         "tray", "unison", "pin", "placement", "features", "rgb", "lighting", "oled", "focus", "monitor-sleep", "roomlight", "wallpaper", "version",
     };
 
-    private static readonly HashSet<string> BareFlags = new(StringComparer.Ordinal) { "--all", "--local", "--json" };
+    private static readonly HashSet<string> BareFlags = new(StringComparer.Ordinal) { "--all", "--local", "--json", "--open", "--url" };
 
     public static string Version =>
         typeof(CommandRunner).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0]

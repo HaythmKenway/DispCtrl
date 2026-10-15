@@ -23,23 +23,20 @@ public sealed class LightingPage : UserControl
 
     private readonly StackPanel _devices = List();
     private readonly TextBlock _allStatus;
-    private readonly Border _notice;
-    private readonly TextBlock _noticeText = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly StackPanel _controls = new();
+    private readonly Border _setup;
+    private readonly TextBlock _setupWhere = new() { Classes = { "caption" }, TextWrapping = TextWrapping.Wrap };
 
     public LightingPage()
     {
         var (_, body) = Page(this, "Lighting",
             "Keyboards, mice, fans, strips and boards, through OpenRGB, which knows each maker's devices. DispCtrl sets their colour or effect; presets can too.");
 
-        var retry = new Button { Content = "Try again", Margin = new Thickness(0, 8, 0, 0) };
-        retry.Click += (_, _) => _ = LoadAsync();
-        var noticeBody = new StackPanel();
-        noticeBody.Children.Add(_noticeText);
-        noticeBody.Children.Add(retry);
-        _notice = new Border { Classes = { "notice", "info" }, Margin = new Thickness(0, 20, 0, 0), Child = noticeBody, IsVisible = false };
-        body.Children.Add(_notice);
+        _setup = Setup();
+        body.Children.Add(_setup);
+        body.Children.Add(_controls);
 
-        body.Children.Add(Section("Every device"));
+        _controls.Children.Add(Section("Every device"));
         var swatches = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
         foreach (var (name, hex) in Swatches)
         {
@@ -62,10 +59,11 @@ public sealed class LightingPage : UserControl
         off.Click += async (_, _) => Show(_allStatus!, await DeskActions.RunAsync("rgb", "off"));
         var custom = new StackPanel { Orientation = Orientation.Horizontal, Children = { hexBox, set, off } };
         var both = new StackPanel { Children = { swatches, custom } };
-        body.Children.Add(Card(FASymbol.ColorBackground, "Colour", "Every LED on every device, in its direct mode.", null, out _allStatus, both));
+        _controls.Children.Add(Card(FASymbol.ColorBackground, "Colour", "Every LED on every device, in its direct mode.", null, out _allStatus, both));
 
-        body.Children.Add(Section("Devices"));
-        body.Children.Add(_devices);
+        _controls.Children.Add(Section("Devices"));
+        _controls.Children.Add(_devices);
+        _controls.IsVisible = false;
         AttachedToVisualTree += (_, _) => _ = LoadAsync();
     }
 
@@ -86,15 +84,12 @@ public sealed class LightingPage : UserControl
             devices = null;
         }
         _devices.Children.Clear();
-        _notice.IsVisible = devices is null;
-        _noticeText.Text = devices is null
-            ? $"{LightingControl.Unreachable(settings)}. OpenRGB is in most distributions' repositories and on Flathub; its udev rules give it the devices."
-            : "";
-        if (devices is null)
-        {
-            _devices.Children.Add(Caption("Each device OpenRGB finds is listed here, with its own effects, once it answers."));
-            return;
-        }
+        // Without OpenRGB nothing here can work: one card that says how to get
+        // it, rather than controls that only answer with errors.
+        _setup.IsVisible = devices is null;
+        _controls.IsVisible = devices is not null;
+        _setupWhere.Text = $"DispCtrl looks for it at {settings.Host}:{settings.Port} (dispctrl-linux rgb server HOST:PORT to change).";
+        if (devices is null) return;
         if (devices.Count == 0) _devices.Children.Add(Caption("OpenRGB is running and found no lighting devices."));
         foreach (var d in devices)
         {
@@ -108,6 +103,51 @@ public sealed class LightingPage : UserControl
             };
             _devices.Children.Add(Card(Icon(d.Type), d.Name, $"{d.Vendor} {d.TypeName}, {d.LedCount} LEDs".Trim(), effects, out status));
         }
+    }
+
+    /// <summary>What to do when OpenRGB does not answer: get it, switch its
+    /// server on, and look again.</summary>
+    private Border Setup()
+    {
+        var steps = new StackPanel { Spacing = 6, Margin = new Thickness(0, 12, 0, 0) };
+        foreach (var (n, text) in new[]
+        {
+            ("1", "Install OpenRGB: from your distribution (sudo apt install openrgb, sudo dnf install openrgb) or Flathub."),
+            ("2", "Open it, and switch on Settings, SDK Server, Start server; or run openrgb --server --startminimized."),
+            ("3", "Come back and press Try again. Keep it running: DispCtrl sets the lighting through it."),
+        })
+        {
+            var row = new Grid { ColumnDefinitions = new ColumnDefinitions("28,*") };
+            var badge = new Border
+            {
+                Width = 20, Height = 20, CornerRadius = new CornerRadius(10), VerticalAlignment = VerticalAlignment.Top,
+                Child = new TextBlock { Text = n, FontSize = 11, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
+            };
+            // Bound, not looked up: the theme's accent is not reachable until the
+            // page is in the window, and a lookup then crashed the page.
+            badge.Bind(Border.BackgroundProperty, badge.GetResourceObservable("AccentFillColorDefaultBrush"));
+            row.Children.Add(badge);
+            var t = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, FontSize = 13 };
+            Grid.SetColumn(t, 1);
+            row.Children.Add(t);
+            steps.Children.Add(row);
+        }
+        var get = new Button { Content = "Get OpenRGB", Classes = { "accent" } };
+        get.Click += async (_, _) =>
+        {
+            if (TopLevel.GetTopLevel(this)?.Launcher is { } launcher) await launcher.LaunchUriAsync(new Uri("https://openrgb.org"));
+        };
+        var retry = new Button { Content = "Try again" };
+        retry.Click += async (_, _) => await LoadAsync();
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 14, 0, 0), Children = { get, retry } };
+        var body = new StackPanel { Children = { steps, buttons } };
+        body.Children.Insert(0, _setupWhere);
+        var card = Card(FASymbol.ColorBackground, "Lighting needs OpenRGB",
+            "OpenRGB knows the keyboards, mice, fans and strips of hundreds of makers. DispCtrl sets their colours through it once it is running.",
+            null, out _, body);
+        card.Margin = new Thickness(0, 20, 0, 0);
+        card.IsVisible = false;
+        return card;
     }
 
     private static FASymbol Icon(int type) => type switch

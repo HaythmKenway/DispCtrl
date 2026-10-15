@@ -97,6 +97,9 @@ apps:
       - network-bind
       # Keep awake: GNOME's session inhibitor and org.freedesktop.ScreenSaver.
       - screen-inhibit-control
+      # Lighting: OpenRGB's SDK server on 127.0.0.1:6742; without it the
+      # connection was refused under confinement. Auto-connected.
+      - network
   gui:
     command: lib/dispctrl-linux-gui
     command-chain: [bin/launch]
@@ -112,6 +115,7 @@ apps:
       - hardware-observe
       - login-session-control
       - network-bind
+      - network
       - screen-inhibit-control
       # The tray icon: StatusNotifierItem and its dbusmenu on the session bus.
       - unity7

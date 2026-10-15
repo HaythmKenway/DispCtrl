@@ -58,6 +58,16 @@ public sealed class CommandSender
         }
     }
 
+    /// <summary>Runs a command in this process, never the engine's: for what
+    /// the window may do and the confined engine may not (open a browser).</summary>
+    public static Task<EngineReply> RunHereAsync(string[] args) => Task.Run(() =>
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+        int code = CommandRunner.Run(args, CommandContext.Local(output, error));
+        return new EngineReply(code, output.ToString(), error.ToString());
+    });
+
     private static EngineReply Run(string[] args)
     {
         if (EngineClient.TrySend(args) is { } reply) return reply;

@@ -69,7 +69,25 @@ public partial class SettingsPage : UserControl
         };
         var wallpaper = Views.CardBuilder.Card(FluentAvalonia.UI.Controls.FASymbol.Image, "Wallpaper", "The desktop's picture (GNOME shows one on every display).", wall, out wallStatus);
         var report = new Button { Content = "Report a problem…" };
-        report.Click += async (_, _) => Views.CardBuilder.Show(reportStatus, await DeskActions.RunAsync("report", "--open"));
+        report.Click += async (_, _) =>
+        {
+            report.IsEnabled = false;
+            var reply = await CommandSender.RunHereAsync(["report", "--url"]);
+            report.IsEnabled = true;
+            var url = reply.Stdout.Trim();
+            if (reply.ExitCode != 0 || !url.StartsWith("https://", StringComparison.Ordinal))
+            {
+                Views.CardBuilder.Show(reportStatus, CommandSender.Reason(reply));
+                return;
+            }
+            // Through the desktop's launcher (a portal in the snap), not the engine,
+            // whose confinement may not open a browser.
+            bool opened = TopLevel.GetTopLevel(this)?.Launcher is { } launcher && await launcher.LaunchUriAsync(new Uri(url));
+            reportStatus.Classes.Set("status", !opened);
+            Views.CardBuilder.Show(reportStatus, opened
+                ? "Opened in your browser: read it, add what happened, then submit."
+                : "No browser could be opened. Run dispctrl-linux report in a terminal to see the report.");
+        };
         var problem = Views.CardBuilder.Card(FluentAvalonia.UI.Controls.FASymbol.Alert, "Report a problem",
             "Opens a GitHub issue with what DispCtrl can see here, serial numbers and your name taken out, for you to read before sending.", report, out reportStatus);
         Body.Children.InsertRange(at, [Views.CardBuilder.Section("Desktop and support"), wallpaper, updates, problem, Support()]);

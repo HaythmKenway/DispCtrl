@@ -1,16 +1,24 @@
-DispCtrl for Linux 1.0: every display on your desk, controlled as one.
+DispCtrl for Linux 1.0.1 fixes three things found in 1.0.0:
+
+- **Lighting in the snap:** the snap could not reach OpenRGB at all, because it lacked the network permission. It has that permission now.
+- **The Lighting page without OpenRGB:** it now shows one card that says how to get OpenRGB and switch on its server, instead of controls that only answered with errors.
+- **Report a problem:** the button did nothing in the snap, because the confined engine may not open a browser. The window now opens the GitHub issue itself, through the desktop's launcher.
+
+The rest of this page is 1.0's.
+
+## DispCtrl for Linux 1.0
 
 ## Install
 
 | Your system | Download | Install |
 |---|---|---|
 | Any, from the Snap Store | | `sudo snap install dispctrl-linux` |
-| Debian, Ubuntu, Mint, Pop!_OS | `dispctrl-linux_1.0.0_amd64.deb` (or `_arm64`) | `sudo apt install ./dispctrl-linux_1.0.0_amd64.deb` |
-| Fedora, RHEL, Rocky, Alma, openSUSE | `dispctrl-linux-1.0.0-1.x86_64.rpm` (or `.aarch64`) | `sudo dnf install ./dispctrl-linux-1.0.0-1.x86_64.rpm` |
-| Arch, Manjaro, Void, Gentoo, NixOS and the rest | `dispctrl-linux-1.0.0-linux-x64.tar.gz` (or `-linux-arm64`) | unpack, then `./install.sh` |
-| Alpine and other musl systems | `dispctrl-linux-1.0.0-linux-musl-x64.tar.gz` | unpack, then `./install.sh` |
+| Debian, Ubuntu, Mint, Pop!_OS | `dispctrl-linux_1.0.1_amd64.deb` (or `_arm64`) | `sudo apt install ./dispctrl-linux_1.0.1_amd64.deb` |
+| Fedora, RHEL, Rocky, Alma, openSUSE | `dispctrl-linux-1.0.1-1.x86_64.rpm` (or `.aarch64`) | `sudo dnf install ./dispctrl-linux-1.0.1-1.x86_64.rpm` |
+| Arch, Manjaro, Void, Gentoo, NixOS and the rest | `dispctrl-linux-1.0.1-linux-x64.tar.gz` (or `-linux-arm64`) | unpack, then `./install.sh` |
+| Alpine and other musl systems | `dispctrl-linux-1.0.1-linux-musl-x64.tar.gz` | unpack, then `./install.sh` |
 
-Every package carries .NET inside it. `dispctrl-linux doctor` says what it can reach on your system, and how to install anything missing. The checksums are in `dispctrl-linux-1.0.0-SHA256SUMS.txt`.
+Every package carries .NET inside it. `dispctrl-linux doctor` says what it can reach on your system, and how to install anything missing. The checksums are in `dispctrl-linux-1.0.1-SHA256SUMS.txt`.
 
 ## What's in 1.0
 

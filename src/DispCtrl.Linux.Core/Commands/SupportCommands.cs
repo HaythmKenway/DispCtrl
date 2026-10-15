@@ -49,7 +49,7 @@ public static partial class CommandRunner
     private static int ReportCommand(string[] args, CommandContext c)
     {
         if (!TrySplit(args, out var verbs, out var flags, c)) return AskedWrongly;
-        if (verbs.Length > 0) return Wrong(c, "report takes --what \"what happened\" and --open");
+        if (verbs.Length > 0) return Wrong(c, "report takes --what \"what happened\", --open, or --url (the issue's address only)");
         var doctor = new StringWriter();
         Doctor(c with { Out = doctor });
         var text = new System.Text.StringBuilder();
@@ -59,14 +59,28 @@ public static partial class CommandRunner
         text.Append(doctor);
         var report = Scrub(text.ToString());
         string what = flags.GetValueOrDefault("--what") ?? "";
+        if (flags.ContainsKey("--url"))
+        {
+            // Only the issue's address: the window opens it itself, through the
+            // desktop's launcher, which a confined engine cannot reach.
+            c.Out.WriteLine(IssueUrl(what, report));
+            return Done;
+        }
         c.Out.WriteLine(report);
         if (!flags.ContainsKey("--open")) return Write(c.Out, "Nothing was sent. report --open --what \"...\" starts a GitHub issue with this, for you to read first.");
-        var body = $"**What happened**\n\n{what}\n\n**Diagnostics** (from dispctrl-linux report)\n\n```\n{report}\n```";
-        var url = $"{Repository}/issues/new?title={Uri.EscapeDataString(what.Length > 0 ? what : "Problem report")}&body={Uri.EscapeDataString(body)}";
-        if (url.Length > 7500) url = url[..7500];
+        var url = IssueUrl(what, report);
         try { Process.Start(new ProcessStartInfo("xdg-open", url) { UseShellExecute = false })?.Dispose(); }
         catch (System.ComponentModel.Win32Exception) { c.Out.WriteLine(url); }
         return Done;
+    }
+
+    private static string IssueUrl(string what, string report)
+    {
+        var body = $"**What happened**\n\n{(what.Length > 0 ? what : "(describe it here)")}\n\n**Diagnostics** (from dispctrl-linux report)\n\n```\n{report}\n```";
+        var url = $"{Repository}/issues/new?title={Uri.EscapeDataString(what.Length > 0 ? what : "Problem report")}&body={Uri.EscapeDataString(body)}";
+        // Browsers and GitHub refuse much longer addresses; the diagnostics are
+        // the tail, and lose their end first.
+        return url.Length > 7500 ? url[..7500] : url;
     }
 
     private static string RuntimeInformationText() =>
