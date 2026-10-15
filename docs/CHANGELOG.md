@@ -30,6 +30,7 @@ using DispCtrl, not for people reading the diff.
 - **Snap layouts and Snap Assist on Linux** (X11): drag a window to the top centre of a display, or press Super+Z, and choose where it goes - halves, thirds, quarters and more, picked for each display's shape; then fill the spaces left from pictures of your other windows. On GNOME the shortcut appears among its custom keyboard shortcuts.
 
 ### Fixed
+- Linux 1.0.2: the Lighting page goes back to how to start OpenRGB when it stops answering, has a Refresh button, and asks for a colour when Set is pressed with none; the advice is OpenRGB headless (`openrgb --server`), since its tray window can exit after the device scan.
 - Linux snap 1.0.0: lighting could not reach OpenRGB (the snap lacked the network permission), and Report a problem did nothing (the engine may not open a browser; the window now does). The Lighting page says how to get OpenRGB when it is not running, rather than showing controls that fail. Choosing a wallpaper works from the snap, and a display being arranged follows the pointer instead of jumping behind it.
 - Linux snap: a GNOME shortcut (snap layouts' Super+Z) named the snap revision's own path, which the next refresh deleted.
 - Linux snap: the tray icon's menu never opened (the snap's confinement refused the path it was served at), the engine's Start button did nothing, and after a refresh the old engine ran on unreachable.

@@ -28,7 +28,7 @@ public static class LightingControl
 
     /// <summary>Why OpenRGB cannot be reached, said so a person can act on it.</summary>
     public static string Unreachable(LightingSettings s) =>
-        $"OpenRGB's SDK server does not answer at {s.Host}:{s.Port}: start OpenRGB with its server on (openrgb --server, or Settings > SDK Server)";
+        $"OpenRGB's SDK server does not answer at {s.Host}:{s.Port}: start OpenRGB's server (openrgb --server, or Settings > SDK Server in its window)";
 
     public static OpenRgb Connect(LightingSettings s) => OpenRgb.Connect(s.Host, s.Port);
 

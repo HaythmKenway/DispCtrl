@@ -47,21 +47,36 @@ public sealed class LightingPage : UserControl
             };
             ToolTip.SetTip(b, name);
             AutomationProperties.SetName(b, $"Lighting {name}");
-            b.Click += async (_, _) => Show(_allStatus!, await DeskActions.RunAsync("rgb", "colour", hex));
+            b.Click += async (_, _) => await Apply(_allStatus!, "rgb", "colour", hex);
             swatches.Children.Add(b);
         }
         var hexBox = new TextBox { Width = 110, PlaceholderText = "#RRGGBB", Margin = new Thickness(0, 0, 8, 0) };
         AutomationProperties.SetName(hexBox, "Colour");
         var set = new Button { Content = "Set" };
-        set.Click += async (_, _) => Show(_allStatus!, await DeskActions.RunAsync("rgb", "colour", hexBox.Text?.Trim() ?? ""));
+        set.Click += async (_, _) =>
+        {
+            var text = hexBox.Text?.Trim() ?? "";
+            if (text.Length == 0) { Show(_allStatus!, "Type a colour first: #FF9329, or a name such as warm or blue."); return; }
+            await Apply(_allStatus!, "rgb", "colour", text);
+        };
         var off = new Button { Content = "Off", Margin = new Thickness(8, 0, 0, 0) };
         AutomationProperties.SetName(off, "Lighting off");
-        off.Click += async (_, _) => Show(_allStatus!, await DeskActions.RunAsync("rgb", "off"));
+        off.Click += async (_, _) => await Apply(_allStatus!, "rgb", "off");
         var custom = new StackPanel { Orientation = Orientation.Horizontal, Children = { hexBox, set, off } };
         var both = new StackPanel { Children = { swatches, custom } };
         _controls.Children.Add(Card(FASymbol.ColorBackground, "Colour", "Every LED on every device, in its direct mode.", null, out _allStatus, both));
 
-        _controls.Children.Add(Section("Devices"));
+        var refresh = new Button { Content = "Refresh", VerticalAlignment = VerticalAlignment.Center };
+        AutomationProperties.SetName(refresh, "Look for lighting devices again");
+        refresh.Click += async (_, _) => await LoadAsync();
+        var heading = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(0, 28, 0, 8) };
+        var title = Section("Devices");
+        title.Margin = new Thickness(2, 0, 0, 0);
+        title.VerticalAlignment = VerticalAlignment.Center;
+        heading.Children.Add(title);
+        Grid.SetColumn(refresh, 1);
+        heading.Children.Add(refresh);
+        _controls.Children.Add(heading);
         _controls.Children.Add(_devices);
         _controls.IsVisible = false;
         AttachedToVisualTree += (_, _) => _ = LoadAsync();
@@ -99,10 +114,20 @@ public sealed class LightingPage : UserControl
             effects.SelectionChanged += async (_, _) =>
             {
                 if (effects.SelectedItem is string mode)
-                    Show(status, await DeskActions.RunAsync("rgb", "mode", mode, "--device", device.ToString(CultureInfo.InvariantCulture)));
+                    await Apply(status, "rgb", "mode", mode, "--device", device.ToString(CultureInfo.InvariantCulture));
             };
             _devices.Children.Add(Card(Icon(d.Type), d.Name, $"{d.Vendor} {d.TypeName}, {d.LedCount} LEDs".Trim(), effects, out status));
         }
+    }
+
+    /// <summary>Runs a lighting command; when OpenRGB has stopped answering,
+    /// the page goes back to saying how to start it rather than leaving an
+    /// error under a device that is no longer reachable.</summary>
+    private async Task Apply(TextBlock status, params string[] args)
+    {
+        var error = await DeskActions.RunAsync(args);
+        Show(status, error);
+        if (error is not null && error.Contains("does not answer", StringComparison.Ordinal)) await LoadAsync();
     }
 
     /// <summary>What to do when OpenRGB does not answer: get it, switch its
@@ -113,7 +138,7 @@ public sealed class LightingPage : UserControl
         foreach (var (n, text) in new[]
         {
             ("1", "Install OpenRGB: from your distribution (sudo apt install openrgb, sudo dnf install openrgb) or Flathub."),
-            ("2", "Open it, and switch on Settings, SDK Server, Start server; or run openrgb --server --startminimized."),
+            ("2", "Start its server: openrgb --server (headless, best at sign-in), or in its window Settings, SDK Server, Start server."),
             ("3", "Come back and press Try again. Keep it running: DispCtrl sets the lighting through it."),
         })
         {

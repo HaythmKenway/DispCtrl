@@ -1,3 +1,9 @@
+DispCtrl for Linux 1.0.2 makes lighting dependable:
+
+- **When OpenRGB stops answering**, the Lighting page goes back to saying how to start it, instead of leaving an error under a device it can no longer reach. A **Refresh** button looks for devices again.
+- **Pressing Set with no colour typed** asks for one, instead of reporting that "" is not a colour.
+- **The advice is now to run OpenRGB headless:** `openrgb --server`. On this desk, OpenRGB's tray window (`--startminimized`) exited after its device scan and took the server with it.
+
 DispCtrl for Linux 1.0.1 fixes five things found in 1.0.0:
 
 - **Lighting in the snap:** the snap could not reach OpenRGB at all, because it lacked the network permission. It has that permission now.
@@ -15,12 +21,12 @@ The rest of this page is 1.0's.
 | Your system | Download | Install |
 |---|---|---|
 | Any, from the Snap Store | | `sudo snap install dispctrl-linux` |
-| Debian, Ubuntu, Mint, Pop!_OS | `dispctrl-linux_1.0.1_amd64.deb` (or `_arm64`) | `sudo apt install ./dispctrl-linux_1.0.1_amd64.deb` |
-| Fedora, RHEL, Rocky, Alma, openSUSE | `dispctrl-linux-1.0.1-1.x86_64.rpm` (or `.aarch64`) | `sudo dnf install ./dispctrl-linux-1.0.1-1.x86_64.rpm` |
-| Arch, Manjaro, Void, Gentoo, NixOS and the rest | `dispctrl-linux-1.0.1-linux-x64.tar.gz` (or `-linux-arm64`) | unpack, then `./install.sh` |
-| Alpine and other musl systems | `dispctrl-linux-1.0.1-linux-musl-x64.tar.gz` | unpack, then `./install.sh` |
+| Debian, Ubuntu, Mint, Pop!_OS | `dispctrl-linux_1.0.2_amd64.deb` (or `_arm64`) | `sudo apt install ./dispctrl-linux_1.0.2_amd64.deb` |
+| Fedora, RHEL, Rocky, Alma, openSUSE | `dispctrl-linux-1.0.2-1.x86_64.rpm` (or `.aarch64`) | `sudo dnf install ./dispctrl-linux-1.0.2-1.x86_64.rpm` |
+| Arch, Manjaro, Void, Gentoo, NixOS and the rest | `dispctrl-linux-1.0.2-linux-x64.tar.gz` (or `-linux-arm64`) | unpack, then `./install.sh` |
+| Alpine and other musl systems | `dispctrl-linux-1.0.2-linux-musl-x64.tar.gz` | unpack, then `./install.sh` |
 
-Every package carries .NET inside it. `dispctrl-linux doctor` says what it can reach on your system, and how to install anything missing. The checksums are in `dispctrl-linux-1.0.1-SHA256SUMS.txt`.
+Every package carries .NET inside it. `dispctrl-linux doctor` says what it can reach on your system, and how to install anything missing. The checksums are in `dispctrl-linux-1.0.2-SHA256SUMS.txt`.
 
 ## What's in 1.0
 
