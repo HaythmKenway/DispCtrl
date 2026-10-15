@@ -55,6 +55,28 @@ first one, and until then are built with `./build.cmd linux-package`
 | Alpine and other musl systems | `dispctrl-linux-<version>-linux-musl-x64.tar.gz` | `./install.sh`, below |
 | Any, as a snap | the [Snap Store](https://snapcraft.io/dispctrl-linux) | `sudo snap install dispctrl-linux` (`--edge` for the newest build; see [The snap](#the-snap)) |
 
+### From the apt or dnf repository
+
+The easiest way on Debian and Fedora's families: a signed repository, so
+DispCtrl updates with the rest of the system.
+
+```bash
+# Debian, Ubuntu, Mint, Pop!_OS
+curl -fsSL https://haythmkenway.github.io/DispCtrl-linux/dispctrl-linux.gpg | sudo tee /usr/share/keyrings/dispctrl-linux.gpg >/dev/null
+echo "deb [signed-by=/usr/share/keyrings/dispctrl-linux.gpg] https://haythmkenway.github.io/DispCtrl-linux/apt stable main" | sudo tee /etc/apt/sources.list.d/dispctrl-linux.list
+sudo apt update && sudo apt install dispctrl-linux
+
+# Fedora, RHEL, Rocky, Alma
+sudo curl -fsSL https://haythmkenway.github.io/DispCtrl-linux/rpm/dispctrl-linux.repo -o /etc/yum.repos.d/dispctrl-linux.repo
+sudo dnf install dispctrl-linux
+
+# openSUSE
+sudo zypper addrepo https://haythmkenway.github.io/DispCtrl-linux/rpm/dispctrl-linux.repo
+sudo zypper install dispctrl-linux
+```
+
+The signing key's fingerprint is `392A 1EEB 594E C9FB 0300 BC66 A1AE 3F54 9366 D3D9`.
+
 The .deb and .rpm pull in what they need. Start the engine once after
 installing them; it starts by itself at every login after:
 

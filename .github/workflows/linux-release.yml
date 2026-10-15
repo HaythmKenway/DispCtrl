@@ -137,9 +137,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write    # to start the package repositories' rebuild
     steps:
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.packages.outputs.version }}
-        run: gh release edit "v$VERSION" --draft=false --latest --repo "$GITHUB_REPOSITORY"
+        run: |
+          gh release edit "v$VERSION" --draft=false --latest --repo "$GITHUB_REPOSITORY"
+          # The apt and dnf repositories serve the new release from now on.
+          gh workflow run linux-repos.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME" -f tag="v$VERSION"

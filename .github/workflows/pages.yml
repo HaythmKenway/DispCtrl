@@ -13,6 +13,9 @@ concurrency:
   cancel-in-progress: true
 jobs:
   deploy:
+    # The original repository's website. Here Pages serves the Linux package
+    # repositories (linux-repos.yml), which this would replace.
+    if: github.repository == 'jesvijonathan/DispCtrl'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

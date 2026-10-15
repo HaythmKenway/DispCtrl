@@ -40,6 +40,8 @@ It needs an X11 session for most of this; on Wayland the compositor keeps gamma 
 sudo snap install dispctrl-linux          # the Snap Store; --edge for the newest build
 ```
 
+Or from the signed apt and dnf repositories, which update with the rest of the system: [the instructions](https://haythmkenway.github.io/DispCtrl-linux/).
+
 The snap cannot reach monitors over DDC/CI under strict confinement. For an external monitor's own brightness and controls, build the `.deb`, `.rpm` or tarball (below; with .NET inside, for x86-64 and 64-bit ARM); they will be attached to this repository's releases from the first one. [Install](docs/LINUX.md#install) has the details.
 
 ## Getting started

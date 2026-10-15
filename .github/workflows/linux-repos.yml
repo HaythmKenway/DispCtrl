@@ -1,0 +1,111 @@
+name: Linux package repositories
+# The apt and dnf repositories on GitHub Pages, from a release's packages:
+#
+#   https://haythmkenway.github.io/DispCtrl-linux/apt   (Debian, Ubuntu, Mint)
+#   https://haythmkenway.github.io/DispCtrl-linux/rpm   (Fedora, RHEL, openSUSE)
+#
+# Signed with the key whose public half is build/packaging/linux/repo/; the
+# private half is the LINUX_REPO_GPG_KEY secret. Started by "Linux release"
+# when it publishes, or by hand for any release. Only the release given is
+# served: apt and dnf want the newest, and Pages holds a gigabyte.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to serve, such as v1.0.0 (blank for the latest)
+        required: false
+permissions: {}
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  repos:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      BASE: https://haythmkenway.github.io/DispCtrl-linux
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download the release's packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          tag="${TAG:-$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)}"
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" -p '*.deb' -p '*.rpm' -D pkgs
+          ls -la pkgs
+      - name: Tools and the signing key
+        env:
+          KEY: ${{ secrets.LINUX_REPO_GPG_KEY }}
+          FPR: ${{ secrets.LINUX_REPO_GPG_FINGERPRINT }}
+        run: |
+          sudo apt-get install -y --no-install-recommends apt-utils createrepo-c rpm gnupg
+          echo "$KEY" | gpg --batch --import
+          echo "FPR=$(echo "$FPR" | tr -d '[:space:]')" >> "$GITHUB_ENV"
+      - name: apt repository
+        run: |
+          root=_site/apt
+          for arch in amd64 arm64; do
+            mkdir -p "$root/pool/main/$arch" "$root/dists/stable/main/binary-$arch"
+            cp pkgs/*_"$arch".deb "$root/pool/main/$arch/"
+            (cd "$root" && apt-ftparchive packages "pool/main/$arch" > "dists/stable/main/binary-$arch/Packages")
+            gzip -9kf "$root/dists/stable/main/binary-$arch/Packages"
+          done
+          (cd "$root" && apt-ftparchive \
+            -o APT::FTPArchive::Release::Origin="DispCtrl for Linux" -o APT::FTPArchive::Release::Label="DispCtrl for Linux" \
+            -o APT::FTPArchive::Release::Suite=stable -o APT::FTPArchive::Release::Codename=stable \
+            -o APT::FTPArchive::Release::Architectures="amd64 arm64" -o APT::FTPArchive::Release::Components=main \
+            release dists/stable > dists/stable/Release)
+          gpg --batch --yes --default-key "$FPR" --clearsign -o "$root/dists/stable/InRelease" "$root/dists/stable/Release"
+          gpg --batch --yes --default-key "$FPR" -abs -o "$root/dists/stable/Release.gpg" "$root/dists/stable/Release"
+      - name: dnf repository
+        run: |
+          root=_site/rpm
+          for arch in x86_64 aarch64; do
+            mkdir -p "$root/$arch"
+            cp pkgs/*."$arch".rpm "$root/$arch/"
+            # Each package signed, and the metadata: gpgcheck and repo_gpgcheck both on.
+            rpmsign --define "_gpg_name $FPR" --addsign "$root/$arch"/*.rpm
+            createrepo_c "$root/$arch"
+            gpg --batch --yes --default-key "$FPR" --detach-sign --armor "$root/$arch/repodata/repomd.xml"
+          done
+          cat > "$root/dispctrl-linux.repo" <<REPO
+          [dispctrl-linux]
+          name=DispCtrl for Linux
+          baseurl=$BASE/rpm/\$basearch
+          enabled=1
+          gpgcheck=1
+          repo_gpgcheck=1
+          gpgkey=$BASE/dispctrl-linux.asc
+          REPO
+          sed -i 's/^ *//' "$root/dispctrl-linux.repo"
+      - name: Keys and the front page
+        run: |
+          cp build/packaging/linux/repo/dispctrl-linux.asc build/packaging/linux/repo/dispctrl-linux.gpg _site/
+          cp build/packaging/linux/repo/index.html _site/
+          sed -i "s/@TAG@/$TAG/g" _site/index.html
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+      - name: Summary
+        run: |
+          {
+            echo "## Package repositories: $TAG"
+            echo
+            echo "apt: $BASE/apt"
+            echo "dnf: $BASE/rpm/dispctrl-linux.repo"
+          } >> "$GITHUB_STEP_SUMMARY"
