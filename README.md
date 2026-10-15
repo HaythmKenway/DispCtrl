@@ -40,7 +40,20 @@ It needs an X11 session for most of this; on Wayland the compositor keeps gamma 
 sudo snap install dispctrl-linux          # the Snap Store; --edge for the newest build
 ```
 
-Or from the signed apt and dnf repositories, which update with the rest of the system: [the instructions](https://haythmkenway.github.io/DispCtrl-linux/).
+Or from the signed apt, dnf and zypper repositories, which update with the rest of the system and, unlike the snap, reach monitors over DDC/CI:
+
+```bash
+# Debian, Ubuntu, Mint, Pop!_OS
+curl -fsSL https://haythmkenway.github.io/DispCtrl-linux/dispctrl-linux.gpg | sudo tee /usr/share/keyrings/dispctrl-linux.gpg >/dev/null
+echo "deb [signed-by=/usr/share/keyrings/dispctrl-linux.gpg] https://haythmkenway.github.io/DispCtrl-linux/apt stable main" | sudo tee /etc/apt/sources.list.d/dispctrl-linux.list
+sudo apt update && sudo apt install dispctrl-linux
+
+# Fedora, RHEL, Rocky, Alma
+sudo curl -fsSL https://haythmkenway.github.io/DispCtrl-linux/rpm/dispctrl-linux.repo -o /etc/yum.repos.d/dispctrl-linux.repo
+sudo dnf install dispctrl-linux
+```
+
+openSUSE and the key's fingerprint are in [the install guide](docs/LINUX.md#from-the-apt-or-dnf-repository).
 
 The snap cannot reach monitors over DDC/CI under strict confinement. For an external monitor's own brightness and controls, build the `.deb`, `.rpm` or tarball (below; with .NET inside, for x86-64 and 64-bit ARM); they will be attached to this repository's releases from the first one. [Install](docs/LINUX.md#install) has the details.
 

@@ -33,6 +33,8 @@ The rest of this page is 1.0's.
 | Your system | Download | Install |
 |---|---|---|
 | Any, from the Snap Store | | `sudo snap install dispctrl-linux` |
+| Debian, Ubuntu, Mint, Pop!_OS, from the apt repository | | add the repository ([commands](https://github.com/HaythmKenway/DispCtrl-linux#install)), then `sudo apt install dispctrl-linux` |
+| Fedora, RHEL, Rocky, Alma, from the dnf repository | | add the repository ([commands](https://github.com/HaythmKenway/DispCtrl-linux#install)), then `sudo dnf install dispctrl-linux` |
 | Debian, Ubuntu, Mint, Pop!_OS | `dispctrl-linux_1.0.3_amd64.deb` (or `_arm64`) | `sudo apt install ./dispctrl-linux_1.0.3_amd64.deb` |
 | Fedora, RHEL, Rocky, Alma, openSUSE | `dispctrl-linux-1.0.3-1.x86_64.rpm` (or `.aarch64`) | `sudo dnf install ./dispctrl-linux-1.0.3-1.x86_64.rpm` |
 | Arch, Manjaro, Void, Gentoo, NixOS and the rest | `dispctrl-linux-1.0.3-linux-x64.tar.gz` (or `-linux-arm64`) | unpack, then `./install.sh` |
