@@ -36,6 +36,21 @@ public sealed class Preset
 
     public List<PresetControl> Controls { get; set; } = [];
 
+    /// <summary>Every display's own brightness, 0 to 100, whatever displays are
+    /// attached: how a ready-made preset says it, having no monitor to name.</summary>
+    public int? BrightnessAll { get; set; }
+
+    /// <summary>A picture mode by name ("Movie", "Game", "Standard"), set on
+    /// every monitor that lists one whose name contains it, and on no other.</summary>
+    public string? PictureMode { get; set; }
+
+    /// <summary>Night light's hours are left as they are: only whether it is on
+    /// and its strength are applied. Ready-made presets keep a person's schedule.</summary>
+    public bool KeepSchedule { get; set; }
+
+    /// <summary>One line on what it does, for a ready-made preset's card.</summary>
+    public string? Description { get; set; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Unknown { get; set; }
 
@@ -50,6 +65,8 @@ public sealed class Preset
         Brightness ??= [];
         Controls ??= [];
         NightLight?.Normalise();
+        if (BrightnessAll is int all) BrightnessAll = Math.Clamp(all, 0, 100);
+        PictureMode = string.IsNullOrWhiteSpace(PictureMode) ? null : PictureMode.Trim();
     }
 }
 

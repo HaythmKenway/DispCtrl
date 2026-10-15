@@ -1038,6 +1038,23 @@ unrecallable.
   lists carried `Width="220"`, so the narrow-page rule that stretches a
   control under its text could not, and the lists sat centred at a fixed
   width. Widths of card controls live in `Styles/Cards.axaml`.
+- **A snap's tray menu must live at `/StatusNotifierItem/menu`.** Avalonia's
+  tray icon serves its menu at `/net/avaloniaui/dbusmenu/<guid>`, which no snap
+  interface allows: under confinement the icon showed and AppArmor refused
+  every `GetLayout`, so its menu never opened. `unity7` allows exactly
+  `/StatusNotifierItem` and `/StatusNotifierItem/menu` (libappindicator's
+  paths) and the name `org.kde.StatusNotifierItem-<pid>-<n>`;
+  `Services/Tray/StatusNotifierItem.cs` serves both itself, in and out of the
+  snap.
+- **The snap may not run `setsid`.** The program is refused ("Permission
+  denied") under the window's confinement, so the Start button and the snap
+  launcher's first-run start did nothing. The engine calls `setsid()` itself
+  when started with `DISPCTRL_ENGINE_DETACH=1`.
+- **A snap refresh deletes the runtime folder under a running engine.** The
+  old revision's engine ran on, its socket gone: unreachable, still writing
+  ramps and holding the snap shortcut, while the window said "Not running".
+  The engine now stops itself within ten seconds when its socket is no longer
+  the one at its path.
 - **BusyBox's `timeout` exits 143, not 124**, when it stops a command.
 - **Subscribe to raw motion only while button 1 is down.** Every pointer
   movement on the desk would otherwise wake the engine.

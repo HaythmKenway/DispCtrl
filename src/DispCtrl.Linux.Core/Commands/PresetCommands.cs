@@ -16,6 +16,13 @@ public static partial class CommandRunner
                 return PresetList(c);
             case ["save", var name, .. var rest]:
                 return PresetSave(name, rest, c);
+            case ["suggested"]:
+                foreach (var t in PresetDesk.Suggested())
+                    c.Out.WriteLine($"{t.Name,-12} {t.Description}{(FindPreset(t.Name) is null ? "" : "  (added)")}");
+                c.Out.WriteLine("preset add NAME adds one; preset add all adds every one not added yet.");
+                return Done;
+            case ["add", .. var names] when names.Length > 0:
+                return PresetAdd(names, c);
             case ["apply", var name]:
                 return PresetApply(name, c);
             case ["show", var name]:
@@ -40,11 +47,34 @@ public static partial class CommandRunner
                 c.Out.WriteLine(skip.Count == 0 ? $"{name} puts every part back." : $"{name} leaves {string.Join(", ", skip)} alone.");
                 return Done;
             default:
-                return Wrong(c, "preset takes list, save NAME [--skip PARTS], apply NAME, show NAME, set NAME --skip PARTS|none, rename OLD NEW or delete NAME");
+                return Wrong(c, "preset takes list, save NAME [--skip PARTS], apply NAME, show NAME, set NAME --skip PARTS|none, rename OLD NEW, delete NAME, suggested or add NAME|all");
         }
     }
 
     private const string PartsHelp = "--skip takes none, or parts separated by commas: layout, brightness, nightlight, theme, controls";
+
+    /// <summary><c>preset add</c>: ready-made presets, by name or all; one whose
+    /// name is already taken is left as it is.</summary>
+    private static int PresetAdd(string[] names, CommandContext c)
+    {
+        var suggested = PresetDesk.Suggested();
+        List<Preset?> wanted = names is ["all"] ? [.. suggested]
+            : names.Select(n => suggested.FirstOrDefault(t => Same(t.Name, n))).ToList();
+        int unknown = wanted.FindIndex(t => t is null);
+        if (unknown >= 0) return Wrong(c, $"no ready-made preset called '{names[unknown]}' (preset suggested lists them)");
+        var added = new List<string>();
+        SettingsStore.Update(s =>
+        {
+            foreach (var t in wanted)
+            {
+                if (s.Presets.Any(p => Same(p.Name, t!.Name))) continue;
+                s.Presets.Add(t!);
+                added.Add(t!.Name);
+            }
+        });
+        c.Out.WriteLine(added.Count == 0 ? "Nothing added: those names are taken." : $"Added {string.Join(", ", added)}.");
+        return Done;
+    }
 
     private static int PresetList(CommandContext c)
     {
@@ -58,7 +88,7 @@ public static partial class CommandRunner
         var names = XRandR.IsAvailable ? XRandR.MonitorNames() : new Dictionary<string, string>();
         foreach (var p in presets)
         {
-            string fit = p.Outputs.Count == 0 ? "no layout"
+            string fit = p.Outputs.Count == 0 ? p.Description is null ? "no layout" : "any desk"
                 : PresetDesk.Mismatch(p, outputs, names) is { } why ? $"not this desk: {why}" : "matches the displays attached";
             string parts = string.Join(", ", PresetParts.All.Where(p.Holds));
             c.Out.WriteLine($"{p.Name,-20} {p.Saved:yyyy-MM-dd HH:mm}  {parts}  ({fit})");
@@ -114,8 +144,11 @@ public static partial class CommandRunner
                 ? $"  {o.Name,-10} {o.Width}x{o.Height} @ {o.RefreshHz:0.##} Hz at {o.X},{o.Y}{(o.Rotation != 0 ? $", turned {o.Rotation}°" : "")}{(o.Primary ? ", main" : "")}{(o.Model is null ? "" : $"  {o.Model}")}"
                 : $"  {o.Name,-10} off");
         }
+        if (p.Description is { } about) c.Out.WriteLine($"  {about}");
+        if (p.BrightnessAll is int all) c.Out.WriteLine($"  brightness every display {all}%");
+        if (p.PictureMode is { } mode) c.Out.WriteLine($"  picture mode {mode}, on monitors that have one");
         foreach (var b in p.Brightness) c.Out.WriteLine($"  brightness {b.Id.Split('|')[0],-16} {b.Percent}%");
-        if (p.NightLight is { } n) c.Out.WriteLine($"  night light {(n.Enabled ? $"on, strength {n.Strength}" : "off")}{(n.Scheduled ? $", {n.From} to {n.To}" : "")}");
+        if (p.NightLight is { } n) c.Out.WriteLine($"  night light {(n.Enabled ? $"on, strength {n.Strength}" : "off")}{(!p.KeepSchedule && n.Scheduled ? $", {n.From} to {n.To}" : "")}");
         if (p.Dim is { Count: > 0 } dim) c.Out.WriteLine($"  dimming {string.Join(", ", dim.Select(d => $"{d.Key} {Percent(d.Value)}%"))}");
         if (p.Dark is bool dark) c.Out.WriteLine($"  dark mode {(dark ? "on" : "off")}");
         foreach (var g in p.Controls.GroupBy(x => x.Monitor))

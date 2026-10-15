@@ -41,6 +41,11 @@ public partial class PresetsPage : UserControl
         });
         PresetList.ItemsSource = presets.Select(p => new PresetRowViewModel(p, PresetDesk.Mismatch(p, outputs, names))).ToList();
         EmptyText.IsVisible = presets.Count == 0;
+        var suggested = PresetDesk.Suggested()
+            .Select(t => new SuggestedPresetViewModel(t, presets.Any(p => string.Equals(p.Name, t.Name, StringComparison.OrdinalIgnoreCase))))
+            .ToList();
+        SuggestedList.ItemsSource = suggested;
+        AddAllButton.IsEnabled = suggested.Any(t => t.CanAdd);
     }
 
     private async void OnSave(object? sender, RoutedEventArgs e)
@@ -52,6 +57,13 @@ public partial class PresetsPage : UserControl
         await Run(SaveButton, SaveStatus, ["preset", "save", name, "--skip", skip.Count == 0 ? "none" : string.Join(',', skip)]);
         NameBox.Text = "";
     }
+
+    private async void OnAddSuggested(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string name } button) await Run(button, ListStatus, ["preset", "add", name]);
+    }
+
+    private async void OnAddAll(object? sender, RoutedEventArgs e) => await Run(AddAllButton, ListStatus, ["preset", "add", "all"]);
 
     private async void OnApply(object? sender, RoutedEventArgs e)
     {

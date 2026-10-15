@@ -53,13 +53,23 @@ internal sealed class EngineHost : IEngineHooks
             Console.Error.WriteLine($"dispctrl-linux engine: already running ({path})");
             return CommandRunner.Refused;
         }
+        // Started from the window or the snap's launcher, it leaves their
+        // session so it outlives them. The setsid program is not allowed under
+        // the snap's confinement ("Permission denied"), so the Start button and
+        // the snap's first-run start both failed; the call itself is.
+        if (Environment.GetEnvironmentVariable(DetachVariable) == "1") setsid();
         return new EngineHost().Serve(path);
     }
+
+    /// <summary>Set by whoever starts the engine in the background
+    /// (<c>DeskActions.StartEngine</c>, the snap's launcher).</summary>
+    public const string DetachVariable = "DISPCTRL_ENGINE_DETACH";
 
     private int Serve(string path)
     {
         // A socket file nobody answers on was left by an engine that was killed.
         if (File.Exists(path)) File.Delete(path);
+        _socketPath = path;
 
         using var listener = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
         listener.Bind(new UnixDomainSocketEndPoint(path));
@@ -229,6 +239,13 @@ internal sealed class EngineHost : IEngineHooks
             }
             finally { _gate.Release(); }
 
+            if (SocketGone())
+            {
+                Log("the socket is gone (the runtime folder was cleared, as a snap refresh does, or another engine took it over); stopping");
+                _stop.Cancel();
+                break;
+            }
+
             var wait = TimeSpan.FromSeconds(10);
             var n = settings.NightLight;
             if (n.Enabled && n.Scheduled && Schedule.TryParse(n.From, out var from) && Schedule.TryParse(n.To, out var to))
@@ -286,6 +303,32 @@ internal sealed class EngineHost : IEngineHooks
     }
 
     private DateTime _snapStartedAt;
+    private string? _socketPath;
+    private (DateTime Made, DateTime Written)? _socketId;
+
+    /// <summary>
+    /// Whether the socket this engine listens on is no longer the one at its
+    /// path. An engine nobody can reach still writes ramps and holds the snap
+    /// shortcut, so a second one would fight it: after a snap refresh the old
+    /// revision's engine ran on, its socket deleted with the runtime folder,
+    /// while the window said "Not running".
+    /// </summary>
+    private bool SocketGone()
+    {
+        if (_socketPath is null) return false;
+        try
+        {
+            var info = new FileInfo(_socketPath);
+            if (!info.Exists) return true;
+            // Its times, not its inode: libc's stat is only exported from glibc
+            // 2.33, and the packages run on 2.27. A new socket is a new file.
+            var id = (info.CreationTimeUtc, info.LastWriteTimeUtc);
+            _socketId ??= id;
+            return _socketId != id;
+        }
+        catch (IOException) { return false; }
+    }
+
 
     /// <summary>Holds or lets go of keep awake's inhibitors and starts or stops
     /// Stay active to match settings; a timed keep awake whose time has come
@@ -416,6 +459,9 @@ internal sealed class EngineHost : IEngineHooks
 
     // journald stamps each line itself; a terminal run reads the same.
     private static void Log(string message) => Console.Error.WriteLine(message);
+
+    [DllImport("libc", SetLastError = true)]
+    private static extern int setsid();
 
     [DllImport("libc", SetLastError = true)]
     private static extern int setenv([MarshalAs(UnmanagedType.LPUTF8Str)] string name, [MarshalAs(UnmanagedType.LPUTF8Str)] string value, int overwrite);

@@ -41,17 +41,17 @@ public static class DeskActions
         if (Desk.Current.Outputs.Count > 0) DisplayIdentifier.Show(Desk.Current.Outputs, TimeSpan.FromSeconds(3));
     }
 
-    /// <summary>Starts the engine beside this program, in its own session so it
-    /// outlives the window: what <see cref="Distro.EngineStartCommand"/> tells a
-    /// person to type.</summary>
+    /// <summary>Starts the engine beside this program, which leaves this
+    /// session itself so it outlives the window (DISPCTRL_ENGINE_DETACH): the
+    /// setsid program it was started through before is refused under the
+    /// snap's confinement, and the Start button did nothing there.</summary>
     public static void StartEngine()
     {
         var exe = Path.Combine(AppContext.BaseDirectory, "dispctrl-linux");
         if (!File.Exists(exe)) return;
-        var info = new ProcessStartInfo(Shell.TryWhich("setsid") ? "setsid" : exe) { UseShellExecute = false };
-        if (info.FileName == "setsid") info.ArgumentList.Add(exe);
+        var info = new ProcessStartInfo(exe) { UseShellExecute = false };
         info.ArgumentList.Add("engine");
-        info.RedirectStandardError = info.RedirectStandardOutput = false;
+        info.Environment["DISPCTRL_ENGINE_DETACH"] = "1";
         try { Process.Start(info)?.Dispose(); } catch (System.ComponentModel.Win32Exception) { }
         _ = Task.Delay(1500).ContinueWith(_ => Avalonia.Threading.Dispatcher.UIThread.Post(() => Changed?.Invoke()));
     }

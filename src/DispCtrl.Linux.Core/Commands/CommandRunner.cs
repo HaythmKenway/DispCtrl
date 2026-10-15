@@ -140,6 +140,7 @@ public static partial class CommandRunner
           preset apply NAME                        put it back
           preset show NAME | delete NAME | rename OLD NEW
           preset set NAME --skip PARTS|none        the parts it leaves alone
+          preset suggested | add NAME | add all    ready-made ones: Day, Evening, Night, Reading, Movie, Gaming ...
 
           display [list]                           each lit output: main, mode, position, size
           display set --output <name> --x <n> --y <n>   move one output (others stay; the desktop is

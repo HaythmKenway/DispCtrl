@@ -517,6 +517,28 @@ void NewFeatureChecks()
     Check(Run("tray", "click", "middle").Code == CommandRunner.AskedWrongly, "commands: tray click takes panel or window");
     Check(Run("help").Out.Contains("preset save NAME", StringComparison.Ordinal) && Run("help").Out.Contains("awake for", StringComparison.Ordinal),
         "commands: help names the new commands");
+    var suggested = PresetDesk.Suggested();
+    Check(suggested.Count >= 6 && suggested.All(t => t.BrightnessAll is not null && t.Outputs.Count == 0 && !t.Holds(PresetParts.Layout) && t.KeepSchedule),
+        "presets: every ready-made one sets each display's brightness, moves no display and keeps night light's hours");
+    Check(suggested.First(t => t.Name == "Gaming") is { PictureMode: "Game", NightLight.Enabled: false } g && !g.Holds(PresetParts.Theme)
+        && suggested.First(t => t.Name == "Power saver").Skip.Count == 4,
+        "presets: a ready-made preset holds only the parts it sets");
+    Check(Run("preset", "add", "Night", "Movie").Code == CommandRunner.Done
+        && SettingsStore.Load().Presets.Select(p => p.Name).SequenceEqual(["Night", "Movie"]), "commands: ready-made presets are added by name");
+    Check(Run("preset", "add", "all").Code == CommandRunner.Done && SettingsStore.Load().Presets.Count == suggested.Count,
+        "commands: add all adds the rest and keeps the ones there");
+    Check(Run("preset", "add", "Disco").Code == CommandRunner.AskedWrongly, "commands: an unknown ready-made preset is asked wrongly");
+    SettingsStore.Update(s => { s.NightLight.Scheduled = true; s.NightLight.From = "21:00"; s.NightLight.To = "06:30"; s.Dim["DP-1"] = 0.6; });
+    // Night light only: its brightness and theme would reach the real desk.
+    var night = SettingsStore.Load().Presets.First(p => p.Name == "Night");
+    PresetDesk.Apply(new Preset
+    {
+        Name = night.Name, NightLight = night.NightLight, KeepSchedule = night.KeepSchedule,
+        Skip = [PresetParts.Layout, PresetParts.Brightness, PresetParts.Theme, PresetParts.Controls],
+    });
+    var kept = SettingsStore.Load();
+    Check(kept.NightLight is { Enabled: true, Strength: 75, Scheduled: true, From: "21:00", To: "06:30" } && kept.Dim["DP-1"] == 0.6,
+        "presets: a ready-made preset switches night light and its strength, and keeps its hours and the dimming");
     File.Delete(SettingsStore.FilePath);
 }
 

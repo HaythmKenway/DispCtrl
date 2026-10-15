@@ -20,10 +20,12 @@ using DispCtrl, not for people reading the diff.
 - **Linux: resolution, refresh rate, orientation and display mode.** Each display's card changes them, with fifteen seconds to keep the change; Extend, Duplicate and one display as with Win+P. `dispctrl-linux display set --mode 1920x1080 --rate 60 --rotate left`, `display project`, `display only`.
 - **Linux: a monitor's own controls and input switching** over DDC/CI: contrast, input source, colour preset, picture mode, colour gains, sharpness and volume, only those the monitor lists. `dispctrl-linux monitor 1 set contrast 70`, `input 1 HDMI-1`.
 - **Linux: keep awake, Stay active and turning the displays off** on a new Screen care page: keep the computer (and its displays) awake for good, for a while or until a time; nudge the pointer after 55 seconds still; switch every display off. `dispctrl-linux awake for 2h`, `stayactive on`, `displays-off`.
+- **Linux: ready-made presets** - Day, Evening, Night, Reading, Movie, Gaming and Power saver - for any desk, from the Presets page or `dispctrl-linux preset add all`. The mouse wheel over the tray icon moves every display's brightness.
 - **Linux: dark mode**, on GNOME, KDE and XFCE, and dark during night light's hours. `dispctrl-linux darkmode on`, `darkmode schedule on`.
 - **Snap layouts and Snap Assist on Linux** (X11): drag a window to the top centre of a display, or press Super+Z, and choose where it goes - halves, thirds, quarters and more, picked for each display's shape; then fill the spaces left from pictures of your other windows. On GNOME the shortcut appears among its custom keyboard shortcuts.
 
 ### Fixed
+- Linux snap: the tray icon's menu never opened (the snap's confinement refused the path it was served at), the engine's Start button did nothing, and after a refresh the old engine ran on unreachable.
 - Linux: the window showed the generic application icon in GNOME's dock and KDE's task manager instead of DispCtrl's.
 - Linux: the window would not open on desktops without GNOME's `gsettings` (KDE or XFCE without GLib's tools, Alpine, Void), or with no system font installed.
 - Linux: arranging displays and reading the layout no longer need the `xrandr` program, and the laptop backlight works on distributions without systemd (through `dbus-send` or `gdbus`).

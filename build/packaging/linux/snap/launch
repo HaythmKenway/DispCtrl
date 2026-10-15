@@ -26,8 +26,10 @@ if [ ! -e "$marker" ]; then
     : > "$marker"
     case "$1" in
         */dispctrl-linux-gui)
+            # Not through setsid: the program is refused under confinement.
+            # The engine leaves this session itself.
             if [ ! -S "$XDG_RUNTIME_DIR/dispctrl-linux.sock" ]; then
-                setsid "$SNAP/lib/dispctrl-linux" engine >/dev/null 2>&1 </dev/null &
+                DISPCTRL_ENGINE_DETACH=1 "$SNAP/lib/dispctrl-linux" engine >/dev/null 2>&1 </dev/null &
             fi
             ;;
     esac

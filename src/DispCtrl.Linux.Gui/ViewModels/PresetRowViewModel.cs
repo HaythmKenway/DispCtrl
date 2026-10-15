@@ -18,7 +18,9 @@ public sealed class PresetRowViewModel(Preset preset, string? mismatch)
     }
 
     /// <summary>Whether its displays are the ones attached, said plainly.</summary>
-    public string Fit => Preset.Outputs.Count == 0 || !Preset.Holds(PresetParts.Layout)
+    public string Fit => Preset.Description is { } about && Preset.Outputs.Count == 0
+        ? about
+        : Preset.Outputs.Count == 0 || !Preset.Holds(PresetParts.Layout)
         ? "Holds no layout"
         : mismatch is null ? "Matches the displays attached" : $"Not this desk: {mismatch}";
 
@@ -32,5 +34,25 @@ public sealed class PresetRowViewModel(Preset preset, string? mismatch)
         PresetParts.Theme => "theme",
         PresetParts.Controls => "monitor controls",
         _ => part,
+    };
+}
+
+/// <summary>A ready-made preset on the Presets page, to add.</summary>
+public sealed class SuggestedPresetViewModel(Preset preset, bool added)
+{
+    public string Name => preset.Name;
+    public string Description => preset.Description ?? "";
+    public bool CanAdd => !added;
+    public string ButtonText => added ? "Added" : "Add";
+
+    public FluentAvalonia.UI.Controls.FASymbol Icon => preset.Name switch
+    {
+        "Day" => FluentAvalonia.UI.Controls.FASymbol.WeatherSunny,
+        "Evening" => FluentAvalonia.UI.Controls.FASymbol.WeatherPartlyCloudyNight,
+        "Night" => FluentAvalonia.UI.Controls.FASymbol.WeatherMoon,
+        "Reading" => FluentAvalonia.UI.Controls.FASymbol.Library,
+        "Movie" => FluentAvalonia.UI.Controls.FASymbol.Video,
+        "Gaming" => FluentAvalonia.UI.Controls.FASymbol.Keyboard,
+        _ => FluentAvalonia.UI.Controls.FASymbol.WeatherSunnyLow,
     };
 }

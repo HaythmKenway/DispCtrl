@@ -29,6 +29,37 @@
                     </Grid>
                 </Border>
 
+                <Grid ColumnDefinitions="*,Auto" Margin="0,28,0,8">
+                    <TextBlock Classes="section" Text="Ready-made" Margin="2,0,0,0" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Name="AddAllButton" Content="Add all" Click="OnAddAll"
+                            AutomationProperties.Name="Add every ready-made preset" />
+                </Grid>
+                <TextBlock Classes="caption" Margin="2,0,0,8"
+                           Text="Starting points for any desk: every display's brightness, with night light, the theme or the monitors' picture mode where it helps. Add one, then apply it or save your own over it." />
+                <ItemsControl Name="SuggestedList">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Spacing="4" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:SuggestedPresetViewModel">
+                            <Border Classes="card">
+                                <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                                    <ui:FASymbolIcon Classes="cardicon" Symbol="{Binding Icon}" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Classes="title" Text="{Binding Name}" />
+                                        <TextBlock Classes="caption" Text="{Binding Description}" />
+                                    </StackPanel>
+                                    <Button Classes="control" Content="{Binding ButtonText}" IsEnabled="{Binding CanAdd}"
+                                            Click="OnAddSuggested" Tag="{Binding Name}"
+                                            AutomationProperties.Name="{Binding Name, StringFormat='Add {0}'}" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
                 <TextBlock Classes="section" Text="Your presets" />
                 <TextBlock Name="EmptyText" Classes="caption" Margin="2,0,0,8"
                            Text="None yet. Set the desk up as you like it, give it a name above and save." />
@@ -50,9 +81,9 @@
                                         <TextBlock Classes="caption" Text="{Binding Fit}" />
                                     </StackPanel>
                                     <StackPanel Classes="control" Orientation="Horizontal" Spacing="8">
-                                        <Button Content="Apply" Click="OnApply" Tag="{Binding Name}"
+                                        <Button Content="Apply" Click="OnApply" Tag="{Binding Name}" Height="32"
                                                 AutomationProperties.Name="{Binding Name, StringFormat='Apply {0}'}" />
-                                        <Button Width="36" Padding="0" Tag="{Binding Name}"
+                                        <Button Width="36" Height="32" Padding="0" Tag="{Binding Name}"
                                                 AutomationProperties.Name="{Binding Name, StringFormat='More for {0}'}">
                                             <ui:FASymbolIcon Symbol="More" FontSize="16" />
                                             <Button.Flyout>

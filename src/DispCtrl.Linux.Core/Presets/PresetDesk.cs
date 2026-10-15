@@ -19,6 +19,43 @@ public static class PresetDesk
     public static readonly IReadOnlyList<byte> SavedControls =
         [Ddcutil.VcpContrast, Ddcutil.VcpColourPreset, 0x16, 0x18, 0x1A, Ddcutil.VcpVolume, Ddcutil.VcpSharpness, Ddcutil.VcpPictureMode];
 
+    /// <summary>The ready-made presets: a starting point for the times of day
+    /// and what is on screen, on any desk. Each holds every display's
+    /// brightness, and night light, the theme or a picture mode where it means
+    /// something; none moves a display or keeps a monitor's name.</summary>
+    public static IReadOnlyList<Preset> Suggested() =>
+    [
+        Template("Day", "Bright, neutral colour, light theme.", 80, nightLight: 0, dark: false, picture: "Standard"),
+        Template("Evening", "Dimmer and a little warm, dark theme.", 55, nightLight: 40, dark: true),
+        Template("Night", "Low brightness, strong warmth, dark theme.", 25, nightLight: 75, dark: true),
+        Template("Reading", "Comfortable brightness, slightly warm, light theme.", 60, nightLight: 25, dark: false),
+        Template("Movie", "Bright, neutral colour, dark theme, the monitors' movie mode.", 90, nightLight: 0, dark: true, picture: "Movie"),
+        Template("Gaming", "Full brightness, neutral colour, the monitors' game mode.", 100, nightLight: 0, picture: "Game"),
+        Template("Power saver", "Low brightness and nothing else.", 35),
+    ];
+
+    private static Preset Template(string name, string description, int brightness, int? nightLight = null, bool? dark = null, string? picture = null)
+    {
+        var skip = new List<string> { PresetParts.Layout };
+        if (nightLight is null) skip.Add(PresetParts.NightLight);
+        if (dark is null) skip.Add(PresetParts.Theme);
+        if (picture is null) skip.Add(PresetParts.Controls);
+        return new Preset
+        {
+            Name = name,
+            Description = description,
+            Saved = DateTimeOffset.Now,
+            Skip = skip,
+            BrightnessAll = brightness,
+            NightLight = nightLight is int strength
+                ? new NightLightSettings { Enabled = strength > 0, Strength = strength > 0 ? strength : NightLightSettings.DefaultStrength }
+                : null,
+            KeepSchedule = true,
+            Dark = dark,
+            PictureMode = picture,
+        };
+    }
+
     public static Preset Capture(string name, IReadOnlyCollection<string> skip)
     {
         var preset = new Preset { Name = name, Saved = DateTimeOffset.Now, Skip = skip.ToList() };
@@ -96,8 +133,42 @@ public static class PresetDesk
         }
 
         var monitors = (preset.Holds(PresetParts.Brightness) || preset.Holds(PresetParts.Controls))
-            && (preset.Brightness.Any(b => b.Kind == "ddc") || preset.Controls.Count > 0) && Ddcutil.IsAvailable
+            && (preset.Brightness.Any(b => b.Kind == "ddc") || preset.Controls.Count > 0 || preset.BrightnessAll is not null || preset.PictureMode is not null)
+            && Ddcutil.IsAvailable
             ? Ddcutil.Detect() : [];
+
+        if (preset.Holds(PresetParts.Brightness) && preset.BrightnessAll is int all)
+        {
+            foreach (var device in Backlight.Enumerate())
+            {
+                if ((int)Math.Round(device.Fraction * 100) == all) continue;
+                if (!Backlight.TrySet(device.Name, (int)Math.Round(device.Max * all / 100.0), out var e)) problems.Add($"brightness: {e}");
+            }
+            foreach (var m in monitors)
+            {
+                var now = Ddcutil.GetVcp(m.DisplayNum, Ddcutil.VcpBrightness);
+                if (now is null) continue;
+                int max = now.Maximum is > 0 ? now.Maximum.Value : 100;
+                if ((int)Math.Round(100.0 * now.Current / max) == all) continue;
+                if (!Ddcutil.SetVcp(m.DisplayNum, Ddcutil.VcpBrightness, (int)Math.Round(max * all / 100.0), out var e))
+                    problems.Add($"brightness: {m.Model}: {e}");
+            }
+        }
+
+        if (preset.Holds(PresetParts.Controls) && preset.PictureMode is { } mode)
+        {
+            foreach (var m in monitors)
+            {
+                var features = Ddcutil.Capabilities(m.DisplayNum);
+                if (!Ddcutil.IsWritable(features, Ddcutil.VcpPictureMode)) continue;
+                var feature = features.First(f => f.Code == Ddcutil.VcpPictureMode);
+                var match = feature.Values.FirstOrDefault(v => v.Name.Contains(mode, StringComparison.OrdinalIgnoreCase));
+                if (match.Name is null) continue;
+                if (Ddcutil.GetVcp(m.DisplayNum, Ddcutil.VcpPictureMode)?.Current == match.Value) continue;
+                if (!Ddcutil.SetVcp(m.DisplayNum, Ddcutil.VcpPictureMode, match.Value, out var e))
+                    problems.Add($"controls: {m.Model} picture mode: {e}");
+            }
+        }
 
         if (preset.Holds(PresetParts.Brightness))
         {
@@ -129,10 +200,14 @@ public static class PresetDesk
             {
                 s.NightLight.Enabled = night.Enabled;
                 s.NightLight.Strength = night.Strength;
-                s.NightLight.Scheduled = night.Scheduled;
-                s.NightLight.From = night.From;
-                s.NightLight.To = night.To;
-                s.Dim = new Dictionary<string, double>(preset.Dim ?? [], StringComparer.Ordinal);
+                if (!preset.KeepSchedule)
+                {
+                    s.NightLight.Scheduled = night.Scheduled;
+                    s.NightLight.From = night.From;
+                    s.NightLight.To = night.To;
+                }
+                // A ready-made preset holds no dimming of its own and leaves it.
+                if (preset.Dim is not null) s.Dim = new Dictionary<string, double>(preset.Dim, StringComparer.Ordinal);
             });
         }
 

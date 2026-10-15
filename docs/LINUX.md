@@ -246,6 +246,17 @@ dispctrl-linux preset set Evening --skip none
 
 Parts: `layout`, `brightness`, `nightlight` (with dimming), `theme`, `controls`.
 
+**Ready-made presets** are a starting point on any desk: Day, Evening, Night,
+Reading, Movie, Gaming and Power saver. Each sets every display's brightness,
+and night light, the theme or the monitors' picture mode (Movie, Game,
+Standard, on monitors that list one by that name) where it helps; none moves a
+display, and night light's hours are kept. Add them from the Presets page, or:
+
+```
+dispctrl-linux preset suggested              what each one does
+dispctrl-linux preset add Night Movie        or: preset add all
+```
+
 ## The tray icon and quick panel
 
 The icon starts at sign-in. Its menu has each display's brightness, night
@@ -253,7 +264,8 @@ light and its strength, dark mode, keep awake, Stay active, turning the
 displays off, display mode, Identify, presets, snap layouts, Restore, and
 the engine. A left click opens the **quick panel** beside it: tiles for the
 switches, a slider for each display's brightness and night light's strength,
-display mode and presets. Settings chooses whether a click opens the panel
+display mode and presets. The mouse wheel over the icon moves every
+display's brightness by 5%. Settings chooses whether a click opens the panel
 or the window, or hides the icon (`dispctrl-linux tray off`).
 
 GNOME shows tray icons only with the AppIndicator extension, which Ubuntu

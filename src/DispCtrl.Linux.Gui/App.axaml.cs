@@ -41,7 +41,7 @@ public partial class App : Application
 
             if (Program.Request == Instance.Window) OpenWindow();
             else if (Program.Request == Instance.Panel) OpenPanel();
-            if (_tray is not null) _ = Desk.Current.RescanAsync();
+            if (_tray is not null || _trayStarting) _ = Desk.Current.RescanAsync();
             Instance.Listen(request => Dispatcher.UIThread.Post(() => Handle(request)));
         }
 
@@ -61,15 +61,21 @@ public partial class App : Application
         if (_tray is null) StartTray();
     }
 
-    private void StartTray()
+    private bool _trayStarting;
+
+    private async void StartTray()
     {
-        try { _tray = new TrayHost(OpenWindow, OpenPage, OpenPanel, Quit); }
+        if (_trayStarting || _tray is not null) return;
+        _trayStarting = true;
+        try { _tray = await TrayHost.StartAsync(OpenWindow, OpenPage, OpenPanel, Quit); }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             // No session bus or no tray host: the window still works without it.
             System.Diagnostics.Trace.WriteLine($"tray: {ex.Message}");
             _tray = null;
+            if (Program.Request == Instance.Tray && _window is null && _panel is null) _desktop?.Shutdown();
         }
+        finally { _trayStarting = false; }
     }
 
     public void OpenWindow()
@@ -80,7 +86,7 @@ public partial class App : Application
             _window.Closed += (_, _) =>
             {
                 _window = null;
-                if (_tray is null) _desktop?.Shutdown();
+                if (_tray is null && !_trayStarting) _desktop?.Shutdown();
             };
             if (_desktop is not null) _desktop.MainWindow = _window;
             _window.Show();
@@ -102,7 +108,7 @@ public partial class App : Application
         _panel.Closed += (_, _) =>
         {
             _panel = null;
-            if (_tray is null && _window is null) _desktop?.Shutdown();
+            if (_tray is null && !_trayStarting && _window is null) _desktop?.Shutdown();
         };
         _panel.ShowNearPointer();
     }
