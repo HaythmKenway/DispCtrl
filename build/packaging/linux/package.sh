@@ -41,6 +41,11 @@ publish() { # rid -> $work/<rid>/lib
   # which few systems have and nothing here uses (the runtime loads it only
   # when present); left in, an .rpm's dependency scan would require it.
   rm -f "$lib"/*.pdb "$lib/libcoreclrtraceptprovider.so"
+  # Nothing on Linux loads these: the Windows and macOS windowing backends,
+  # the crash-dump and debugger helpers, and Visual Basic's runtime. Pages
+  # still render without them (dispctrl-linux-gui --capture), 8 MB lighter.
+  rm -f "$lib"/Avalonia.Win32*.dll "$lib/Avalonia.Native.dll" "$lib/createdump" \
+    "$lib/libmscordaccore.so" "$lib/libmscordbi.so" "$lib"/Microsoft.VisualBasic*.dll
   # dotnet publish leaves mixed modes; packages want 0644, and 0755 on what runs.
   find "$lib" -type f -exec chmod 0644 {} +
   chmod 0755 "$lib/dispctrl-linux" "$lib/dispctrl-linux-gui"

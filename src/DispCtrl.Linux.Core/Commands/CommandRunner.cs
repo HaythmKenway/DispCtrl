@@ -68,7 +68,7 @@ public static partial class CommandRunner
     {
         "displays", "display", "status", "brightness", "dim", "nightlight", "night-light", "restore", "windows", "snap",
         "awake", "stayactive", "stay-active", "displays-off", "darkmode", "dark-mode", "monitor", "input", "preset", "presets",
-        "tray", "unison", "pin", "placement", "features", "rgb", "lighting", "oled", "focus", "monitor-sleep", "roomlight", "wallpaper", "version",
+        "tray", "unison", "pin", "placement", "features", "rgb", "lighting", "oled", "focus", "monitor-sleep", "roomlight", "wallpaper", "version", "settings", "apply", "topology",
     };
 
     private static readonly HashSet<string> BareFlags = new(StringComparer.Ordinal) { "--all", "--local", "--json", "--open", "--url", "--mail", "--mail-url", "--path" };
@@ -85,6 +85,10 @@ public static partial class CommandRunner
             return args[0] switch
             {
                 "doctor" => Doctor(context),
+                "settings" => SettingsCommand(args[1..], context),
+                "apply" => ApplyCommand(args[1..], context),
+                "commands" => CommandsCommand(context),
+                "topology" => DisplayCommand(["project", .. args[1..].Where(a => a != "--mode")], context),
                 "displays" => Displays(context),
                 "display" => DisplayCommand(args[1..], context),
                 "status" => Status(context),
@@ -151,6 +155,7 @@ public static partial class CommandRunner
           unison up | down [step]
           unison range <display> <min> <max>       a display's own lowest and highest (unison lists the names)
           unison include | exclude <display>
+          unison calibrate start | capture | cancel | status   walk each display to its dimmest, then brightest, by eye
           roomlight [on | off] [--min N --max N]   unison follows the ambient light sensor (iio-sensor-proxy)
           dim <0.1-1> --output <name> | --all      software dimming through the output's gamma ramp
           dim off [--output <name> | --all]        no software dimming
@@ -198,6 +203,7 @@ public static partial class CommandRunner
           rgb colour <#RRGGBB|name> [--device N]   one colour (warm, white, red, blue, purple ...)
           rgb key <NAME[,NAME...]> <colour> [--device N]   light single keys: a, "left shift", F5, "led 12" (keyboards with a light per key)
           rgb keys <NAME=COLOUR,...|FILE> [--device N]     several keys at once; a file holds one NAME=COLOUR per line
+          rgb look list | NAME [--device N]                       ready-made key colourings: Productivity, Coding, Gaming, Focus, Meow
           rgb preset list|save|apply|delete <NAME> [--device N]   per-key colour sets for a keyboard, saved by name
           rgb order <RGB|GRB|BGR|...> [--device N]  the colour order a device's LEDs take, when a colour shows as another (red as green)
           rgb off | rgb mode <effect> [--device N] off, or one of the device's own effects (Rainbow Wave ...)
@@ -257,6 +263,12 @@ public static partial class CommandRunner
           report --url | --mail | --mail-url       the GitHub issue's address; an email to the author (opened for you to read and send)
           report --save [FILE]                     the whole redacted report and log in a file to attach (default: your home folder)
           logs [--tail N] [--path] [--open]        the last lines of the log, where it is kept, or its folder opened
+          settings [get] [--path /unison/level]    the saved settings, or one of them
+          settings set --path P --value JSON | reset [--path P]   change one, or put it back to its default
+          settings export [--output FILE] | validate FILE | import FILE
+          apply FILE [--dry-run]                   a file of commands, one a line, run in order (# for comments)
+          commands                                 every command's first word
+          topology extend | duplicate | internal | external   the same as display project
           engine [run] | status | stop             the resident engine (docs/LINUX.md)
           version
 

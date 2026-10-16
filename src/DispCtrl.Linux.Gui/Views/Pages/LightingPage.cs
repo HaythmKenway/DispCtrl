@@ -43,34 +43,32 @@ public sealed class LightingPage : UserControl
         var swatches = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
         foreach (var (name, hex) in Swatches)
         {
-            var b = new Button
-            {
-                Width = 36, Height = 36, Margin = new Thickness(0, 0, 8, 8), Padding = new Thickness(0),
-                Background = new SolidColorBrush(Color.Parse(hex)), CornerRadius = new CornerRadius(18), Classes = { "pop", "dot" },
-            };
-            ToolTip.SetTip(b, name);
-            AutomationProperties.SetName(b, $"Lighting {name}");
+            var b = Dot(Color.Parse(hex), name);
             b.Click += async (_, _) => await Apply(_allStatus!, "rgb", "colour", hex);
             swatches.Children.Add(b);
         }
-        var hexBox = new TextBox { Width = 110, PlaceholderText = "#RRGGBB", Margin = new Thickness(0, 0, 8, 0) };
+        var off = Dot(Color.Parse("#2B2B2B"), "Off");
+        off.Content = new FASymbolIcon { Symbol = FASymbol.Cancel, FontSize = 14 };
+        off.BorderBrush = Brushes.Gray;
+        off.BorderThickness = new Thickness(1);
+        off.Click += async (_, _) => await Apply(_allStatus!, "rgb", "off");
+        swatches.Children.Add(off);
+
+        var hexBox = new TextBox { Width = 200, PlaceholderText = "Custom colour, e.g. #FF9329", Margin = new Thickness(0, 4, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
         AutomationProperties.SetName(hexBox, "Colour");
-        var set = new Button { Content = "Set" };
-        set.Click += async (_, _) =>
+        hexBox.KeyDown += async (_, e) =>
         {
+            if (e.Key != Avalonia.Input.Key.Enter) return;
             var text = hexBox.Text?.Trim() ?? "";
             if (text.Length == 0) { Show(_allStatus!, "Type a colour first: #FF9329, or a name such as warm or blue."); return; }
             await Apply(_allStatus!, "rgb", "colour", text);
         };
-        var off = new Button { Content = "Off", Margin = new Thickness(8, 0, 0, 0) };
-        AutomationProperties.SetName(off, "Lighting off");
-        off.Click += async (_, _) => await Apply(_allStatus!, "rgb", "off");
-        var custom = new StackPanel { Orientation = Orientation.Horizontal, Children = { hexBox, set, off } };
-        var both = new StackPanel { Children = { swatches, custom } };
+        var both = new StackPanel { Children = { swatches, hexBox } };
         _controls.Children.Add(Card(FASymbol.ColorBackground, "Colour", "Every LED on every device, in its direct mode.", null, out _allStatus, both));
 
-        var refresh = new Button { Content = "Refresh", VerticalAlignment = VerticalAlignment.Center };
+        var refresh = new Button { Content = new FASymbolIcon { Symbol = FASymbol.Refresh }, VerticalAlignment = VerticalAlignment.Center, Background = Brushes.Transparent, BorderThickness = new Thickness(0) };
         AutomationProperties.SetName(refresh, "Look for lighting devices again");
+        ToolTip.SetTip(refresh, "Look for lighting devices again");
         refresh.Click += async (_, _) => await LoadAsync();
         var heading = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(0, 28, 0, 8) };
         var title = Section("Devices");
@@ -182,12 +180,12 @@ public sealed class LightingPage : UserControl
             steps.Children.Add(row);
         }
         _start.Click += async (_, _) => await StartLightingAsync();
-        var get = new Button { Content = "Get OpenRGB" };
+        var get = new HyperlinkButton { Content = "Get OpenRGB" };
         get.Click += async (_, _) =>
         {
             if (TopLevel.GetTopLevel(this)?.Launcher is { } launcher) await launcher.LaunchUriAsync(new Uri("https://openrgb.org"));
         };
-        var retry = new Button { Content = "Try again" };
+        var retry = new HyperlinkButton { Content = "Try again" };
         retry.Click += async (_, _) => await LoadAsync();
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 14, 0, 0), Children = { _start, get, retry } };
         var body = new StackPanel { Children = { steps, buttons, _setupStatus } };
@@ -223,6 +221,18 @@ public sealed class LightingPage : UserControl
         }
         finally { _start.IsEnabled = OpenRgbSetup.SnapLimit() is null; }
         await LoadAsync();
+    }
+
+    internal static Button Dot(Color colour, string name)
+    {
+        var b = new Button
+        {
+            Width = 34, Height = 34, Margin = new Thickness(0, 0, 8, 8), Padding = new Thickness(0),
+            Background = new SolidColorBrush(colour), CornerRadius = new CornerRadius(17), Classes = { "pop", "dot" },
+        };
+        ToolTip.SetTip(b, name);
+        AutomationProperties.SetName(b, $"Lighting {name}");
+        return b;
     }
 
     private static FASymbol Icon(int type) => type switch

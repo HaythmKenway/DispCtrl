@@ -25,6 +25,9 @@ public partial class App : Application
         {
             theme.PreferSystemTheme = gsettings;
             theme.PreferUserAccentColor = gsettings;
+            // Without gsettings (KDE, XFCE) the accent comes from the desktop's own files.
+            if (!gsettings && Graphics.DesktopTheme.Current().Accent is var a)
+                theme.CustomAccentColor = Avalonia.Media.Color.FromRgb((byte)(a.R * 255), (byte)(a.G * 255), (byte)(a.B * 255));
         }
     }
 

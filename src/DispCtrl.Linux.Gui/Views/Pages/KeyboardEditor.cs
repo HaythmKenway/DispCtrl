@@ -152,6 +152,7 @@ public sealed class KeyboardEditor : StackPanel
             Content = new StackPanel { Spacing = 8, Children = { Presets(), Order(), Calibrate() } },
         };
         Children.Insert(0, hint);
+        Children.Insert(0, Looks());
         Children.Add(swatches);
         Children.Add(selection);
         Children.Add(more);
@@ -159,54 +160,83 @@ public sealed class KeyboardEditor : StackPanel
         _ = FadeColoursAsync();
     }
 
+    /// <summary>The ready-made looks, one click each: <see cref="KeyLooks"/> works out
+    /// every key's colour from the keyboard's layout, so they fit any per-key board.</summary>
+    private StackPanel Looks()
+    {
+        var chips = new WrapPanel();
+        var device = (_device.Index + 1).ToString(CultureInfo.InvariantCulture);
+        foreach (var look in KeyLooks.Names)
+        {
+            var chip = new Button { Content = look, CornerRadius = new CornerRadius(16), Padding = new Thickness(14, 5), Margin = new Thickness(0, 0, 8, 8), Classes = { "pop" } };
+            ToolTip.SetTip(chip, KeyLooks.Describe(look));
+            AutomationProperties.SetName(chip, $"{look} look");
+            chip.Click += async (_, _) =>
+            {
+                var error = await DeskActions.RunAsync("rgb", "look", look, "--device", device);
+                Show(_status, error);
+                if (error is null) await ReloadColours();
+            };
+            chips.Children.Add(chip);
+        }
+        return new StackPanel { Children = { new TextBlock { Text = "Looks", FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 0, 0, 6) }, chips } };
+    }
+
     /// <summary>Saved colour sets for this keyboard: pick one to put it back, or
     /// name the colours on the keyboard now to keep them. Written by the same
     /// <c>rgb preset</c> commands the command line uses.</summary>
     private StackPanel Presets()
     {
-        var box = new ComboBox { MinWidth = 180, PlaceholderText = "Saved colour sets", Margin = new Thickness(0, 0, 8, 4) };
-        var name = new TextBox { Width = 160, PlaceholderText = "Name for this look", Margin = new Thickness(0, 0, 8, 4) };
-        AutomationProperties.SetName(box, "Saved colour sets");
+        var chips = new WrapPanel();
+        var name = new TextBox { Width = 220, PlaceholderText = "Save these colours as…  (Enter)", Margin = new Thickness(0, 4, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
         AutomationProperties.SetName(name, "Name for this look");
-        void Reload(string? select = null)
+        var device = (_device.Index + 1).ToString(CultureInfo.InvariantCulture);
+        var empty = new TextBlock { Classes = { "caption" }, Text = "No saved looks yet. Colour the keyboard, then name it below." };
+        void Reload()
         {
+            chips.Children.Clear();
             var names = SettingsStore.Load().Lighting.KeyPresets.Where(p => p.Keyboard == _device.Name).Select(p => p.Name).ToList();
-            box.ItemsSource = names;
-            box.SelectedItem = select is not null && names.Contains(select) ? select : null;
+            empty.IsVisible = names.Count == 0;
+            foreach (var n in names)
+            {
+                var chip = new Button { Content = n, CornerRadius = new CornerRadius(16), Padding = new Thickness(14, 5), Margin = new Thickness(0, 0, 8, 8), Classes = { "pop" } };
+                ToolTip.SetTip(chip, "Put this look on the keyboard. Right-click to delete it.");
+                AutomationProperties.SetName(chip, $"Use {n}");
+                chip.Click += async (_, _) =>
+                {
+                    var error = await DeskActions.RunAsync("rgb", "preset", "apply", n, "--device", device);
+                    Show(_status, error);
+                    if (error is null) await ReloadColours();
+                };
+                var delete = new MenuItem { Header = "Delete" };
+                delete.Click += async (_, _) =>
+                {
+                    var error = await DeskActions.RunAsync("rgb", "preset", "delete", n);
+                    Show(_status, error);
+                    if (error is null) Reload();
+                };
+                chip.ContextFlyout = new MenuFlyout { Items = { delete } };
+                chips.Children.Add(chip);
+            }
         }
         Reload();
-        var device = (_device.Index + 1).ToString(CultureInfo.InvariantCulture);
-        var load = Button("Use", "Put the chosen colour set on the keyboard", async () =>
+        name.KeyDown += async (_, e) =>
         {
-            if (box.SelectedItem is not string chosen) { Show(_status, "Choose a saved colour set first."); return; }
-            var error = await DeskActions.RunAsync("rgb", "preset", "apply", chosen, "--device", device);
-            Show(_status, error);
-            if (error is null) await ReloadColours();
-        });
-        var save = Button("Save current", "Keep the colours on the keyboard now under this name", async () =>
-        {
+            if (e.Key != Avalonia.Input.Key.Enter) return;
             var label = name.Text?.Trim() ?? "";
             if (label.Length == 0) { Show(_status, "Type a name first, such as Gaming or Night."); return; }
             await WaitForSends();
             var error = await DeskActions.RunAsync("rgb", "preset", "save", label, "--device", device);
             Show(_status, error);
-            if (error is null) { Reload(label); name.Text = ""; }
-        });
-        var delete = Button("Delete", "Forget the chosen colour set", async () =>
-        {
-            if (box.SelectedItem is not string chosen) { Show(_status, "Choose a saved colour set first."); return; }
-            var error = await DeskActions.RunAsync("rgb", "preset", "delete", chosen);
-            Show(_status, error);
-            if (error is null) Reload();
-        });
+            if (error is null) { name.Text = ""; Reload(); }
+        };
         return new StackPanel
         {
             Spacing = 4,
             Children =
             {
-                new TextBlock { Text = "Saved colour sets for this keyboard", FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 8, 0, 0) },
-                new WrapPanel { Children = { box, load, delete } },
-                new WrapPanel { Children = { name, save } },
+                new TextBlock { Text = "Saved looks", FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 8, 0, 4) },
+                empty, chips, name,
             },
         };
     }

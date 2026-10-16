@@ -21,7 +21,7 @@ public static partial class CommandRunner
             case [] or ["status"]:
             {
                 var u = SettingsStore.Load().Unison;
-                c.Out.WriteLine($"unison       {(u.Enabled ? "on" : "off")}, level {u.Level}");
+                c.Out.WriteLine($"unison       {(u.Enabled ? "on" : "off")}, level {u.Level}{(UnisonCalibration.IsActive ? " (calibrating)" : "")}");
                 foreach (var t in Targets(c))
                 {
                     var r = u.RangeOf(t.Key);
@@ -35,6 +35,8 @@ public static partial class CommandRunner
                 SettingsStore.Update(s => s.Unison.Enabled = on);
                 c.Out.WriteLine(on ? "Unison on: brightness keys and the tray's wheel move every display together." : "Unison off.");
                 return Done;
+            case ["calibrate", .. var calibrate]:
+                return CalibrateCommand(calibrate, c);
             case ["up" or "down", .. var rest]:
             {
                 if (!TryStep(rest, out int step)) return Wrong(c, "unison up|down takes a step from 1 to 50");
@@ -63,7 +65,7 @@ public static partial class CommandRunner
                 if (level is < 0 or > 100) return Wrong(c, "unison takes a level from 0 to 100");
                 return SetUnison(level, c);
             default:
-                return Wrong(c, "unison takes on, off, a level from 0 to 100, up|down [step], range DISPLAY MIN MAX or include|exclude DISPLAY");
+                return Wrong(c, "unison takes on, off, a level from 0 to 100, up|down [step], range DISPLAY MIN MAX, calibrate start|capture|cancel or include|exclude DISPLAY");
         }
     }
 
@@ -74,6 +76,7 @@ public static partial class CommandRunner
     /// <paramref name="level"/> within its range.</summary>
     internal static int SetUnison(int level, CommandContext c)
     {
+        if (UnisonCalibration.IsActive) return Refuse(c, "unison is paused for calibration: unison calibrate capture, or cancel");
         var u = SettingsStore.Update(s => s.Unison.Level = level).Unison;
         var failures = new List<string>();
         int written = 0;

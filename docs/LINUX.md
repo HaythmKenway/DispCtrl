@@ -302,6 +302,9 @@ and KDE use too).
 dispctrl-linux unison on
 dispctrl-linux unison 60 | up | down 10
 dispctrl-linux unison range DELL 20 80       a display by part of its name, its lowest and highest
+dispctrl-linux unison calibrate start        walk every display to its dimmest, then brightest, by eye
+dispctrl-linux unison calibrate capture      take what the displays show as the limit; run again for the brightest
+dispctrl-linux unison calibrate cancel       put the displays and the slider back
 dispctrl-linux unison exclude built-in
 dispctrl-linux brightness up | down          every display, through unison when it is on
 dispctrl-linux roomlight on --min 20 --max 100
@@ -395,6 +398,7 @@ dispctrl-linux rgb order RGB|GRB|BGR ...                         colour order of
 dispctrl-linux rgb preset save|apply|delete NAME | list         per-key colour sets, kept for each keyboard
 dispctrl-linux rgb mode "Rainbow Wave"
 dispctrl-linux rgb off
+dispctrl-linux rgb look list | NAME                  ready-made looks: Productivity, Coding, Gaming, Focus, Meow
 dispctrl-linux rgb preset save|apply|delete|list NAME   per-key colour sets for a keyboard
 dispctrl-linux rgb order RGB|GRB|BGR ...        colour order of a device whose colours show wrong
 dispctrl-linux rgb start | setup | udev      start OpenRGB, download it, check the udev rules
@@ -436,7 +440,7 @@ dispctrl-linux darkmode schedule on          dark during night light's hours
 ```
 
 On GNOME it sets the colour scheme and, where the theme has a dark sibling
-(Yaru, Adwaita), the GTK theme with it, as Ubuntu's Appearance page does; on
+(Yaru, Adwaita), the GTK theme with it, as the desktop's own Appearance settings do; on
 KDE the Breeze colour scheme; on XFCE the theme's dark sibling. On a schedule
 it switches at each end of night light's hours only, so a change by hand
 lasts until the next.
@@ -534,6 +538,20 @@ of the screen, and DispCtrl's bar sits just below the top edge.
 Snapping needs the engine, an X11 session and a compositor (GNOME, KDE,
 Cinnamon and most others have one). On Wayland only the compositor may move
 windows, and the section says so.
+
+## Settings and scripts
+
+```
+dispctrl-linux settings get [--path /unison]       every saved setting, or one
+dispctrl-linux settings set --path /unison/level --value 50
+dispctrl-linux settings reset [--path /unison]     one part, or everything
+dispctrl-linux settings export [--output FILE]     validate FILE | import FILE
+dispctrl-linux apply desk.txt [--dry-run]          a file of commands, one a line (# for comments)
+dispctrl-linux commands                            every command word
+```
+
+Paths are the names in `settings.json`, case-insensitive. A value that would
+not load (a word where a number goes) is refused and nothing changes.
 
 ## The engine
 

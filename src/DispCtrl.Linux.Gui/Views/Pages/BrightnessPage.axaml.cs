@@ -80,8 +80,44 @@ public partial class BrightnessPage : UserControl
         };
         cards.Add(Views.CardBuilder.Card(FluentAvalonia.UI.Controls.FASymbol.WeatherPartlyCloudyDay, "Follow the room's light",
             $"Unison follows the ambient light sensor, from {s.RoomLight.Min}% in the dark to {s.RoomLight.Max}% in bright light (iio-sensor-proxy).", room, out roomStatus));
+        cards.Add(CalibrationCard());
         Body.Children.InsertRange(at, cards);
         _unisonReady = true;
+    }
+
+    /// <summary>The walkthrough that gives each display its dimmest and brightest:
+    /// start, match the displays by eye with the sliders above, capture, twice.</summary>
+    private Control CalibrationCard()
+    {
+        var start = new Button { Content = "Calibrate…" };
+        var capture = new Button { Content = "Capture dimmest", IsVisible = false };
+        var cancel = new Button { Content = "Cancel", IsVisible = false };
+        TextBlock status = null!;
+        var buttons = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { start, capture, cancel } };
+        var card = Views.CardBuilder.Card(FluentAvalonia.UI.Controls.FASymbol.Settings, "Calibrate the range",
+            "Take every display to its dimmest, match them by eye with the sliders, capture; then the same for the brightest. Unison then runs each between its own limits.", buttons, out status);
+
+        void Show(bool open, bool upper)
+        {
+            start.IsVisible = !open;
+            capture.IsVisible = cancel.IsVisible = open;
+            capture.Content = upper ? "Capture brightest" : "Capture dimmest";
+        }
+        async Task Run(string verb)
+        {
+            var reply = await CommandSender.RunAsync(["unison", "calibrate", verb]);
+            if (reply.ExitCode != 0) { Views.CardBuilder.Show(status, CommandSender.Reason(reply)); return; }
+            bool open = verb == "start" || (verb == "capture" && reply.Stdout.Contains("Step 2", StringComparison.Ordinal));
+            Show(open, verb == "capture" && open);
+            Views.CardBuilder.Show(status, open ? reply.Stdout.Split('\n')[0].Trim() : null);
+            _ = _desk.RescanAsync();
+        }
+        start.Click += async (_, _) => await Run("start");
+        capture.Click += async (_, _) => await Run("capture");
+        cancel.Click += async (_, _) => await Run("cancel");
+        if (DispCtrl.Linux.Commands.UnisonCalibration.Load() is { } open)
+            Show(true, open.Step == DispCtrl.Linux.Commands.UnisonCalibration.Upper);
+        return card;
     }
 
     private bool _themeReady;

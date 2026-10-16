@@ -64,6 +64,14 @@ public static partial class CommandRunner
                 }
                 return Report(LightingControl.ApplyKeys(entries, device), $"{entries.Count} key{(entries.Count == 1 ? "" : "s")} set.", c);
             }
+            case ["look", "list"]:
+                foreach (var n in KeyLooks.Names) c.Out.WriteLine($"{n,-14}{KeyLooks.Describe(n)}");
+                return Done;
+            case ["look", .. var lname] when lname.Length > 0:
+            {
+                var label = string.Join(' ', lname);
+                return Report(LightingControl.ApplyKeyLook(label, device), $"{label} look applied.", c);
+            }
             case ["preset", "list"]:
                 foreach (var p in settings.KeyPresets) c.Out.WriteLine($"{p.Name}  ({p.Keyboard})");
                 if (settings.KeyPresets.Count == 0) c.Out.WriteLine("No key presets saved: rgb preset save NAME.");

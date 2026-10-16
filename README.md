@@ -61,7 +61,7 @@ The snap cannot reach monitors over DDC/CI under strict confinement. For an exte
 
 ## Getting started
 
-1. Open **DispCtrl** from the applications menu. Its icon appears in the panel's tray; on GNOME that needs the AppIndicator extension, which Ubuntu has on.
+1. Open **DispCtrl** from the applications menu. Its icon appears in the panel's tray; on GNOME that needs the AppIndicator extension (already on in Ubuntu).
 2. Click the icon for the quick panel: a slider for each display, night light, keep awake and the rest.
 3. Run `dispctrl-linux doctor` to see what it can reach, and what to install for what it cannot.
 

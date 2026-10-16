@@ -82,6 +82,31 @@ public static class SettingsStore
         return settings;
     }
 
+    /// <summary>The settings as the file holds them.</summary>
+    public static string ToJson(LinuxSettings settings) => JsonSerializer.Serialize(settings, Options);
+
+    /// <summary>Settings from text, or why it is not settings.</summary>
+    public static bool TryParse(string text, out LinuxSettings settings, out string? error)
+    {
+        settings = new LinuxSettings();
+        try
+        {
+            if (JsonSerializer.Deserialize<LinuxSettings>(text, Options) is not { } parsed) { error = "the text is empty"; return false; }
+            parsed.Normalise();
+            settings = parsed;
+            error = null;
+            return true;
+        }
+        catch (JsonException ex) { error = ex.Message; return false; }
+    }
+
+    /// <summary>Replaces every setting, under the lock.</summary>
+    public static void Replace(LinuxSettings replacement) => Update(s =>
+    {
+        foreach (var property in typeof(LinuxSettings).GetProperties().Where(p => p.CanWrite))
+            property.SetValue(s, property.GetValue(replacement));
+    });
+
     private static void Save(LinuxSettings settings)
     {
         var temp = Path.Combine(Directory, $".settings.{Environment.ProcessId}.tmp");

@@ -178,6 +178,35 @@ public static class LightingControl
         return problems;
     }
 
+    /// <summary>Puts one of the ready-made <see cref="KeyLooks"/> on a keyboard
+    /// with a light for each key: the one chosen, or the first.</summary>
+    public static List<string> ApplyKeyLook(string name, int? device = null)
+    {
+        var settings = SettingsStore.Load().Lighting;
+        var problems = new List<string>();
+        if (!KeyLooks.Names.Any(n => n.Equals(name.Trim(), StringComparison.OrdinalIgnoreCase)))
+        {
+            problems.Add($"no look '{name}': {string.Join(", ", KeyLooks.Names)}");
+            return problems;
+        }
+        try
+        {
+            using var rgb = ConnectOrStart(settings);
+            var devices = rgb.Devices();
+            var target = device is null ? devices.FirstOrDefault(d => d.HasPerKeyLeds) : devices.FirstOrDefault(d => d.Index == device);
+            if (target is null) { problems.Add(device is null ? "no keyboard with a light for each key" : $"no device {device + 1}"); return problems; }
+            if (!target.HasPerKeyLeds) { problems.Add($"{target.Name} cannot light key by key"); return problems; }
+            try { rgb.SetLeds(target, KeyLooks.Colours(name, target)!); }
+            catch (IOException ex) { problems.Add($"{target.Name}: {ex.Message}"); }
+        }
+        catch (Exception ex) when (ex is SocketException or IOException or AggregateException)
+        {
+            Diagnostics.AppLog.Warn("openrgb", $"unreachable: {ex.GetBaseException().Message}");
+            problems.Add(Unreachable(settings));
+        }
+        return problems;
+    }
+
     /// <summary>Puts a saved per-key preset back on its keyboard.</summary>
     public static List<string> ApplyKeyPreset(string name, int? device = null)
     {

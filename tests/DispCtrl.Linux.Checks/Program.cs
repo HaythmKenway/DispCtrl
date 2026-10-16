@@ -54,6 +54,8 @@ try
     Commands();
     LoggingChecks();
     NewFeatureChecks();
+    CalibrationChecks();
+    SettingsCommandChecks();
     MajorReleaseChecks();
     Client();
     EngineProcess();
@@ -445,6 +447,81 @@ void SnapGeometryChecks()
     Check(DispCtrl.Linux.Graphics.DesktopTheme.AccentFrom(null, "Yaru-purple-dark") == DispCtrl.Linux.Graphics.Rgba.Hex("#9141ac")
         && DispCtrl.Linux.Graphics.DesktopTheme.AccentFrom(null, "Yaru-dark") == DispCtrl.Linux.Graphics.Rgba.Hex("#e95420"),
         "theme: Ubuntu's accent comes from the Yaru variant");
+    Check(DispCtrl.Linux.Graphics.DesktopTheme.FontFromQt("Noto Sans,10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1") == "Noto Sans 10"
+        && DispCtrl.Linux.Graphics.DesktopTheme.FontFromQt("") is null,
+        "theme: KDE's font string becomes a cairo font");
+    Check(DispCtrl.Linux.Graphics.DesktopTheme.AccentFromRgb("61,174,233") == new DispCtrl.Linux.Graphics.Rgba(61 / 255.0, 174 / 255.0, 233 / 255.0)
+        && DispCtrl.Linux.Graphics.DesktopTheme.AccentFromRgb("300,1,1") is null
+        && DispCtrl.Linux.Graphics.DesktopTheme.AccentFrom(null, "BreezeDark", kde: true) == DispCtrl.Linux.Graphics.Rgba.Hex("#3daee9"),
+        "theme: Plasma's accent colour is read, and Breeze blue is KDE's fallback");
+}
+
+void SettingsCommandChecks()
+{
+    var dir = Path.Combine(Path.GetTempPath(), "dispctrl-set-" + Guid.NewGuid().ToString("N"));
+    var before = Environment.GetEnvironmentVariable("DISPCTRL_LINUX_CONFIG_DIR");
+    Environment.SetEnvironmentVariable("DISPCTRL_LINUX_CONFIG_DIR", dir);
+    try
+    {
+        int Run(out string text, params string[] args)
+        {
+            var o = new StringWriter();
+            int code = DispCtrl.Linux.Commands.CommandRunner.Run(args, DispCtrl.Linux.Commands.CommandContext.Local(o, o));
+            text = o.ToString();
+            return code;
+        }
+        Check(Run(out _, "settings", "set", "--path", "/unison/level", "--value", "42") == 0 && DispCtrl.Linux.Settings.SettingsStore.Load().Unison.Level == 42,
+            "settings: set a value by its path");
+        Check(Run(out var got, "settings", "get", "--path", "/unison/level") == 0 && got.Trim() == "42", "settings: get it back");
+        Check(Run(out _, "settings", "set", "--path", "/unison/level", "--value", "\"loud\"") != 0 && DispCtrl.Linux.Settings.SettingsStore.Load().Unison.Level == 42,
+            "settings: a value of the wrong kind is refused and nothing changes");
+        Check(Run(out _, "settings", "set", "--path", "/nowhere/at/all", "--value", "1") != 0, "settings: an unknown path is refused");
+        Check(Run(out _, "settings", "reset", "--path", "/unison/level") == 0 && DispCtrl.Linux.Settings.SettingsStore.Load().Unison.Level == 60, "settings: reset one to its default");
+        var file = Path.Combine(dir, "export.json");
+        Check(Run(out _, "settings", "export", "--output", file) == 0 && Run(out _, "settings", "validate", file) == 0, "settings: an export validates");
+        File.WriteAllText(file, "{ nonsense");
+        Check(Run(out _, "settings", "import", file) != 0, "settings: text that is not settings is not imported");
+        var script = Path.Combine(dir, "desk.txt");
+        File.WriteAllText(script, "# a desk\nunison 33 --dry-run\n");
+        Check(Run(out _, "apply", script, "--dry-run") == 0, "apply: a file of commands runs as a dry run");
+        Check(Run(out var list, "commands") == 0 && list.Contains("unison") && list.Contains("settings"), "commands: lists the verbs");
+    }
+    finally
+    {
+        Environment.SetEnvironmentVariable("DISPCTRL_LINUX_CONFIG_DIR", before);
+        try { Directory.Delete(dir, true); } catch (IOException) { }
+    }
+}
+
+void CalibrationChecks()
+{
+    var (range, error) = DispCtrl.Linux.Commands.UnisonCalibration.RangeOf(20, 80);
+    Check(range is { Min: 20, Max: 80 } && error is null, "calibration: two captures make the display's range");
+    Check(DispCtrl.Linux.Commands.UnisonCalibration.RangeOf(60, 60).Range is null
+        && DispCtrl.Linux.Commands.UnisonCalibration.RangeOf(70, 30).Error is not null,
+        "calibration: a brightest at or below the dimmest is refused");
+    var dir = Path.Combine(Path.GetTempPath(), "dispctrl-cal-" + Guid.NewGuid().ToString("N"));
+    var before = Environment.GetEnvironmentVariable("DISPCTRL_LINUX_CONFIG_DIR");
+    Environment.SetEnvironmentVariable("DISPCTRL_LINUX_CONFIG_DIR", dir);
+    try
+    {
+        Check(!DispCtrl.Linux.Commands.UnisonCalibration.IsActive, "calibration: not active at first");
+        new DispCtrl.Linux.Commands.UnisonCalibration { PreviousLevel = 45, Before = { ["ddc:X"] = 33 } }.Save();
+        var back = DispCtrl.Linux.Commands.UnisonCalibration.Load();
+        Check(DispCtrl.Linux.Commands.UnisonCalibration.IsActive && back is { Step: "lower", PreviousLevel: 45 } && back.Before["ddc:X"] == 33,
+            "calibration: the step and where the desk was survive between commands");
+        var output = new StringWriter();
+        var ctx = DispCtrl.Linux.Commands.CommandContext.Local(output, new StringWriter());
+        Check(DispCtrl.Linux.Commands.CommandRunner.SetUnison(50, ctx) == DispCtrl.Linux.Commands.CommandRunner.Refused,
+            "calibration: unison will not move the displays while it is open");
+        DispCtrl.Linux.Commands.UnisonCalibration.Clear();
+        Check(!DispCtrl.Linux.Commands.UnisonCalibration.IsActive, "calibration: ended");
+    }
+    finally
+    {
+        Environment.SetEnvironmentVariable("DISPCTRL_LINUX_CONFIG_DIR", before);
+        try { Directory.Delete(dir, true); } catch (IOException) { }
+    }
 }
 
 void NewFeatureChecks()
@@ -802,6 +879,15 @@ void KeyboardLayoutChecks()
     DispCtrl.Linux.Lighting.KeyCap Cap(string id) => geometry.Keys.Single(k => k.Id == id);
     Check(generic.HasPerKeyLeds && geometry.Source == "matrix order" && geometry.Keys.Count == 126,
         "keyboard layout: a nameless controller's matrix rows are matched to the standard layout, every LED kept");
+    foreach (var look in DispCtrl.Linux.Lighting.KeyLooks.Names)
+    {
+        var colours = DispCtrl.Linux.Lighting.KeyLooks.Colours(look, generic)!;
+        Check(colours.Count == 126 && colours.Values.Distinct().Count() >= 3, $"key looks: {look} colours every LED of a full keyboard in at least three colours");
+    }
+    var productivity = DispCtrl.Linux.Lighting.KeyLooks.Colours("productivity", generic)!;
+    Check(productivity[Cap("esc").Led] == (255, 23, 68) && productivity[Cap("space").Led] == (255, 255, 255) && productivity[Cap("c").Led] == (255, 109, 0),
+        "key looks: Productivity puts red on Esc, white on Space and orange on the shortcut keys, whatever the case of the name");
+    Check(DispCtrl.Linux.Lighting.KeyLooks.Colours("nonsense", generic) is null && DispCtrl.Linux.Lighting.KeyLooks.Names.Count == 5, "key looks: five looks, and an unknown name is refused");
     Check(Cap("a") is { Led: 64, X: 1.75, Y: 3.5, W: 1, OnGrid: true } && Cap("lshift") is { Led: 84, W: 2.25 } && Cap("space") is { Led: 108, W: 6.25 } && Cap("num7").Led == 59,
         "keyboard layout: keys sit at their standard positions and widths");
     Check(geometry.Keys.Count(k => k.OnGrid) == 104 && geometry.Keys.Where(k => !k.OnGrid).All(k => k.Y >= 6.5) && Math.Abs(geometry.Width - 22.5) < 1e-9,

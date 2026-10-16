@@ -1,3 +1,11 @@
+DispCtrl for Linux 1.1.0 brings the settings and unison features of the Windows app, and five ready-made keyboard looks:
+
+- **Five keyboard looks:** Productivity, Coding, Gaming, Focus and Meow, one click each on the Lighting page or `rgb look NAME`. They are worked out from the keyboard's layout, so they fit a 60%, a tenkeyless and a full board. Saved colour sets are now one-click chips, and the Lighting and Presets pages have far fewer buttons.
+- **Unison calibration:** a two-step walkthrough (dimmest, then brightest) on the Brightness page, or `unison calibrate start|capture|cancel|status`, so every display matches at every level.
+- **`settings`, `apply` and `commands`:** read, change, export, validate and import every setting, and run a script of commands with a dry run, as on Windows. `topology` prints the displays' layout.
+- **Any desktop's look:** the theme, accent and font are read on GNOME, KDE, XFCE, Cinnamon, MATE and Budgie, not only GNOME.
+- **A smaller package:** Windows-only and debugging files are left out.
+
 DispCtrl for Linux 1.0.4 makes the keyboard editor easier and the colours true:
 
 - **Colours match the keyboard:** some LEDs take their colours in another order, so red showed as green. A device's colour order can be set with `rgb order`, or found by asking what the keyboard shows; EVision keyboards start as GRB.
