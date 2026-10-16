@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DispCtrl for Linux packages</title>
+<style>
+  :root { --bg: #fafafa; --fg: #1b1b1b; --dim: #5c5c5c; --code: #efefef; --a: #6b3fd6; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #1c1c1c; --fg: #ececec; --dim: #a8a8a8; --code: #2a2a2a; --a: #b49aff; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 16px 60px; }
+  h1 { font-size: 28px; margin: 0 0 4px; } h2 { font-size: 19px; margin: 32px 0 8px; }
+  p { color: var(--dim); margin: 6px 0 12px; } a { color: var(--a); }
+  pre { background: var(--code); padding: 12px 14px; border-radius: 8px; overflow-x: auto; font-size: 13.5px; }
+</style>
+</head>
+<body>
+<main>
+<h1>DispCtrl for Linux packages</h1>
+<p>Signed apt and dnf repositories for <a href="https://github.com/HaythmKenway/DispCtrl-linux">DispCtrl for Linux</a>, serving @TAG@. Updates arrive with the system's own.</p>
+
+<h2>Debian, Ubuntu, Mint, Pop!_OS</h2>
+<pre>curl -fsSL https://haythmkenway.github.io/DispCtrl-linux/dispctrl-linux.gpg | sudo tee /usr/share/keyrings/dispctrl-linux.gpg &gt;/dev/null
+echo "deb [signed-by=/usr/share/keyrings/dispctrl-linux.gpg] https://haythmkenway.github.io/DispCtrl-linux/apt stable main" | sudo tee /etc/apt/sources.list.d/dispctrl-linux.list
+sudo apt update &amp;&amp; sudo apt install dispctrl-linux</pre>
+
+<h2>Fedora, RHEL, Rocky, Alma</h2>
+<pre>sudo curl -fsSL https://haythmkenway.github.io/DispCtrl-linux/rpm/dispctrl-linux.repo -o /etc/yum.repos.d/dispctrl-linux.repo
+sudo dnf install dispctrl-linux</pre>
+
+<h2>openSUSE</h2>
+<pre>sudo zypper addrepo https://haythmkenway.github.io/DispCtrl-linux/rpm/dispctrl-linux.repo
+sudo zypper install dispctrl-linux</pre>
+
+<p>Signing key fingerprint: <code>392A 1EEB 594E C9FB 0300 BC66 A1AE 3F54 9366 D3D9</code> (<a href="dispctrl-linux.asc">ASCII</a>, <a href="dispctrl-linux.gpg">binary</a>). Other ways to install, the snap included: <a href="https://github.com/HaythmKenway/DispCtrl-linux/blob/master/docs/LINUX.md#install">the guide</a>.</p>
+</main>
+</body>
+</html>

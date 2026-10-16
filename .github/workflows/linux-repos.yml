@@ -92,8 +92,8 @@ jobs:
       - name: Keys and the front page
         run: |
           cp build/packaging/linux/repo/dispctrl-linux.asc build/packaging/linux/repo/dispctrl-linux.gpg _site/
-          cp build/packaging/linux/repo/index.html _site/
-          sed -i "s/@TAG@/$TAG/g" _site/index.html
+          cp build/packaging/linux/repo/index.html build/packaging/linux/repo/packages.html _site/
+          sed -i "s/@TAG@/$TAG/g" _site/packages.html
           touch _site/.nojekyll
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
