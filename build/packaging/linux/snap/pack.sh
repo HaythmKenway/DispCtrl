@@ -6,8 +6,7 @@
 #   build/packaging/linux/snap/pack.sh --platform arm64     (on an arm64 machine or builder)
 #   build/packaging/linux/snap/pack.sh --docker              in Canonical's snapcraft image
 #
-# snapcraft wants its file at a project's root (snap/snapcraft.yaml), and the
-# repository root stays lean, so it gets a copy of the tree instead: the files
+# snapcraft gets a copy of the tree rather than the checkout itself: the files
 # git tracks plus new ones it does not ignore, which leaves out bin/ and obj/
 # (a Windows obj/ restored for other paths breaks the Linux restore) and
 # keeps snapcraft's parts/, stage/ and prime/ out of the repository.
@@ -29,7 +28,6 @@ cd "$repo"
 git ls-files -z --cached --others --exclude-standard \
   | while IFS= read -r -d '' f; do [[ -f $f ]] && printf '%s\0' "$f"; done \
   | xargs -0 cp --parents -t "$work"
-cp "$repo/build/packaging/linux/snap/snapcraft.yaml" "$work/snap/snapcraft.yaml"
 chmod 0755 "$work/build/packaging/linux/snap/launch"
 
 cd "$work"

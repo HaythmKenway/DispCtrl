@@ -120,7 +120,7 @@ unifying the two wire formats is future work, not done here.
 
 ## Snap packaging
 
-`build/packaging/linux/snap/snapcraft.yaml`, built by `pack.sh` beside it (in
+`snap/snapcraft.yaml`, built by `build/packaging/linux/snap/pack.sh` (in
 LXD, Multipass, or `--docker` in Canonical's snapcraft image). What was
 decided, and why:
 
