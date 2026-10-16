@@ -1,7 +1,8 @@
-# The Snap Store package of DispCtrl for Linux. Built with pack.sh beside it,
-# which hands snapcraft a clean copy of the repository with this file as its
-# snap/snapcraft.yaml: snapcraft only looks for one at a project's root, and
-# the root is kept lean.
+# The Snap Store package of DispCtrl for Linux. snapcraft only looks for
+# snap/snapcraft.yaml at a project's root, so that path is a symlink to this
+# file: the Store's build from GitHub finds it there, and the rest of the
+# packaging stays under build/. pack.sh beside it builds locally from a clean
+# copy of the repository, which keeps bin/ and obj/ out.
 #
 # Strict confinement, without DDC/CI. What that costs, and why classic is not
 # on offer, is in docs/design/LINUX-PORT.md ("Snap packaging"); in short:
