@@ -11,6 +11,17 @@ internal static class PageCapture
 {
     private static readonly string[] Pages = ["displays", "brightness", "care", "lighting", "presets", "automation", "settings"];
 
+    private static Task Save(Avalonia.Controls.Window window, string path) => Dispatcher.UIThread.InvokeAsync(() =>
+    {
+        var size = new PixelSize((int)window.Bounds.Width, (int)window.Bounds.Height);
+        using var bitmap = new RenderTargetBitmap(size, new Vector(96, 96));
+        bitmap.Render(window);
+        using var file = File.Create(path);
+#pragma warning disable CS0618
+        bitmap.Save(file);
+#pragma warning restore CS0618
+    }, DispatcherPriority.Render).GetTask();
+
     public static async Task RunAsync(IClassicDesktopStyleApplicationLifetime desktop, string folder)
     {
         try
@@ -30,17 +41,12 @@ internal static class PageCapture
                 await Task.Delay(3500);
                 window.EngineBanner.IsVisible = false;
                 window.InstallBanner.IsVisible = false;
-                await Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    var size = new PixelSize((int)window.Bounds.Width, (int)window.Bounds.Height);
-                    using var bitmap = new RenderTargetBitmap(size, new Vector(96, 96));
-                    bitmap.Render(window);
-                    using var file = File.Create(Path.Combine(folder, page + ".png"));
-                    #pragma warning disable CS0618
-                    bitmap.Save(file);
-#pragma warning restore CS0618
-                }, DispatcherPriority.Render);
+                await Save(window, Path.Combine(folder, page + ".png"));
             }
+            var panel = new Views.QuickPanel();
+            panel.Show();
+            await Task.Delay(3500);
+            await Save(panel, Path.Combine(folder, "quick-panel.png"));
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {

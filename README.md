@@ -15,6 +15,10 @@ from a window, a tray icon with a quick panel, and a scriptable command line.
 
 [Install](#install) · [Getting started](#getting-started) · [Guide](docs/LINUX.md)
 
+<br>
+
+<img src="docs/images/linux/hero.png" alt="The DispCtrl window with the quick panel open in front of it" width="100%">
+
 </div>
 
 ## What it does
@@ -27,12 +31,54 @@ from a window, a tray icon with a quick panel, and a scriptable command line.
 - **Screen care**: keep awake, Stay active (a one-pixel nudge after 55 seconds still), OLED care, Focus mode, monitor sleep, turning the displays off.
 - **Every display together**: unison brightness, each display in its own range, and room light from the ambient light sensor.
 - **Automation**: hotkeys for any command, features (named steps) and triggers; presets that apply when a desk connects or an app is in front.
-- **RGB lighting** for keyboards, mice, fans and strips, through OpenRGB: per-key colours on a drawn keyboard, saved colour sets, and a fix for colours that show in the wrong order.
+- **RGB lighting** for keyboards, mice, fans and strips, through OpenRGB: per-key colours on a drawn keyboard, five ready-made looks (Productivity, Coding, Gaming, Focus, Meow), saved colour sets, and a fix for colours that show in the wrong order.
 - **Window tools**: pin on top, gather, move a window to another display, span.
 - **Snap layouts and Snap Assist**: drag a window to the top centre, or press Super+Z.
 - **A tray icon and quick panel** with all of it one click away, and `dispctrl-linux` for scripts.
 
 It needs an X11 session for most of this; on Wayland the compositor keeps gamma and window placement to itself, and brightness still works. The [guide](docs/LINUX.md) has everything, feature by feature.
+
+## A tour
+
+### The quick panel
+
+Click the tray icon: a slider for every display, then night light, keep awake and the rest a fold away.
+
+<div align="center">
+<img src="docs/images/linux/quick-panel.png" alt="The quick panel: quick toggles, a brightness slider for each display and night light" width="300">
+</div>
+
+### The app
+
+<table>
+<tr>
+<td width="50%" valign="top"><b>Displays</b>: the arrangement at real size<br><br>
+<img src="docs/images/linux/displays.png" alt="The Displays page with the arrangement of two displays" width="100%"></td>
+<td width="50%" valign="top"><b>Brightness</b>: unison, calibration, night light<br><br>
+<img src="docs/images/linux/brightness.png" alt="The Brightness page with unison brightness, calibration and night light" width="100%"></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><b>Screen care</b>: keep awake, OLED care, focus<br><br>
+<img src="docs/images/linux/care.png" alt="The Screen care page with keep awake and OLED care" width="100%"></td>
+<td width="50%" valign="top"><b>Lighting</b>: colours, looks and a key-by-key keyboard<br><br>
+<img src="docs/images/linux/lighting.png" alt="The Lighting page with colours and the keyboard editor" width="100%"></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><b>Presets</b>: a whole desk, saved<br><br>
+<img src="docs/images/linux/presets.png" alt="The Presets page with saved and ready-made presets" width="100%"></td>
+<td width="50%" valign="top"><b>Automation</b>: hotkeys, features, triggers<br><br>
+<img src="docs/images/linux/automation.png" alt="The Automation page with hotkeys and triggers" width="100%"></td>
+</tr>
+</table>
+
+<details>
+<summary><b>More screenshots</b>: Settings</summary>
+
+<br>
+
+<img src="docs/images/linux/settings.png" alt="The Settings page: the engine, the tray and updates" width="50%">
+
+</details>
 
 ## Install
 
@@ -57,7 +103,7 @@ openSUSE and the key's fingerprint are in [the install guide](docs/LINUX.md#from
 
 Install one way only: the snap, the packages and the tarball refuse to sit side by side.
 
-The snap cannot reach monitors over DDC/CI under strict confinement. For an external monitor's own brightness and controls, build the `.deb`, `.rpm` or tarball (below; with .NET inside, for x86-64 and 64-bit ARM); they will be attached to this repository's releases from the first one. [Install](docs/LINUX.md#install) has the details.
+The snap cannot reach monitors over DDC/CI under strict confinement. For an external monitor's own brightness and controls, use the `.deb`, `.rpm` or tarball from the [releases](https://github.com/HaythmKenway/DispCtrl-linux/releases) (with .NET inside, for x86-64 and 64-bit ARM). [Install](docs/LINUX.md#install) has the details.
 
 ## Getting started
 
