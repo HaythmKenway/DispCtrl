@@ -331,7 +331,7 @@ public sealed class KeyboardEditor : StackPanel
         var devices = await Task.Run(() =>
         {
             try { using var rgb = LightingControl.Connect(SettingsStore.Load().Lighting); return rgb.Devices(); }
-            catch (Exception ex) when (ex is System.Net.Sockets.SocketException or IOException or AggregateException) { return null; }
+            catch (Exception ex) when (LightingControl.IsRecoverable(ex)) { return null; }
         });
         if (devices?.FirstOrDefault(d => d.Index == _device.Index) is not { Colours: { } held }) return;
         for (int i = 0; i < _device.LedCount && i < held.Count; i++)

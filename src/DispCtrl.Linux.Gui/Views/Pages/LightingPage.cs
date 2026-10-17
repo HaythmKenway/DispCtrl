@@ -80,30 +80,68 @@ public sealed class LightingPage : UserControl
         _controls.Children.Add(heading);
         _controls.Children.Add(_devices);
         _controls.IsVisible = false;
-        AttachedToVisualTree += (_, _) => _ = LoadAsync();
+        Action stale = () => Avalonia.Threading.Dispatcher.UIThread.Post(() => _ = LoadAsync());
+        AttachedToVisualTree += (_, _) => { DeskActions.LightingStale += stale; _ = LoadAsync(); };
+        DetachedFromVisualTree += (_, _) => DeskActions.LightingStale -= stale;
     }
 
+    private int _generation;
+
+    /// <summary>Looks for the devices and draws the page. Never throws: a failure
+    /// of any kind ends as the page saying what happened and how to try again,
+    /// not as a blank page. Only the newest of overlapping calls (the page
+    /// opening, a refresh, a command that lost OpenRGB) draws.</summary>
     private async Task LoadAsync()
+    {
+        int mine = ++_generation;
+        try { await LoadCoreAsync(mine); }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            DispCtrl.Linux.Diagnostics.AppLog.Error("gui", "lighting page failed to draw", ex);
+            if (mine != _generation) return;
+            _devices.Children.Clear();
+            _controls.IsVisible = false;
+            _setup.IsVisible = true;
+            _start.IsEnabled = true;
+            _setupStatus.Text = $"The lighting page could not be drawn ({ex.GetBaseException().Message}). Press Try again; if it keeps happening, dispctrl-linux report collects the log.";
+        }
+    }
+
+    private async Task LoadCoreAsync(int mine)
     {
         var settings = SettingsStore.Load().Lighting;
         IReadOnlyList<RgbDevice>? devices;
         try
         {
-            devices = await Task.Run(() =>
+            var read = Task.Run(() =>
             {
                 using var rgb = LightingControl.Connect(settings);
                 return rgb.Devices();
             });
+            // A server that accepts and then says nothing must not leave the page empty.
+            if (await Task.WhenAny(read, Task.Delay(TimeSpan.FromSeconds(20))) != read)
+            {
+                _ = read.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+                throw new TimeoutException("OpenRGB did not finish listing its devices");
+            }
+            devices = await read;
         }
-        catch (Exception ex) when (ex is SocketException or IOException or AggregateException)
+        catch (Exception ex) when (LightingControl.IsRecoverable(ex))
         {
+            DispCtrl.Linux.Diagnostics.AppLog.Warn("gui", $"lighting: OpenRGB not usable: {ex.GetBaseException().Message}");
             devices = null;
         }
+        if (mine != _generation) return;
         _devices.Children.Clear();
         // Without OpenRGB nothing here can work: one card that says how to get
         // it, rather than controls that only answer with errors.
         _setup.IsVisible = devices is null;
-        var kernel = devices is null ? SysfsLeds.Enumerate() : [];
+        IReadOnlyList<KeyboardLed> kernel = [];
+        if (devices is null)
+        {
+            try { kernel = SysfsLeds.Enumerate(); }
+            catch (Exception ex) when (LightingControl.IsRecoverable(ex)) { DispCtrl.Linux.Diagnostics.AppLog.Warn("gui", $"lighting: kernel LEDs unreadable: {ex.Message}"); }
+        }
         _controls.IsVisible = devices is not null || kernel.Count > 0;
         _start.Content = OpenRgbSetup.Find() is null && OpenRgbSetup.SnapLimit() is null ? "Set up lighting" : "Start lighting";
         _start.IsEnabled = OpenRgbSetup.SnapLimit() is null;
@@ -122,7 +160,20 @@ public sealed class LightingPage : UserControl
         if (devices.Count == 0) _devices.Children.Add(Caption("OpenRGB is running and found no lighting devices."));
         foreach (var d in devices)
         {
-            var effects = new ComboBox { ItemsSource = d.Modes.Select(m => m.Name).ToList(), SelectedIndex = d.ActiveMode };
+            try { AddDevice(d); }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                // One device that cannot be drawn must not take the others with it.
+                DispCtrl.Linux.Diagnostics.AppLog.Error("gui", $"lighting: could not draw {d.Name}", ex);
+                _devices.Children.Add(Caption($"{d.Name} could not be shown ({ex.GetBaseException().Message})."));
+            }
+        }
+    }
+
+    private void AddDevice(RgbDevice d)
+    {
+        {
+            var effects = new ComboBox { ItemsSource = d.Modes.Select(m => m.Name).ToList(), SelectedIndex = d.ActiveMode >= 0 && d.ActiveMode < d.Modes.Count ? d.ActiveMode : -1 };
             TextBlock status = null!;
             int device = d.Index + 1;
             effects.SelectionChanged += async (_, _) =>
@@ -132,7 +183,7 @@ public sealed class LightingPage : UserControl
             };
             // A light for each key: the keyboard itself, to colour key by key.
             var header = Card(Icon(d.Type), d.Name, $"{d.Vendor} {d.TypeName}, {d.LedCount} LEDs".Trim(), effects, out status);
-            if (!d.HasPerKeyLeds) { _devices.Children.Add(header); continue; }
+            if (!d.HasPerKeyLeds) { _devices.Children.Add(header); return; }
             // The editor gets a card of its own, the full width: beside the effect
             // picker it was squeezed into the text column and its numpad was cut off.
             var editor = new Border { Classes = { "card" }, Margin = new Thickness(0, 4, 0, 12), Child = new KeyboardEditor(d) };
@@ -149,7 +200,7 @@ public sealed class LightingPage : UserControl
     {
         var error = await DeskActions.RunAsync(args);
         Show(status, error);
-        if (error is not null && error.Contains("does not answer", StringComparison.Ordinal)) await LoadAsync();
+        if (error is not null && error.Contains("OpenRGB", StringComparison.Ordinal)) await LoadAsync();
     }
 
     /// <summary>What to do when OpenRGB does not answer: get it, switch its
@@ -218,6 +269,11 @@ public sealed class LightingPage : UserControl
                 return started.Ok ? OpenRgbSetup.UdevAdvice(OpenRgbSetup.Find()) is { } udev ? started.Message + " " + udev : started.Message : started.Message;
             });
             _setupStatus.Text = message;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            DispCtrl.Linux.Diagnostics.AppLog.Error("gui", "starting lighting failed", ex);
+            _setupStatus.Text = $"Lighting could not be started ({ex.GetBaseException().Message}). Press Try again, or start OpenRGB yourself with its SDK server on.";
         }
         finally { _start.IsEnabled = OpenRgbSetup.SnapLimit() is null; }
         await LoadAsync();

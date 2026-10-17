@@ -34,6 +34,14 @@ public static class LightingControl
                 ? $"OpenRGB's SDK server does not answer at {s.Host}:{s.Port}: dispctrl-linux rgb start starts it"
                 : $"OpenRGB's SDK server does not answer at {s.Host}:{s.Port} and no OpenRGB is installed: dispctrl-linux rgb setup downloads the official one";
 
+    /// <summary>What to tell a person when talking to OpenRGB failed: that it is
+    /// not there, or that it is and answered in a way that could not be used, which
+    /// is a different thing to fix.</summary>
+    public static string Failure(LightingSettings s, Exception ex) =>
+        ex.GetBaseException() is SocketException || ex is AggregateException { InnerException: SocketException }
+            ? Unreachable(s)
+            : $"OpenRGB's SDK server at {s.Host}:{s.Port} did not answer usefully ({ex.GetBaseException().Message}): look again, or restart OpenRGB (dispctrl-linux rgb start)";
+
     public static OpenRgb Connect(LightingSettings s)
     {
         var rgb = OpenRgb.Connect(s.Host, s.Port);
@@ -50,11 +58,42 @@ public static class LightingControl
         return deviceName.StartsWith("EVision", StringComparison.OrdinalIgnoreCase) ? "GRB" : "RGB";
     }
 
+    /// <summary>Whether a failure talking to OpenRGB (or the kernel's LEDs) is one
+    /// to report and carry on from: any of them is, since a lighting command must
+    /// never take the engine or the window down. Only memory exhaustion is not.</summary>
+    public static bool IsRecoverable(Exception ex) => ex is not (OutOfMemoryException or AccessViolationException);
+
+    /// <summary>Connects and lists the devices, trying again a little later when
+    /// OpenRGB answers badly or has not finished scanning (it lists none for a
+    /// moment after it starts). A server that is simply not there is not retried:
+    /// <see cref="ConnectOrStart"/> has already tried to start it.</summary>
+    public static OpenRgb OpenSession(LightingSettings s, out IReadOnlyList<RgbDevice> devices)
+    {
+        const int attempts = 3;
+        for (int attempt = 1; ; attempt++)
+        {
+            OpenRgb? rgb = null;
+            try
+            {
+                rgb = ConnectOrStart(s);
+                devices = rgb.Devices();
+                if (devices.Count > 0 || attempt == attempts) return rgb;
+            }
+            catch (Exception ex) when (IsRecoverable(ex) && attempt < attempts && ex.GetBaseException() is not SocketException)
+            {
+                Diagnostics.AppLog.Warn("openrgb", $"attempt {attempt} failed, trying again: {ex.GetBaseException().Message}");
+            }
+            rgb?.Dispose();
+            Thread.Sleep(300 * attempt);
+        }
+    }
+
     /// <summary>Connects, starting OpenRGB once first when it is not running and settings allow, so a command just works.</summary>
     public static OpenRgb ConnectOrStart(LightingSettings s)
     {
+        OpenRgbSetup.RestartIfStale(s);
         try { return Connect(s); }
-        catch (Exception ex) when (ex is SocketException or IOException or AggregateException)
+        catch (Exception ex) when (IsRecoverable(ex))
         {
             if (!OpenRgbSetup.AutoStart(s)) throw;
             return Connect(s);
@@ -76,8 +115,8 @@ public static class LightingControl
         var notes = new List<string>();
         try
         {
-            using var rgb = ConnectOrStart(settings);
-            var devices = rgb.Devices().Where(d => device is null || d.Index == device).ToList();
+            using var rgb = OpenSession(settings, out var all);
+            var devices = all.Where(d => device is null || d.Index == device).ToList();
             if (devices.Count == 0)
             {
                 if (SysfsLeds.Enumerate().Count > 0) return ApplyKernel(what, device, settings);
@@ -107,11 +146,11 @@ public static class LightingControl
             }
             if (device is null && problems.Count == 0) SettingsStore.Update(s => s.Lighting.Last = what);
         }
-        catch (Exception ex) when (ex is SocketException or IOException or AggregateException)
+        catch (Exception ex) when (IsRecoverable(ex))
         {
             if (SysfsLeds.Enumerate().Count > 0) return ApplyKernel(what, device, settings);
             Diagnostics.AppLog.Warn("openrgb", $"unreachable: {ex.GetBaseException().Message}");
-            problems.Add(Unreachable(settings));
+            problems.Add(Failure(settings, ex));
         }
         return new(problems, notes);
     }
@@ -125,8 +164,7 @@ public static class LightingControl
         var problems = new List<string>();
         try
         {
-            using var rgb = ConnectOrStart(settings);
-            var devices = rgb.Devices();
+            using var rgb = OpenSession(settings, out var devices);
             var target = device is null ? devices.FirstOrDefault(d => d.HasPerKeyLeds) : devices.FirstOrDefault(d => d.Index == device);
             if (target is null) { problems.Add(device is null ? "no keyboard with a light for each key" : $"no device {device + 1}"); return problems; }
             if (target.LedCount < 2) { problems.Add($"{target.Name} has one light: use rgb colour"); return problems; }
@@ -141,10 +179,10 @@ public static class LightingControl
             try { rgb.SetLeds(target, colours); }
             catch (IOException ex) { problems.Add($"{target.Name}: {ex.Message}"); }
         }
-        catch (Exception ex) when (ex is SocketException or IOException or AggregateException)
+        catch (Exception ex) when (IsRecoverable(ex))
         {
             Diagnostics.AppLog.Warn("openrgb", $"unreachable: {ex.GetBaseException().Message}");
-            problems.Add(Unreachable(settings));
+            problems.Add(Failure(settings, ex));
         }
         return problems;
     }
@@ -157,8 +195,7 @@ public static class LightingControl
         var problems = new List<string>();
         try
         {
-            using var rgb = ConnectOrStart(settings);
-            var devices = rgb.Devices();
+            using var rgb = OpenSession(settings, out var devices);
             var target = device is null ? devices.FirstOrDefault(d => d.HasPerKeyLeds) : devices.FirstOrDefault(d => d.Index == device);
             if (target is null) { problems.Add(device is null ? "no keyboard with a light for each key" : $"no device {device + 1}"); return problems; }
             var held = target.Colours;
@@ -170,10 +207,10 @@ public static class LightingControl
                 s.Lighting.KeyPresets.Add(new KeyPreset { Name = name, Keyboard = target.Name, Colours = colours });
             });
         }
-        catch (Exception ex) when (ex is SocketException or IOException or AggregateException)
+        catch (Exception ex) when (IsRecoverable(ex))
         {
             Diagnostics.AppLog.Warn("openrgb", $"unreachable: {ex.GetBaseException().Message}");
-            problems.Add(Unreachable(settings));
+            problems.Add(Failure(settings, ex));
         }
         return problems;
     }
@@ -191,18 +228,17 @@ public static class LightingControl
         }
         try
         {
-            using var rgb = ConnectOrStart(settings);
-            var devices = rgb.Devices();
+            using var rgb = OpenSession(settings, out var devices);
             var target = device is null ? devices.FirstOrDefault(d => d.HasPerKeyLeds) : devices.FirstOrDefault(d => d.Index == device);
             if (target is null) { problems.Add(device is null ? "no keyboard with a light for each key" : $"no device {device + 1}"); return problems; }
             if (!target.HasPerKeyLeds) { problems.Add($"{target.Name} cannot light key by key"); return problems; }
             try { rgb.SetLeds(target, KeyLooks.Colours(name, target)!); }
             catch (IOException ex) { problems.Add($"{target.Name}: {ex.Message}"); }
         }
-        catch (Exception ex) when (ex is SocketException or IOException or AggregateException)
+        catch (Exception ex) when (IsRecoverable(ex))
         {
             Diagnostics.AppLog.Warn("openrgb", $"unreachable: {ex.GetBaseException().Message}");
-            problems.Add(Unreachable(settings));
+            problems.Add(Failure(settings, ex));
         }
         return problems;
     }
@@ -214,8 +250,7 @@ public static class LightingControl
         var problems = new List<string>();
         try
         {
-            using var rgb = ConnectOrStart(settings);
-            var devices = rgb.Devices();
+            using var rgb = OpenSession(settings, out var devices);
             var presets = settings.KeyPresets.Where(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase)).ToList();
             var target = device is not null ? devices.FirstOrDefault(d => d.Index == device)
                 : devices.FirstOrDefault(d => presets.Any(p => p.Keyboard == d.Name));
@@ -228,10 +263,10 @@ public static class LightingControl
             try { rgb.SetLeds(target, colours); }
             catch (IOException ex) { problems.Add($"{target.Name}: {ex.Message}"); }
         }
-        catch (Exception ex) when (ex is SocketException or IOException or AggregateException)
+        catch (Exception ex) when (IsRecoverable(ex))
         {
             Diagnostics.AppLog.Warn("openrgb", $"unreachable: {ex.GetBaseException().Message}");
-            problems.Add(Unreachable(settings));
+            problems.Add(Failure(settings, ex));
         }
         return problems;
     }

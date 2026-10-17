@@ -91,7 +91,7 @@ public static class SysfsLeds
             error = null;
             return true;
         }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+        catch (Exception ex) when (LightingControl.IsRecoverable(ex))
         {
             error = "the colour needs write access to multi_intensity (install OpenRGB with dispctrl-linux rgb setup, or add a udev rule for it)";
             return false;
@@ -147,6 +147,6 @@ public static class SysfsLeds
     {
         value = 0;
         try { return int.TryParse(File.ReadAllText(path).Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+        catch (Exception ex) when (LightingControl.IsRecoverable(ex)) { return false; }
     }
 }

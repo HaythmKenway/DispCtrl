@@ -14,13 +14,34 @@ public static class DeskActions
     /// read the new state back.</summary>
     public static event Action? Changed;
 
+    /// <summary>Raised when a lighting command shows the device list on screen is out of date.</summary>
+    public static event Action? LightingStale;
+
     /// <summary>Runs a command and raises <see cref="Changed"/>; the reason it
     /// was refused, or null.</summary>
     public static async Task<string?> RunAsync(params string[] args)
     {
-        var reply = await CommandSender.RunAsync(args);
-        Changed?.Invoke();
-        return reply.ExitCode == 0 ? null : CommandSender.Reason(reply);
+        try
+        {
+            var reply = await CommandSender.RunAsync(args);
+            Changed?.Invoke();
+            if (reply.ExitCode == 0) return null;
+            var reason = CommandSender.Reason(reply);
+            // OpenRGB numbers its devices afresh when it restarts or rescans, so a
+            // page drawn before then points at the wrong ones: it must look again.
+            if (args.FirstOrDefault() is "rgb" or "lighting" && (reason.Contains("OpenRGB", StringComparison.Ordinal)
+                || reason.Contains("no device", StringComparison.Ordinal) || reason.Contains("key by key", StringComparison.Ordinal)
+                || reason.Contains("has one light", StringComparison.Ordinal) || reason.Contains("no keyboard", StringComparison.Ordinal)))
+                LightingStale?.Invoke();
+            return reason;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // The engine's socket dying mid-command, or a command that threw: said
+            // in the status line under the control, not left to close the window.
+            DispCtrl.Linux.Diagnostics.AppLog.Error("gui", $"'{args.FirstOrDefault()}' failed", ex);
+            return $"That did not work ({ex.GetBaseException().Message}). Try again; if it keeps happening, dispctrl-linux report collects the log.";
+        }
     }
 
     public static Task<string?> NightLight(bool on) => RunAsync("nightlight", on ? "on" : "off");

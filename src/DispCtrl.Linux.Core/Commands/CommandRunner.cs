@@ -138,6 +138,14 @@ public static partial class CommandRunner
             context.Err.WriteLine($"dispctrl-linux: {ex.Message}");
             return Refused;
         }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Whatever was not foreseen is answered, and logged for the problem
+            // report, rather than ending the engine's connection or the window.
+            AppLog.Error("command", $"'{args[0]}' failed unexpectedly", ex);
+            context.Err.WriteLine($"dispctrl-linux: '{args[0]}' failed unexpectedly ({ex.GetType().Name}: {ex.Message}); the details are in the log (dispctrl-linux logs)");
+            return Refused;
+        }
     }
 
     public const string UsageText = """

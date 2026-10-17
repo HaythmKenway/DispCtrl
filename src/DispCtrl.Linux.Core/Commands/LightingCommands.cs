@@ -23,8 +23,7 @@ public static partial class CommandRunner
             case [] or ["list"]:
                 try
                 {
-                    using var rgb = LightingControl.ConnectOrStart(settings);
-                    var devices = rgb.Devices();
+                    using var rgb = LightingControl.OpenSession(settings, out var devices);
                     if (devices.Count == 0 && ListKernelLeds(c, "OpenRGB is running and found no lighting devices")) return Done;
                     if (devices.Count == 0) c.Out.WriteLine("OpenRGB is running and found no lighting devices.");
                     foreach (var dev in devices)
@@ -37,10 +36,10 @@ public static partial class CommandRunner
                     if (settings.Last is { } last) c.Out.WriteLine($"\nlast set     {last}");
                     return Done;
                 }
-                catch (Exception ex) when (ex is SocketException or IOException or AggregateException)
+                catch (Exception ex) when (LightingControl.IsRecoverable(ex))
                 {
                     if (ListKernelLeds(c, "OpenRGB is not running")) return Done;
-                    return Refuse(c, LightingControl.Unreachable(settings));
+                    return Refuse(c, LightingControl.Failure(settings, ex));
                 }
             case ["colour" or "color", var colour]:
                 if (!LightingControl.TryColour(colour, out _)) return Wrong(c, $"'{colour}' is not a colour: #RRGGBB or {string.Join(", ", LightingControl.Named.Keys)}");
@@ -93,17 +92,16 @@ public static partial class CommandRunner
             {
                 try
                 {
-                    using var rgb = LightingControl.ConnectOrStart(settings);
-                    var devices = rgb.Devices();
+                    using var rgb = LightingControl.OpenSession(settings, out var devices);
                     var target = device is null ? devices.FirstOrDefault(d => d.LedCount > 1) : devices.FirstOrDefault(d => d.Index == device);
                     if (target is null) return Refuse(c, "no such device: rgb list shows the numbers");
                     SettingsStore.Update(s => s.Lighting.ColourOrders[target.Name] = normal);
                     c.Out.WriteLine($"{target.Name}: colour order {normal}. Try rgb colour red; if the keyboard shows another colour, try another order (RGB, GRB, BGR ...).");
                     return Done;
                 }
-                catch (Exception ex) when (ex is SocketException or IOException or AggregateException)
+                catch (Exception ex) when (LightingControl.IsRecoverable(ex))
                 {
-                    return Refuse(c, LightingControl.Unreachable(settings));
+                    return Refuse(c, LightingControl.Failure(settings, ex));
                 }
             }
             case ["off"]:

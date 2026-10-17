@@ -857,6 +857,39 @@ void OpenRgbChecks()
     listener.Stop();
     Check(leds.Count == 1 && BitConverter.ToUInt16(leds[0], 4) == 3 && leds[0][6] == 0xFF && leds[0][7] == 0x93 && leds[0][8] == 0x29,
         "openrgb: a colour reaches every LED, after the handshake settles on protocol 3");
+
+    // Something other than OpenRGB on the port, and a device it cannot describe
+    // properly: both end as an IOException the callers already report, never a crash.
+    var junk = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+    junk.Start();
+    var junkServer = Task.Run(() =>
+    {
+        using var client = junk.AcceptTcpClient();
+        client.GetStream().Write(new byte[32]);
+        Thread.Sleep(500);
+    });
+    bool refused = false;
+    try { DispCtrl.Linux.Lighting.OpenRgb.Connect("127.0.0.1", ((System.Net.IPEndPoint)junk.LocalEndpoint).Port).Dispose(); }
+    catch (IOException) { refused = true; }
+    junkServer.Wait(3000);
+    junk.Stop();
+    Check(refused, "openrgb: a server that is not OpenRGB is an IOException, not a crash");
+    Check(DispCtrl.Linux.Lighting.LightingControl.IsRecoverable(new IndexOutOfRangeException()) && !DispCtrl.Linux.Lighting.LightingControl.IsRecoverable(new OutOfMemoryException()),
+        "lighting: any failure but memory exhaustion is reported and carried on from");
+    var devRoot = Path.Combine(scratch, "dev");
+    Directory.CreateDirectory(devRoot);
+    var node = Path.Combine(devRoot, "hidraw1");
+    File.WriteAllText(node, "");
+    File.SetLastWriteTimeUtc(node, new DateTime(2026, 1, 1, 5, 0, 0, DateTimeKind.Utc));
+    var started = new DateTime(2026, 1, 1, 6, 0, 0, DateTimeKind.Utc);
+    Check(!DispCtrl.Linux.Lighting.OpenRgbSetup.IsStale(started, devRoot), "openrgb: a server newer than its device nodes is not stale");
+    File.SetLastWriteTimeUtc(node, started.AddMinutes(1));
+    Check(DispCtrl.Linux.Lighting.OpenRgbSetup.IsStale(started, devRoot), "openrgb: a server older than a recreated device node is stale (it writes to nodes that are gone)");
+    Check(!DispCtrl.Linux.Lighting.OpenRgbSetup.IsStale(started, Path.Combine(scratch, "no-such-dev")), "openrgb: an unreadable device folder is not taken as stale");
+    bool truncated = false;
+    try { DispCtrl.Linux.Lighting.OpenRgb.Parse(0, blob.ToArray().AsSpan(0, 40), 3); }
+    catch (Exception ex) when (ex is ArgumentException) { truncated = true; }
+    Check(truncated, "openrgb: a cut-off device description fails in a way Device() turns into an IOException");
 }
 
 void KeyboardLayoutChecks()

@@ -140,10 +140,59 @@ public static class OpenRgbSetup
     public static bool Answers(LightingSettings s)
     {
         try { using var rgb = OpenRgb.Connect(s.Host, s.Port); return true; }
-        catch (Exception ex) when (ex is System.Net.Sockets.SocketException or IOException or AggregateException) { return false; }
+        catch (Exception ex) when (LightingControl.IsRecoverable(ex)) { return false; }
     }
 
     public sealed record Outcome(bool Ok, string Message);
+
+    /// <summary>Whether a USB device node was made after OpenRGB started.</summary>
+    /// <remarks>
+    /// OpenRGB opens each keyboard's /dev/hidraw node once, when it scans. When
+    /// the keyboard re-enumerates (a hub reset, a suspend, a cable) the kernel
+    /// makes new nodes, and the server keeps writing to the old ones: it still
+    /// answers, accepts every colour and the keyboard does nothing. Seen on the
+    /// reference desk: a server a day old, nodes recreated at 05:18.
+    /// </remarks>
+    public static bool IsStale(DateTime serverStartedUtc, string devRoot = "/dev")
+    {
+        try
+        {
+            foreach (var node in Directory.EnumerateFiles(devRoot, "hidraw*"))
+                if (File.GetLastWriteTimeUtc(node) > serverStartedUtc.AddSeconds(5)) return true;
+        }
+        catch (Exception ex) when (LightingControl.IsRecoverable(ex)) { }
+        return false;
+    }
+
+    /// <summary>Restarts a headless OpenRGB server that <see cref="IsStale"/>, so
+    /// the next command reaches the keyboard. Only a server this user runs with
+    /// no window (<c>--server</c>, no <c>--gui</c>) is touched, so someone
+    /// working in OpenRGB's own window is never interrupted.</summary>
+    public static bool RestartIfStale(LightingSettings s)
+    {
+        if (!s.AutoStart || !IsLocal(s.Host) || SnapLimit() is not null || Find() is null) return false;
+        try
+        {
+            foreach (var process in Process.GetProcessesByName("OpenRGB"))
+            {
+                using (process)
+                {
+                    string cmd = File.ReadAllText($"/proc/{process.Id}/cmdline").Replace('\0', ' ');
+                    if (!cmd.Contains("--server", StringComparison.Ordinal) || cmd.Contains("--gui", StringComparison.Ordinal)) continue;
+                    if (!IsStale(process.StartTime.ToUniversalTime())) continue;
+                    Diagnostics.AppLog.Warn("openrgb", $"the server (pid {process.Id}) predates its keyboards' device nodes; restarting it");
+                    Shell.Run("kill", [process.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)]);
+                    if (!process.WaitForExit(5000)) { Shell.Run("kill", ["-KILL", process.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)]); process.WaitForExit(2000); }
+                    return Start(s, null).Ok;
+                }
+            }
+        }
+        catch (Exception ex) when (LightingControl.IsRecoverable(ex))
+        {
+            Diagnostics.AppLog.Warn("openrgb", $"stale-server check failed: {ex.Message}");
+        }
+        return false;
+    }
 
     private static DateTime _lastAutoAttempt = DateTime.MinValue;
 
@@ -205,7 +254,7 @@ public static class OpenRgbSetup
         for (int i = 0; i < 16; i++)
         {
             try { using var rgb = OpenRgb.Connect(s.Host, s.Port); if (rgb.Devices().Count > 0) return; }
-            catch (Exception ex) when (ex is System.Net.Sockets.SocketException or IOException or AggregateException) { }
+            catch (Exception ex) when (LightingControl.IsRecoverable(ex)) { }
             Thread.Sleep(500);
         }
     }

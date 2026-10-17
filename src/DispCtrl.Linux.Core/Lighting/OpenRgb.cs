@@ -88,7 +88,14 @@ public sealed class OpenRgb : IDisposable
             throw new SocketException((int)SocketError.TimedOut);
         }
         var client = new OpenRgb(tcp);
-        client.Handshake();
+        try { client.Handshake(); }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // A listener that is not OpenRGB, or one that stops mid-handshake,
+            // must not leave the socket open or surface as a crash.
+            client.Dispose();
+            throw ex is IOException or SocketException ? ex : new IOException($"the server on that port did not speak OpenRGB's protocol: {ex.Message}", ex);
+        }
         return client;
     }
 
@@ -145,7 +152,13 @@ public sealed class OpenRgb : IDisposable
     public RgbDevice Device(int index)
     {
         Send((uint)index, RequestControllerData, _protocol > 0 ? U32(_protocol) : []);
-        var device = Parse(index, Receive(RequestControllerData), _protocol);
+        var data = Receive(RequestControllerData);
+        RgbDevice device;
+        try { device = Parse(index, data, _protocol); }
+        catch (Exception ex) when (ex is ArgumentException or IndexOutOfRangeException or OverflowException or InvalidOperationException)
+        {
+            throw new UnreadableDevice(index, ex);
+        }
         var order = OrderFor(device.Name);
         return order == "RGB" || device.Colours is null ? device : device with { Colours = device.Colours.Select(c => Logical(order, c)).ToList() };
     }
@@ -153,11 +166,17 @@ public sealed class OpenRgb : IDisposable
     public IReadOnlyList<RgbDevice> Devices()
     {
         Send(0, RequestControllerCount, []);
-        int count = (int)BinaryPrimitives.ReadUInt32LittleEndian(Receive(RequestControllerCount));
+        var reply = Receive(RequestControllerCount);
+        if (reply.Length < 4) throw new IOException("OpenRGB answered the device count with too little");
+        uint count = BinaryPrimitives.ReadUInt32LittleEndian(reply);
+        if (count > 1024) throw new IOException($"OpenRGB reported {count} devices, which is not credible");
         var devices = new List<RgbDevice>();
         for (int i = 0; i < count; i++)
         {
-            devices.Add(Device(i));
+            // One device DispCtrl cannot read (a newer description than it
+            // knows) is left out; the others stay usable.
+            try { devices.Add(Device(i)); }
+            catch (UnreadableDevice ex) { Diagnostics.AppLog.Warn("openrgb", ex.Message); }
         }
         return devices;
     }
@@ -404,6 +423,11 @@ public sealed class OpenRgb : IDisposable
             return text;
         }
     }
+
+    /// <summary>A device description that did not parse; an <see cref="IOException"/>
+    /// so everything that already handles a failed exchange handles this.</summary>
+    private sealed class UnreadableDevice(int index, Exception inner)
+        : IOException($"device {index + 1} sent a description DispCtrl cannot read ({inner.GetType().Name}: {inner.Message})", inner);
 
     public void Dispose()
     {
